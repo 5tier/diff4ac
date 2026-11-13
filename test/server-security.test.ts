@@ -128,6 +128,51 @@ describe("HTTP server security", () => {
     expect(missing.status).toBe(400);
   });
 
+  test("wires the API to the branch list and a branch Change Set", async () => {
+    const repo = fixture();
+    repo.git(["checkout", "-q", "-b", "feature"]);
+    repo.write("feature.txt", "feature\n");
+    repo.commit("feature work");
+    const running = await serverFor(repo);
+
+    const listResponse = await httpGet(
+      running.port,
+      `/api/branches?token=${encodeURIComponent(running.token)}`,
+    );
+    expect(listResponse.status).toBe(200);
+    const list = JSON.parse(listResponse.body) as {
+      baseBranch: { name: string; ref: string };
+      branches: { name: string; current: boolean }[];
+    };
+    expect(list.baseBranch).toEqual({ name: "main", ref: "main" });
+    expect(list.branches.map((branch) => branch.name)).toEqual([
+      "feature",
+      "main",
+    ]);
+    expect(
+      list.branches.find((branch) => branch.name === "feature")?.current,
+    ).toBe(true);
+
+    const branchResponse = await httpGet(
+      running.port,
+      `/api/branch?name=feature&token=${encodeURIComponent(running.token)}`,
+    );
+    expect(branchResponse.status).toBe(200);
+    const changeSet = JSON.parse(branchResponse.body) as {
+      selection: { kind: string; branch: { name: string } };
+      files: { path: string }[];
+    };
+    expect(changeSet.selection.kind).toBe("branch");
+    expect(changeSet.selection.branch.name).toBe("feature");
+    expect(changeSet.files.map((file) => file.path)).toContain("feature.txt");
+
+    const missing = await httpGet(
+      running.port,
+      `/api/branch?name=nope&token=${encodeURIComponent(running.token)}`,
+    );
+    expect(missing.status).toBe(404);
+  });
+
   test("requires the per-session token", async () => {
     const repo = fixture();
     const running = await serverFor(repo);

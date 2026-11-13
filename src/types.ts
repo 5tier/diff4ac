@@ -67,9 +67,32 @@ export interface CommitList {
   readonly commits: readonly CommitSummary[];
 }
 
+export interface BranchSummary {
+  readonly name: string;
+  readonly hash: string;
+  readonly shortHash: string;
+  readonly current: boolean;
+}
+
+export interface BaseBranch {
+  readonly name: string;
+  readonly ref: string;
+}
+
+export interface BranchList {
+  readonly worktree: WorktreeInfo;
+  readonly baseBranch: BaseBranch | null;
+  readonly branches: readonly BranchSummary[];
+}
+
 export type Selection =
   | { readonly kind: "pending" }
-  | { readonly kind: "commit"; readonly commit: CommitSummary };
+  | { readonly kind: "commit"; readonly commit: CommitSummary }
+  | {
+      readonly kind: "branch";
+      readonly branch: BranchSummary;
+      readonly baseBranch: BaseBranch;
+    };
 
 export interface ChangeSet {
   readonly selection: Selection;

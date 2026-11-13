@@ -4,10 +4,10 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Branches panel lists local branches, marking the current one
-- [ ] Selecting a branch shows the Change Set from merge-base(Base Branch, branch) to the branch tip
-- [ ] Base Branch is detected from `origin/HEAD`, otherwise `main`, otherwise `master`; the status bar shows it
-- [ ] Selecting the Base Branch itself gives a sensible empty state
-- [ ] Fixture tests cover a diverged branch (where the Base Branch moved after the fork) and confirm Base Branch changes are excluded
+- [x] Branches panel lists local branches, marking the current one
+- [x] Selecting a branch shows the Change Set from merge-base(Base Branch, branch) to the branch tip
+- [x] Base Branch is detected from `origin/HEAD`, otherwise `main`, otherwise `master`; the status bar shows it
+- [x] Selecting the Base Branch itself gives a sensible empty state
+- [x] Fixture tests cover a diverged branch (where the Base Branch moved after the fork) and confirm Base Branch changes are excluded
