@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { resolve, sep } from "node:path";
 import type { GitGateway } from "../git/gateway";
 import type {
   ChangeFile,
@@ -249,9 +252,83 @@ export function parseHunks(diff: string): Hunk[] {
   return hunks;
 }
 
-export async function emptyTreeRef(git: GitGateway): Promise<string> {
+export type ObjectFormat = "sha1" | "sha256";
+
+export async function objectFormat(git: GitGateway): Promise<ObjectFormat> {
   const format = (await git.text(["rev-parse", "--show-object-format"])).trim();
-  return format === "sha256" ? SHA256_EMPTY_TREE : SHA1_EMPTY_TREE;
+  return format === "sha256" ? "sha256" : "sha1";
+}
+
+export async function emptyTreeRef(git: GitGateway): Promise<string> {
+  return (await objectFormat(git)) === "sha256"
+    ? SHA256_EMPTY_TREE
+    : SHA1_EMPTY_TREE;
+}
+
+function gitBlobHash(content: Buffer, format: ObjectFormat): string {
+  return createHash(format)
+    .update(`blob ${content.byteLength}\0`)
+    .update(content)
+    .digest("hex");
+}
+
+function diffContentHash(diff: string): string {
+  return `diff:${createHash("sha256").update(diff).digest("hex")}`;
+}
+
+async function blobHashAt(
+  git: GitGateway,
+  rev: string,
+  path: string,
+): Promise<string | null> {
+  const result = await git.run(
+    ["rev-parse", "--verify", "--quiet", `${rev}:${path}`],
+    { allowExitCodes: [0, 1] },
+  );
+  if (result.exitCode !== 0) {
+    return null;
+  }
+
+  const hash = result.stdout.toString("utf8").trim();
+  return hash || null;
+}
+
+function worktreeFilePath(git: GitGateway, path: string): string | null {
+  const root = resolve(git.worktreeRoot);
+  const full = resolve(root, path);
+  if (full !== root && !full.startsWith(`${root}${sep}`)) {
+    return null;
+  }
+  return full;
+}
+
+async function reviewContentHash(
+  git: GitGateway,
+  range: DiffRange,
+  record: FileStatusRecord,
+  diff: string,
+  format: ObjectFormat,
+): Promise<string> {
+  if (record.status === "deleted") {
+    const oldHash = await blobHashAt(git, range.baseRef, record.path);
+    return oldHash ? `deleted:${oldHash}` : `deleted:${diffContentHash(diff)}`;
+  }
+
+  if (range.targetRef) {
+    const newHash = await blobHashAt(git, range.targetRef, record.path);
+    return newHash ?? diffContentHash(diff);
+  }
+
+  const filePath = worktreeFilePath(git, record.path);
+  if (filePath) {
+    try {
+      return gitBlobHash(readFileSync(filePath), format);
+    } catch {
+      return diffContentHash(diff);
+    }
+  }
+
+  return diffContentHash(diff);
 }
 
 function rangeArgs(range: DiffRange): string[] {
@@ -322,6 +399,7 @@ export async function buildChangeFiles(
     "--find-renames",
   ]);
   const numstat = parseNumstat(stdout.toString("utf8"));
+  const format = await objectFormat(git);
 
   const files: ChangeFile[] = [];
   for (const record of records) {
@@ -339,6 +417,7 @@ export async function buildChangeFiles(
       binary,
       diff,
       hunks: binary ? [] : parseHunks(diff),
+      contentHash: await reviewContentHash(git, range, record, diff, format),
     });
   }
 

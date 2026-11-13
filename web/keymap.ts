@@ -24,6 +24,7 @@ export type KeyAction =
   | { readonly type: "toggle-pick" }
   | { readonly type: "range-pick" }
   | { readonly type: "toggle-mode" }
+  | { readonly type: "toggle-mark" }
   | { readonly type: "scroll"; readonly direction: 1 | -1 }
   | { readonly type: "help" }
   | { readonly type: "close-help" };
@@ -127,6 +128,12 @@ export const KEYMAP: readonly KeyBinding[] = [
     action: { type: "select" },
   },
   {
+    panel: "files",
+    key: "m",
+    label: "Toggle Review Mark",
+    action: { type: "toggle-mark" },
+  },
+  {
     panel: "diff",
     key: "j",
     label: "Scroll diff down",
@@ -137,6 +144,12 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "k",
     label: "Scroll diff up",
     action: { type: "scroll", direction: -1 },
+  },
+  {
+    panel: "diff",
+    key: "m",
+    label: "Toggle Review Mark",
+    action: { type: "toggle-mark" },
   },
   {
     panel: "global",

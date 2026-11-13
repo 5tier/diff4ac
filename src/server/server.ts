@@ -13,12 +13,20 @@ import {
   UnknownBranchError,
 } from "../repository/branches";
 import { listCommits } from "../repository/commits";
+import { repositoryIdentity } from "../repository/identity";
 import {
   listWorktrees,
   openWorktree,
   UnknownWorktreeError,
 } from "../repository/worktrees";
-import type { SessionInfo } from "../types";
+import {
+  annotateChangeSet,
+  defaultReviewMarkDirectory,
+  isValidContentHash,
+  isValidReviewPath,
+  ReviewMarkStore,
+} from "../review/marks";
+import type { ChangeSet, SessionInfo } from "../types";
 import { VERSION } from "../version";
 import {
   generateToken,
@@ -57,11 +65,18 @@ function text(message: string, status: number): Response {
   });
 }
 
+function reviewJson(changeSet: ChangeSet, context: RequestContext): Response {
+  return json(
+    annotateChangeSet(changeSet, context.reviewMarks, context.repositoryId),
+  );
+}
+
 export interface StartServerOptions {
   readonly repoPath: string;
   readonly port?: number;
   readonly token?: string;
   readonly webDir?: string;
+  readonly stateDir?: string;
 }
 
 export interface RunningServer {
@@ -77,6 +92,8 @@ interface RequestContext {
   readonly token: string;
   readonly port: number;
   readonly webDir: string;
+  readonly repositoryId: string;
+  readonly reviewMarks: ReviewMarkStore;
 }
 
 function serveIndex(context: RequestContext, method: string): Response {
@@ -142,8 +159,56 @@ async function handleRequest(
     return text("Unauthorized: missing or invalid session token", 401);
   }
 
-  if (request.method !== "GET" && request.method !== "HEAD") {
+  const isReviewMarkWrite =
+    request.method === "POST" && url.pathname === "/api/review-mark";
+  if (
+    request.method !== "GET" &&
+    request.method !== "HEAD" &&
+    !isReviewMarkWrite
+  ) {
     return text("Method not allowed", 405);
+  }
+
+  if (url.pathname === "/api/review-mark") {
+    if (request.method !== "POST") {
+      return text("Method not allowed", 405);
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return text("Bad request: a JSON body is required", 400);
+    }
+
+    const record =
+      body && typeof body === "object"
+        ? (body as Record<string, unknown>)
+        : {};
+    const path = record.path;
+    const contentHash = record.contentHash;
+    const reviewed = record.reviewed;
+
+    if (
+      typeof path !== "string" ||
+      !isValidReviewPath(path) ||
+      typeof contentHash !== "string" ||
+      !isValidContentHash(contentHash) ||
+      typeof reviewed !== "boolean"
+    ) {
+      return text(
+        "Bad request: path, contentHash and reviewed are required",
+        400,
+      );
+    }
+
+    context.reviewMarks.setMarked(
+      context.repositoryId,
+      path,
+      contentHash,
+      reviewed,
+    );
+    return json({ path, contentHash, reviewed });
   }
 
   if (url.pathname === "/api/session") {
@@ -177,7 +242,7 @@ async function handleRequest(
       const git = worktreePath
         ? await openWorktree(context.git, worktreePath)
         : context.git;
-      return json(await buildPendingChangeSet(git));
+      return reviewJson(await buildPendingChangeSet(git), context);
     } catch (error) {
       if (error instanceof UnknownWorktreeError) {
         return text(error.message, 404);
@@ -211,7 +276,7 @@ async function handleRequest(
     }
 
     try {
-      return json(await buildBranchChangeSet(context.git, name));
+      return reviewJson(await buildBranchChangeSet(context.git, name), context);
     } catch (error) {
       if (error instanceof UnknownBranchError) {
         return text(error.message, 404);
@@ -245,7 +310,7 @@ async function handleRequest(
     }
 
     try {
-      return json(await buildCommitChangeSet(context.git, hash));
+      return reviewJson(await buildCommitChangeSet(context.git, hash), context);
     } catch (error) {
       return json(
         {
@@ -274,7 +339,10 @@ async function handleRequest(
     }
 
     try {
-      return json(await buildCommitsChangeSet(context.git, hashes, mode));
+      return reviewJson(
+        await buildCommitsChangeSet(context.git, hashes, mode),
+        context,
+      );
     } catch (error) {
       if (error instanceof NonContiguousNetDiffError) {
         return text(error.message, 400);
@@ -306,6 +374,10 @@ export async function startServer(
   const token = options.token ?? generateToken();
   const webDir = options.webDir ?? DEFAULT_WEB_DIR;
   const requestedPort = options.port ?? 0;
+  const repositoryId = await repositoryIdentity(git);
+  const reviewMarks = new ReviewMarkStore(
+    options.stateDir ?? defaultReviewMarkDirectory(),
+  );
 
   let server: Bun.Server<unknown>;
   server = Bun.serve({
@@ -317,6 +389,8 @@ export async function startServer(
         token,
         port: server.port ?? requestedPort,
         webDir,
+        repositoryId,
+        reviewMarks,
       }),
   });
 

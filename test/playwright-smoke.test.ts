@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
 import { startServer, type RunningServer } from "../src/server/server";
@@ -15,6 +17,7 @@ let linkedWorktree: FixtureCheckout;
 let running: RunningServer;
 let browser: Browser;
 let page: Page;
+let stateDir: string;
 
 async function launchChromium(): Promise<Browser> {
   const attempts: Array<() => Promise<Browser>> = [
@@ -82,7 +85,8 @@ beforeAll(async () => {
   linkedWorktree = repo.addWorktree("agent", { branch: "agent-work" });
   linkedWorktree.write("src/linked.ts", "linked pending\n");
 
-  running = await startServer({ repoPath: repo.root });
+  stateDir = mkdtempSync(join(tmpdir(), "diff4ac-playwright-state-"));
+  running = await startServer({ repoPath: repo.root, stateDir });
   browser = await launchChromium();
   page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   await page.goto(running.url);
@@ -93,6 +97,9 @@ afterAll(async () => {
   await browser?.close();
   running?.stop();
   repo?.dispose();
+  if (stateDir) {
+    rmSync(stateDir, { recursive: true, force: true });
+  }
 });
 
 test(
@@ -368,6 +375,63 @@ test(
     await page.waitForFunction(
       () => document.querySelector(".status-mode")?.textContent === "Net Diff",
     );
+  },
+  30_000,
+);
+
+test(
+  "toggles and persists Review Marks with m",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".file-row");
+    await page.keyboard.press("4");
+
+    await page.keyboard.press("?");
+    const help = page.locator('[data-testid="help-overlay"]');
+    await help.waitFor();
+    expect(await help.textContent()).toContain("Toggle Review Mark");
+    await page.keyboard.press("Escape");
+    await help.waitFor({ state: "detached" });
+
+    expect(await page.locator(".file-row-reviewed").count()).toBe(0);
+
+    const firstMark = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/review-mark") &&
+        response.request().method() === "POST",
+    );
+    await page.keyboard.press("m");
+    await firstMark;
+    await page.waitForFunction(
+      () => document.querySelectorAll(".file-row-reviewed").length === 1,
+    );
+    expect(
+      await page.locator(".review-progress").textContent(),
+    ).toContain("1/2 reviewed");
+
+    await page.reload();
+    await page.waitForSelector(".file-row");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".file-row-reviewed").length === 1,
+    );
+    expect(
+      await page.locator(".review-progress").textContent(),
+    ).toContain("1/2 reviewed");
+
+    await page.keyboard.press("4");
+    const unmark = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/review-mark") &&
+        response.request().method() === "POST",
+    );
+    await page.keyboard.press("m");
+    await unmark;
+    await page.waitForFunction(
+      () => document.querySelectorAll(".file-row-reviewed").length === 0,
+    );
+    expect(
+      await page.locator(".review-progress").textContent(),
+    ).toContain("0/2 reviewed");
   },
   30_000,
 );
