@@ -101,6 +101,15 @@ export interface BranchList {
 
 export type ChangeViewMode = "net" | "stack";
 
+export type TimeWindowPreset = "today" | "yesterday" | "last-24h" | "custom";
+
+export interface TimeWindow {
+  readonly preset: TimeWindowPreset;
+  readonly start: string;
+  readonly end: string;
+  readonly label: string;
+}
+
 export interface CommitChangeGroup {
   readonly commit: CommitSummary;
   readonly files: readonly ChangeFile[];
@@ -112,6 +121,13 @@ export type Selection =
   | { readonly kind: "commit"; readonly commit: CommitSummary }
   | {
       readonly kind: "commits";
+      readonly commits: readonly CommitSummary[];
+      readonly mode: ChangeViewMode;
+      readonly contiguous: boolean;
+    }
+  | {
+      readonly kind: "time-window";
+      readonly window: TimeWindow;
       readonly commits: readonly CommitSummary[];
       readonly mode: ChangeViewMode;
       readonly contiguous: boolean;

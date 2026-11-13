@@ -76,10 +76,15 @@ beforeAll(async () => {
   repo.write("src/beta.ts", "beta three\n");
   repo.commit("third commit");
 
+  linkedWorktree = repo.addWorktree("agent", { branch: "agent-work" });
+  linkedWorktree.write("src/linked.ts", "linked history\n");
+  linkedWorktree.commit("linked history");
+
+  repo.write("src/main-only.ts", "main only\n");
+  repo.commit("main after linked");
+
   repo.write("src/alpha.ts", `${longFile}changed again\n`);
   repo.write("src/gamma.ts", "pending gamma\n");
-
-  linkedWorktree = repo.addWorktree("agent", { branch: "agent-work" });
   linkedWorktree.write("src/linked.ts", "linked pending\n");
 
   running = await startServer({ repoPath: repo.root });
@@ -168,6 +173,20 @@ test(
     expect(await page.locator(".file-row .file-path").textContent()).toContain(
       "src/linked.ts",
     );
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-panel="commits"]')
+        ?.textContent?.includes("linked history"),
+    );
+    expect(
+      await page.locator('[data-panel="commits"]').textContent(),
+    ).not.toContain("main after linked");
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-branch-name="agent-work"]')
+          ?.getAttribute("data-current") === "true",
+    );
 
     await page.keyboard.press("k");
     expect(
@@ -179,6 +198,17 @@ test(
         document.querySelector(".top-bar-path")?.textContent === mainPath &&
         document.querySelectorAll(".file-row").length === 2,
       repo.root,
+    );
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-panel="commits"]')
+        ?.textContent?.includes("main after linked"),
+    );
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-branch-name="main"]')
+          ?.getAttribute("data-current") === "true",
     );
 
     await page.keyboard.press("4");
@@ -211,6 +241,46 @@ test(
     await page.keyboard.press("Tab");
     expect(await focusedPanel()).toBe("commits");
 
+    await page.keyboard.press("w");
+    const timeWindowDialog = page.locator('[data-testid="time-window-dialog"]');
+    await timeWindowDialog.waitFor();
+    expect(await timeWindowDialog.getAttribute("data-mode")).toBe("list");
+    await page.keyboard.press("Enter");
+    await timeWindowDialog.waitFor({ state: "detached" });
+    await page.waitForFunction(() =>
+      document.querySelector(".top-bar-mode")?.textContent?.includes(
+        "Time Window",
+      ),
+    );
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-panel="files"]')
+        ?.textContent?.includes("No commits landed in this Time Window."),
+    );
+
+    await page.keyboard.press("w");
+    await timeWindowDialog.waitFor();
+    await page.keyboard.press("j");
+    await page.keyboard.press("j");
+    await page.keyboard.press("j");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-testid="time-window-dialog"]')
+          ?.getAttribute("data-mode") === "custom",
+    );
+    const dateInputs = page.locator(".time-window-field input");
+    await dateInputs.nth(0).fill("2024-01-01");
+    await dateInputs.nth(1).fill("2024-01-03");
+    await page.keyboard.press("Enter");
+    await timeWindowDialog.waitFor({ state: "detached" });
+    await page.waitForFunction(() =>
+      document.querySelector(".status-selection")?.textContent?.includes(
+        "2024-01-01",
+      ),
+    );
+
     const firstCursorHash = await page
       .locator(".commit-row-cursor .commit-hash")
       .textContent();
@@ -227,6 +297,7 @@ test(
 
     await page.keyboard.press("j");
     await page.keyboard.press("j");
+    await page.keyboard.press("j");
     await page.keyboard.press("Enter");
     await page.waitForFunction(() =>
       document.querySelector(".top-bar-mode")?.textContent?.startsWith("Commit"),
@@ -241,6 +312,7 @@ test(
     expect(await help.textContent()).toContain("Select commit");
     expect(await help.textContent()).toContain("Pick or unpick commit");
     expect(await help.textContent()).toContain("Toggle Net Diff / Commit Stack");
+    expect(await help.textContent()).toContain("Choose a Time Window");
     expect(await help.textContent()).toContain("Focus Files");
     await page.keyboard.press("Escape");
     await help.waitFor({ state: "detached" });
@@ -326,7 +398,7 @@ test(
     const headers = await page
       .locator(".commit-stack-heading .commit-stack-message")
       .allTextContents();
-    expect(headers).toEqual(["second commit", "third commit"]);
+    expect(headers).toEqual(["third commit", "main after linked"]);
 
     await page.keyboard.press("t");
     await page.waitForFunction(

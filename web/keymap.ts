@@ -24,12 +24,16 @@ export type KeyAction =
   | { readonly type: "toggle-pick" }
   | { readonly type: "range-pick" }
   | { readonly type: "toggle-mode" }
+  | { readonly type: "time-windows" }
+  | { readonly type: "time-window-close" }
   | { readonly type: "scroll"; readonly direction: 1 | -1 }
   | { readonly type: "help" }
   | { readonly type: "close-help" };
 
+export type KeyScope = PanelId | "global" | "time-window";
+
 export interface KeyBinding {
-  readonly panel: PanelId | "global";
+  readonly panel: KeyScope;
   readonly key: string;
   readonly label: string;
   readonly action: KeyAction;
@@ -107,6 +111,36 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "t",
     label: "Toggle Net Diff / Commit Stack",
     action: { type: "toggle-mode" },
+  },
+  {
+    panel: "commits",
+    key: "w",
+    label: "Choose a Time Window",
+    action: { type: "time-windows" },
+  },
+  {
+    panel: "time-window",
+    key: "j",
+    label: "Move down",
+    action: { type: "move", direction: 1 },
+  },
+  {
+    panel: "time-window",
+    key: "k",
+    label: "Move up",
+    action: { type: "move", direction: -1 },
+  },
+  {
+    panel: "time-window",
+    key: "Enter",
+    label: "Choose Time Window",
+    action: { type: "select" },
+  },
+  {
+    panel: "time-window",
+    key: "Escape",
+    label: "Close Time Windows",
+    action: { type: "time-window-close" },
   },
   {
     panel: "files",
@@ -197,6 +231,14 @@ export function bindingFor(
     KEYMAP.find(
       (binding) => binding.panel === "global" && binding.key === key,
     )
+  );
+}
+
+export function bindingForTimeWindow(
+  key: string,
+): KeyBinding | undefined {
+  return KEYMAP.find(
+    (binding) => binding.panel === "time-window" && binding.key === key,
   );
 }
 

@@ -1,10 +1,17 @@
 import type { GitGateway } from "../git/gateway";
-import { firstParent, listCommits } from "../repository/commits";
+import {
+  firstParent,
+  listCommits,
+  listCommitsInWindow,
+} from "../repository/commits";
 import type {
   ChangeSet,
   ChangeViewMode,
   CommitChangeGroup,
   CommitSummary,
+  Selection,
+  TimeWindow,
+  WorktreeInfo,
 } from "../types";
 import { buildCommitFiles } from "./commit";
 import {
@@ -19,6 +26,51 @@ export class NonContiguousNetDiffError extends Error {
     super("Net Diff is not available for a non-contiguous commit Selection");
     this.name = "NonContiguousNetDiffError";
   }
+}
+
+async function buildSelectedCommitsChangeSet(
+  git: GitGateway,
+  worktree: WorktreeInfo,
+  selected: readonly CommitSummary[],
+  mode: ChangeViewMode,
+  selection: Selection,
+): Promise<ChangeSet> {
+  if (mode === "net") {
+    const newest = selected[0];
+    const oldest = selected.at(-1);
+    if (!newest || !oldest) {
+      throw new Error("commit Selection is empty");
+    }
+
+    const parent = await firstParent(git, oldest.hash);
+    const baseRef = parent ?? (await emptyTreeRef(git));
+    const files = await buildChangeFilesForRange(git, {
+      baseRef,
+      targetRef: newest.hash,
+    });
+
+    return {
+      selection,
+      worktree,
+      files,
+      totals: changeSetTotals(files),
+    };
+  }
+
+  const commitGroups: CommitChangeGroup[] = [];
+  for (const commit of [...selected].reverse()) {
+    const { files, totals } = await buildCommitFiles(git, commit);
+    commitGroups.push({ commit, files, totals });
+  }
+
+  const files = commitGroups.flatMap((group) => group.files);
+  return {
+    selection,
+    worktree,
+    files,
+    totals: changeSetTotals(files),
+    commitGroups,
+  };
 }
 
 export async function buildCommitsChangeSet(
@@ -58,47 +110,60 @@ export async function buildCommitsChangeSet(
     throw new NonContiguousNetDiffError();
   }
 
-  const selection = {
-    kind: "commits" as const,
+  const selection: Selection = {
+    kind: "commits",
     commits: selected,
     mode,
     contiguous,
   };
 
-  if (mode === "net") {
-    const newest = selected[0];
-    const oldest = selected.at(-1);
-    if (!newest || !oldest) {
-      throw new Error("commit Selection is empty");
-    }
+  return buildSelectedCommitsChangeSet(
+    git,
+    list.worktree,
+    selected,
+    mode,
+    selection,
+  );
+}
 
-    const parent = await firstParent(git, oldest.hash);
-    const baseRef = parent ?? (await emptyTreeRef(git));
-    const files = await buildChangeFilesForRange(git, {
-      baseRef,
-      targetRef: newest.hash,
-    });
+export async function buildTimeWindowChangeSet(
+  git: GitGateway,
+  window: TimeWindow,
+  requestedMode: ChangeViewMode | "auto" = "auto",
+): Promise<ChangeSet> {
+  const list = await listCommitsInWindow(git, window);
+  const selected = list.commits;
+  const contiguous = isContiguousCommitSelection(selected);
+  const mode =
+    requestedMode === "auto" || (requestedMode === "net" && !contiguous)
+      ? contiguous
+        ? "net"
+        : "stack"
+      : requestedMode;
 
+  const selection: Selection = {
+    kind: "time-window",
+    window,
+    commits: selected,
+    mode,
+    contiguous,
+  };
+
+  if (selected.length === 0) {
     return {
       selection,
       worktree: list.worktree,
-      files,
-      totals: changeSetTotals(files),
+      files: [],
+      totals: changeSetTotals([]),
+      ...(mode === "stack" ? { commitGroups: [] } : {}),
     };
   }
 
-  const commitGroups: CommitChangeGroup[] = [];
-  for (const commit of [...selected].reverse()) {
-    const { files, totals } = await buildCommitFiles(git, commit);
-    commitGroups.push({ commit, files, totals });
-  }
-
-  const files = commitGroups.flatMap((group) => group.files);
-  return {
+  return buildSelectedCommitsChangeSet(
+    git,
+    list.worktree,
+    selected,
+    mode,
     selection,
-    worktree: list.worktree,
-    files,
-    totals: changeSetTotals(files),
-    commitGroups,
-  };
+  );
 }

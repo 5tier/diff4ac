@@ -19,6 +19,8 @@ export interface FixtureAuthor {
 export interface CommitOptions {
   readonly author?: FixtureAuthor;
   readonly date?: string;
+  readonly authorDate?: string;
+  readonly committerDate?: string;
   readonly addAll?: boolean;
   readonly trailers?: readonly string[];
 }
@@ -149,7 +151,10 @@ export function createFixtureRepo(): FixtureRepo {
           name: "Fixture Author",
           email: "fixture@example.com",
         };
-        const date = options.date ?? dateAt(commitIndex);
+        const committerDate =
+          options.committerDate ?? options.date ?? dateAt(commitIndex);
+        const authorDate =
+          options.authorDate ?? options.date ?? committerDate;
         const trailers = options.trailers ?? [];
         const body = trailers.length
           ? `${message}\n\n${trailers.join("\n")}`
@@ -160,8 +165,8 @@ export function createFixtureRepo(): FixtureRepo {
           GIT_AUTHOR_EMAIL: author.email,
           GIT_COMMITTER_NAME: author.name,
           GIT_COMMITTER_EMAIL: author.email,
-          GIT_AUTHOR_DATE: date,
-          GIT_COMMITTER_DATE: date,
+          GIT_AUTHOR_DATE: authorDate,
+          GIT_COMMITTER_DATE: committerDate,
         });
 
         return gitIn(checkoutRoot, ["rev-parse", "HEAD"]).trim();

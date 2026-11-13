@@ -10,10 +10,18 @@ import type {
   CommitSummary,
   FileStatus,
   Selection,
+  TimeWindow,
   WorktreeInfo,
   WorktreeSummary,
 } from "../src/types";
 import { isContiguousCommitSelection } from "../src/changeset/selection";
+import {
+  createCustomTimeWindow,
+  createPresetTimeWindow,
+  filterCommitsInTimeWindow,
+  localDateInputValue,
+  TIME_WINDOW_OPTIONS,
+} from "../src/time-windows";
 import {
   fetchBranch,
   fetchBranches,
@@ -21,11 +29,13 @@ import {
   fetchCommits,
   fetchCommitSet,
   fetchPending,
+  fetchTimeWindow,
   fetchWorktreePending,
   fetchWorktrees,
 } from "./api";
 import {
   bindingFor,
+  bindingForTimeWindow,
   bindingsForPanel,
   nextPanel,
   PANEL_LABELS,
@@ -246,6 +256,8 @@ function BranchRow({
           .join(" ")}
         onClick={onSelect}
         disabled={disabled}
+        data-branch-name={branch.name}
+        data-current={branch.current ? "true" : "false"}
         title={`${branch.name}${branch.current ? " (current)" : ""}\n${branch.hash}`}
       >
         <span className={branch.current ? "branch-current" : "branch-marker"}>
@@ -440,6 +452,119 @@ function HelpOverlay({
   );
 }
 
+interface TimeWindowDialogProps {
+  readonly cursor: number;
+  readonly mode: "list" | "custom";
+  readonly error: string | null;
+  readonly customStart: string;
+  readonly customEnd: string;
+  readonly onChooseOption: (index: number) => void;
+  readonly onCustomStartChange: (value: string) => void;
+  readonly onCustomEndChange: (value: string) => void;
+  readonly onApplyCustom: () => void;
+  readonly onBack: () => void;
+  readonly onClose: () => void;
+}
+
+function TimeWindowDialog({
+  cursor,
+  mode,
+  error,
+  customStart,
+  customEnd,
+  onChooseOption,
+  onCustomStartChange,
+  onCustomEndChange,
+  onApplyCustom,
+  onBack,
+  onClose,
+}: TimeWindowDialogProps) {
+  return (
+    <div
+      className="time-window-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Time Window"
+      data-testid="time-window-dialog"
+      data-mode={mode}
+      onClick={onClose}
+    >
+      <div
+        className="time-window-dialog"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="time-window-header">
+          <span>Time Window</span>
+          <button type="button" className="time-window-close" onClick={onClose}>
+            Close
+          </button>
+        </header>
+
+        {mode === "list" ? (
+          <ul className="time-window-options">
+            {TIME_WINDOW_OPTIONS.map((option, index) => (
+              <li key={option.preset}>
+                <button
+                  type="button"
+                  className={
+                    cursor === index
+                      ? "time-window-option time-window-option-cursor"
+                      : "time-window-option"
+                  }
+                  data-preset={option.preset}
+                  onClick={() => onChooseOption(index)}
+                >
+                  <span className="time-window-option-label">
+                    {option.label}
+                  </span>
+                  <span className="time-window-option-description">
+                    {option.description}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <form
+            className="time-window-custom"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onApplyCustom();
+            }}
+          >
+            <label className="time-window-field">
+              <span>Start</span>
+              <input
+                type="date"
+                value={customStart}
+                autoFocus
+                onChange={(event) =>
+                  onCustomStartChange(event.target.value)
+                }
+              />
+            </label>
+            <label className="time-window-field">
+              <span>End</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(event) => onCustomEndChange(event.target.value)}
+              />
+            </label>
+            {error ? <div className="time-window-error">{error}</div> : null}
+            <div className="time-window-actions">
+              <button type="button" onClick={onBack}>
+                Back
+              </button>
+              <button type="submit">Apply</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function selectionLabel(selection: Selection): string {
   switch (selection.kind) {
     case "pending":
@@ -448,6 +573,8 @@ function selectionLabel(selection: Selection): string {
       return `Commit ${selection.commit.shortHash} · ${selection.commit.message}`;
     case "commits":
       return `${selection.commits.length} commits · ${modeLabel(selection.mode)}`;
+    case "time-window":
+      return `Time Window · ${selection.window.label}`;
     case "branch":
       return `Branch ${selection.branch.name} since ${selection.baseBranch.name}`;
   }
@@ -461,6 +588,8 @@ function selectionBadge(selection: Selection): string {
       return `Commit ${selection.commit.shortHash}`;
     case "commits":
       return `Commits ${selection.commits.length}`;
+    case "time-window":
+      return "Time Window";
     case "branch":
       return `Branch ${selection.branch.name}`;
   }
@@ -471,7 +600,7 @@ function modeLabel(mode: ChangeViewMode): string {
 }
 
 function modeStatusLabel(selection: Selection): string | null {
-  if (selection.kind !== "commits") {
+  if (selection.kind !== "commits" && selection.kind !== "time-window") {
     return null;
   }
   return selection.contiguous
@@ -487,6 +616,10 @@ function emptyFilesMessage(selection: Selection): string {
       return "This commit has no file changes.";
     case "commits":
       return "These commits have no file changes.";
+    case "time-window":
+      return selection.commits.length === 0
+        ? "No commits landed in this Time Window."
+        : "This Time Window has no file changes.";
     case "branch":
       return selection.branch.name === selection.baseBranch.name
         ? "No changes: this is the Base Branch."
@@ -498,7 +631,7 @@ function selectionIncludesCommit(selection: Selection, hash: string): boolean {
   if (selection.kind === "commit") {
     return selection.commit.hash === hash;
   }
-  if (selection.kind === "commits") {
+  if (selection.kind === "commits" || selection.kind === "time-window") {
     return selection.commits.some((commit) => commit.hash === hash);
   }
   return false;
@@ -526,6 +659,38 @@ function selectionFromPicks(
   };
 }
 
+function selectionFromTimeWindow(
+  window: TimeWindow,
+  allCommits: readonly CommitSummary[],
+): Selection {
+  const commits = filterCommitsInTimeWindow(allCommits, window);
+  const contiguous = isContiguousCommitSelection(commits);
+  return {
+    kind: "time-window",
+    window,
+    commits,
+    mode: contiguous ? "net" : "stack",
+    contiguous,
+  };
+}
+
+function sameTimeWindowSelection(
+  left: Extract<Selection, { kind: "time-window" }>,
+  right: Extract<Selection, { kind: "time-window" }>,
+): boolean {
+  return (
+    left.window.preset === right.window.preset &&
+    left.window.start === right.window.start &&
+    left.window.end === right.window.end &&
+    left.mode === right.mode &&
+    left.contiguous === right.contiguous &&
+    left.commits.length === right.commits.length &&
+    left.commits.every(
+      (commit, index) => commit.hash === right.commits[index]?.hash,
+    )
+  );
+}
+
 export function App() {
   const [pending, setPending] = useState<ChangeSet | null>(null);
   const [worktrees, setWorktrees] = useState<readonly WorktreeSummary[]>([]);
@@ -547,6 +712,18 @@ export function App() {
 
   const [focusedPanel, setFocusedPanel] = useState<PanelId>("files");
   const [helpOpen, setHelpOpen] = useState(false);
+  const [timeWindowOpen, setTimeWindowOpen] = useState(false);
+  const [timeWindowDialogMode, setTimeWindowDialogMode] = useState<
+    "list" | "custom"
+  >("list");
+  const [timeWindowCursor, setTimeWindowCursor] = useState(0);
+  const [timeWindowError, setTimeWindowError] = useState<string | null>(null);
+  const [timeWindowStart, setTimeWindowStart] = useState(() =>
+    localDateInputValue(new Date()),
+  );
+  const [timeWindowEnd, setTimeWindowEnd] = useState(() =>
+    localDateInputValue(new Date()),
+  );
   const [worktreeCursor, setWorktreeCursor] = useState(0);
   const [branchCursor, setBranchCursor] = useState(0);
   const [commitCursor, setCommitCursor] = useState(0);
@@ -558,7 +735,7 @@ export function App() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetchCommits(controller.signal)
+    fetchCommits(controller.signal, selectedWorktreePath)
       .then((list) => {
         setCommits(list.commits);
         setWorktree(list.worktree);
@@ -572,7 +749,7 @@ export function App() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [selectedWorktreePath]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -597,7 +774,7 @@ export function App() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetchBranches(controller.signal)
+    fetchBranches(controller.signal, selectedWorktreePath)
       .then((list) => {
         setBranches(list.branches);
         setBaseBranch(list.baseBranch);
@@ -614,7 +791,7 @@ export function App() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [selectedWorktreePath]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -630,14 +807,30 @@ export function App() {
           ? fetchWorktreePending(selectedWorktreePath, controller.signal)
           : fetchPending(controller.signal)
         : selection.kind === "commit"
-          ? fetchCommit(selection.commit.hash, controller.signal)
+          ? fetchCommit(
+              selection.commit.hash,
+              controller.signal,
+              selectedWorktreePath,
+            )
           : selection.kind === "commits"
             ? fetchCommitSet(
                 selection.commits.map((commit) => commit.hash),
                 selection.mode,
                 controller.signal,
+                selectedWorktreePath,
               )
-            : fetchBranch(selection.branch.name, controller.signal);
+            : selection.kind === "time-window"
+              ? fetchTimeWindow(
+                  selection.window,
+                  selection.mode,
+                  controller.signal,
+                  selectedWorktreePath,
+                )
+              : fetchBranch(
+                  selection.branch.name,
+                  controller.signal,
+                  selectedWorktreePath,
+                );
 
     request
       .then((loaded) => {
@@ -645,6 +838,13 @@ export function App() {
         setWorktree(loaded.worktree);
         if (loaded.selection.kind === "pending") {
           setPending(loaded);
+        }
+        if (
+          loaded.selection.kind === "time-window" &&
+          selection.kind === "time-window" &&
+          !sameTimeWindowSelection(selection, loaded.selection)
+        ) {
+          setSelection(loaded.selection);
         }
         setSelectedPath(loaded.files[0]?.path ?? null);
         setFileCursor(0);
@@ -690,7 +890,8 @@ export function App() {
   }, [selectedWorktreePath, worktrees]);
   const commitGroups = changeSet?.commitGroups ?? [];
   const isStack =
-    changeSet?.selection.kind === "commits" &&
+    (changeSet?.selection.kind === "commits" ||
+      changeSet?.selection.kind === "time-window") &&
     changeSet.selection.mode === "stack";
   const stackFileIndex = stackFileIndices(commitGroups);
 
@@ -711,6 +912,80 @@ export function App() {
       Math.max(0, Math.min(cursor, files.length - 1)),
     );
   }, [files.length]);
+
+  const applyTimeWindow = useCallback(
+    (window: TimeWindow) => {
+      setPickedHashes([]);
+      setRangeAnchor(null);
+      setSelection(selectionFromTimeWindow(window, commits));
+      setTimeWindowOpen(false);
+      setTimeWindowError(null);
+    },
+    [commits],
+  );
+
+  const openTimeWindows = useCallback(() => {
+    const today = localDateInputValue(new Date());
+    setTimeWindowDialogMode("list");
+    setTimeWindowCursor(0);
+    setTimeWindowError(null);
+    setTimeWindowStart(today);
+    setTimeWindowEnd(today);
+    setTimeWindowOpen(true);
+  }, []);
+
+  const chooseTimeWindowOption = useCallback(
+    (index: number) => {
+      const option = TIME_WINDOW_OPTIONS[index];
+      if (!option) {
+        return;
+      }
+
+      if (option.preset === "custom") {
+        setTimeWindowDialogMode("custom");
+        setTimeWindowError(null);
+        return;
+      }
+
+      applyTimeWindow(createPresetTimeWindow(option.preset, new Date()));
+    },
+    [applyTimeWindow],
+  );
+
+  const applyCustomTimeWindow = useCallback(() => {
+    try {
+      applyTimeWindow(createCustomTimeWindow(timeWindowStart, timeWindowEnd));
+    } catch (error) {
+      setTimeWindowError(
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }, [applyTimeWindow, timeWindowEnd, timeWindowStart]);
+
+  const dispatchTimeWindow = useCallback(
+    (action: KeyAction) => {
+      switch (action.type) {
+        case "move":
+          setTimeWindowCursor((cursor) =>
+            Math.max(
+              0,
+              Math.min(
+                cursor + action.direction,
+                TIME_WINDOW_OPTIONS.length - 1,
+              ),
+            ),
+          );
+          break;
+        case "select":
+          chooseTimeWindowOption(timeWindowCursor);
+          break;
+        case "time-window-close":
+          setTimeWindowOpen(false);
+          break;
+      }
+    },
+    [chooseTimeWindowOption, timeWindowCursor],
+  );
 
   const dispatch = useCallback(
     (action: KeyAction) => {
@@ -825,7 +1100,11 @@ export function App() {
           break;
         }
         case "toggle-mode": {
-          if (selection.kind !== "commits" || !selection.contiguous) {
+          if (
+            (selection.kind !== "commits" &&
+              selection.kind !== "time-window") ||
+            !selection.contiguous
+          ) {
             break;
           }
           setSelection({
@@ -834,6 +1113,12 @@ export function App() {
           });
           break;
         }
+        case "time-windows":
+          openTimeWindows();
+          break;
+        case "time-window-close":
+          setTimeWindowOpen(false);
+          break;
         case "scroll":
           diffRef.current?.scrollBy({ top: action.direction * 96 });
           break;
@@ -860,6 +1145,7 @@ export function App() {
       pickedHashes,
       rangeAnchor,
       selection,
+      openTimeWindows,
     ],
   );
 
@@ -882,6 +1168,22 @@ export function App() {
         return;
       }
 
+      if (timeWindowOpen) {
+        const timeBinding = bindingForTimeWindow(event.key);
+        if (!timeBinding) {
+          return;
+        }
+        if (
+          timeWindowDialogMode === "custom" &&
+          timeBinding.action.type !== "time-window-close"
+        ) {
+          return;
+        }
+        event.preventDefault();
+        dispatchTimeWindow(timeBinding.action);
+        return;
+      }
+
       if (binding.action.type === "close-help") {
         return;
       }
@@ -892,7 +1194,14 @@ export function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, focusedPanel, helpOpen]);
+  }, [
+    dispatch,
+    dispatchTimeWindow,
+    focusedPanel,
+    helpOpen,
+    timeWindowDialogMode,
+    timeWindowOpen,
+  ]);
 
   return (
     <div className="app">
@@ -1002,9 +1311,11 @@ export function App() {
               <div className="placeholder">No commits on this branch yet.</div>
             ) : (
               <>
-                {selection.kind === "commits" && !selection.contiguous ? (
+                {(selection.kind === "commits" ||
+                  selection.kind === "time-window") &&
+                !selection.contiguous ? (
                   <div className="selection-note">
-                    Non-contiguous picks: Commit Stack only.
+                    Non-contiguous Selection: Commit Stack only.
                   </div>
                 ) : null}
                 <ul className="commit-list">
@@ -1130,6 +1441,8 @@ export function App() {
             <CommitStackView groups={commitGroups} />
           ) : selected ? (
             <DiffView file={selected} />
+          ) : !loading && !error && files.length === 0 ? (
+            <div className="diff-empty">{emptyFilesMessage(selection)}</div>
           ) : (
             <div className="diff-empty">
               {error
@@ -1144,7 +1457,7 @@ export function App() {
         <span className="status-badge" title={selectionLabel(selection)}>
           {selectionBadge(selection)}
         </span>
-        {selection.kind === "commits" ? (
+        {selection.kind === "commits" || selection.kind === "time-window" ? (
           <span className="status-mode" title={selectionLabel(selection)}>
             {modeStatusLabel(selection)}
           </span>
@@ -1152,6 +1465,14 @@ export function App() {
         {selection.kind === "commit" ? (
           <span className="status-selection" title={selection.commit.message}>
             {selection.commit.message}
+          </span>
+        ) : null}
+        {selection.kind === "time-window" ? (
+          <span
+            className="status-selection"
+            title={selectionLabel(selection)}
+          >
+            {selection.window.label}
           </span>
         ) : null}
         <span>{changeSet?.totals.files ?? 0} files</span>
@@ -1165,6 +1486,25 @@ export function App() {
 
       {helpOpen ? (
         <HelpOverlay panel={focusedPanel} onClose={() => setHelpOpen(false)} />
+      ) : null}
+
+      {timeWindowOpen ? (
+        <TimeWindowDialog
+          cursor={timeWindowCursor}
+          mode={timeWindowDialogMode}
+          error={timeWindowError}
+          customStart={timeWindowStart}
+          customEnd={timeWindowEnd}
+          onChooseOption={chooseTimeWindowOption}
+          onCustomStartChange={setTimeWindowStart}
+          onCustomEndChange={setTimeWindowEnd}
+          onApplyCustom={applyCustomTimeWindow}
+          onBack={() => {
+            setTimeWindowDialogMode("list");
+            setTimeWindowError(null);
+          }}
+          onClose={() => setTimeWindowOpen(false)}
+        />
       ) : null}
     </div>
   );

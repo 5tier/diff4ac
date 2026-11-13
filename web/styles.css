@@ -652,3 +652,115 @@ button {
 .help-label {
   color: var(--text);
 }
+
+.time-window-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.time-window-dialog {
+  width: min(520px, 90vw);
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+.time-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  color: var(--accent);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+
+.time-window-close,
+.time-window-actions button {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.time-window-close:hover,
+.time-window-actions button:hover {
+  background: var(--bg-selected);
+}
+
+.time-window-options {
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+
+.time-window-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 16px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.time-window-option:hover {
+  background: var(--bg-panel);
+}
+
+.time-window-option-cursor {
+  background: var(--bg-selected);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.time-window-option-label {
+  color: var(--text);
+}
+
+.time-window-option-description {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.time-window-custom {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.time-window-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.time-window-field input {
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.time-window-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.time-window-error {
+  color: var(--del);
+  white-space: pre-wrap;
+}

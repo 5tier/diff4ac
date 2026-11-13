@@ -4,6 +4,7 @@ import { buildBranchChangeSet } from "../changeset/branch";
 import { buildCommitChangeSet } from "../changeset/commit";
 import {
   buildCommitsChangeSet,
+  buildTimeWindowChangeSet,
   NonContiguousNetDiffError,
 } from "../changeset/commits";
 import { buildPendingChangeSet } from "../changeset/pending";
@@ -18,7 +19,16 @@ import {
   openWorktree,
   UnknownWorktreeError,
 } from "../repository/worktrees";
-import type { SessionInfo } from "../types";
+import {
+  isTimeWindowPreset,
+  parseTimeWindowInstant,
+  timeWindowLabel,
+} from "../time-windows";
+import type {
+  ChangeViewMode,
+  SessionInfo,
+  TimeWindow,
+} from "../types";
 import { VERSION } from "../version";
 import {
   generateToken,
@@ -55,6 +65,31 @@ function text(message: string, status: number): Response {
       "Content-Type": "text/plain; charset=utf-8",
     },
   });
+}
+
+function gitApiFailure(error: unknown): Response {
+  if (error instanceof UnknownWorktreeError) {
+    return text(error.message, 404);
+  }
+  if (error instanceof NonContiguousNetDiffError) {
+    return text(error.message, 400);
+  }
+  return json(
+    {
+      error: error instanceof Error ? error.message : String(error),
+    },
+    500,
+  );
+}
+
+async function gitForRequest(
+  context: RequestContext,
+  url: URL,
+): Promise<GitGateway> {
+  const worktreePath = url.searchParams.get("worktree");
+  return worktreePath
+    ? openWorktree(context.git, worktreePath)
+    : context.git;
 }
 
 export interface StartServerOptions {
@@ -171,36 +206,20 @@ async function handleRequest(
   }
 
   if (url.pathname === "/api/pending") {
-    const worktreePath = url.searchParams.get("worktree");
-
     try {
-      const git = worktreePath
-        ? await openWorktree(context.git, worktreePath)
-        : context.git;
+      const git = await gitForRequest(context, url);
       return json(await buildPendingChangeSet(git));
     } catch (error) {
-      if (error instanceof UnknownWorktreeError) {
-        return text(error.message, 404);
-      }
-      return json(
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        500,
-      );
+      return gitApiFailure(error);
     }
   }
 
   if (url.pathname === "/api/branches") {
     try {
-      return json(await listBranches(context.git));
+      const git = await gitForRequest(context, url);
+      return json(await listBranches(git));
     } catch (error) {
-      return json(
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        500,
-      );
+      return gitApiFailure(error);
     }
   }
 
@@ -211,30 +230,22 @@ async function handleRequest(
     }
 
     try {
-      return json(await buildBranchChangeSet(context.git, name));
+      const git = await gitForRequest(context, url);
+      return json(await buildBranchChangeSet(git, name));
     } catch (error) {
       if (error instanceof UnknownBranchError) {
         return text(error.message, 404);
       }
-      return json(
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        500,
-      );
+      return gitApiFailure(error);
     }
   }
 
   if (url.pathname === "/api/commits") {
     try {
-      return json(await listCommits(context.git));
+      const git = await gitForRequest(context, url);
+      return json(await listCommits(git));
     } catch (error) {
-      return json(
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        500,
-      );
+      return gitApiFailure(error);
     }
   }
 
@@ -245,14 +256,10 @@ async function handleRequest(
     }
 
     try {
-      return json(await buildCommitChangeSet(context.git, hash));
+      const git = await gitForRequest(context, url);
+      return json(await buildCommitChangeSet(git, hash));
     } catch (error) {
-      return json(
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        500,
-      );
+      return gitApiFailure(error);
     }
   }
 
@@ -274,17 +281,62 @@ async function handleRequest(
     }
 
     try {
-      return json(await buildCommitsChangeSet(context.git, hashes, mode));
+      const git = await gitForRequest(context, url);
+      return json(await buildCommitsChangeSet(git, hashes, mode));
     } catch (error) {
-      if (error instanceof NonContiguousNetDiffError) {
-        return text(error.message, 400);
-      }
-      return json(
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        500,
+      return gitApiFailure(error);
+    }
+  }
+
+  if (url.pathname === "/api/time-window") {
+    const start = url.searchParams.get("start") ?? "";
+    const end = url.searchParams.get("end") ?? "";
+    const preset = url.searchParams.get("preset") ?? "";
+    const requestedMode = url.searchParams.get("mode") ?? "auto";
+
+    const startMs = parseTimeWindowInstant(start);
+    const endMs = parseTimeWindowInstant(end);
+
+    if (
+      startMs === null ||
+      endMs === null ||
+      startMs >= endMs ||
+      !isTimeWindowPreset(preset)
+    ) {
+      return text(
+        "Bad request: start, end and a preset are required",
+        400,
       );
+    }
+
+    if (
+      requestedMode !== "auto" &&
+      requestedMode !== "net" &&
+      requestedMode !== "stack"
+    ) {
+      return text("Bad request: mode must be auto, net or stack", 400);
+    }
+
+    const startIso = new Date(startMs).toISOString();
+    const endIso = new Date(endMs).toISOString();
+    const window: TimeWindow = {
+      preset,
+      start: startIso,
+      end: endIso,
+      label: timeWindowLabel(preset, startIso, endIso),
+    };
+
+    try {
+      const git = await gitForRequest(context, url);
+      return json(
+        await buildTimeWindowChangeSet(
+          git,
+          window,
+          requestedMode as ChangeViewMode | "auto",
+        ),
+      );
+    } catch (error) {
+      return gitApiFailure(error);
     }
   }
 

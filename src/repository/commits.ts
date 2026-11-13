@@ -1,5 +1,6 @@
 import type { GitGateway } from "../git/gateway";
-import type { CommitList, CommitSummary } from "../types";
+import { filterCommitsInTimeWindow } from "../time-windows";
+import type { CommitList, CommitSummary, TimeWindow } from "../types";
 
 const FIELD = "\x1f";
 const RECORD = "\x1e";
@@ -112,6 +113,18 @@ export async function listCommits(
   return {
     worktree,
     commits: parseCommitLog(output, options.now ?? new Date()),
+  };
+}
+
+export async function listCommitsInWindow(
+  git: GitGateway,
+  window: Pick<TimeWindow, "start" | "end">,
+  options: ListCommitsOptions = {},
+): Promise<CommitList> {
+  const list = await listCommits(git, options);
+  return {
+    worktree: list.worktree,
+    commits: filterCommitsInTimeWindow(list.commits, window),
   };
 }
 

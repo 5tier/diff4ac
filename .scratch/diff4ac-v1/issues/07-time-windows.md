@@ -7,13 +7,13 @@ This ticket also makes the Commits and Branches panels follow the selected Workt
 
 **Blocked by:** 06
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Presets for today, yesterday and last 24h, plus a custom range entry, all usable from the keyboard
-- [ ] Matching uses committer date in local timezone; author date is ignored
-- [ ] The resulting Selection follows ticket 06's rules: Net Diff when contiguous, otherwise Commit Stack
-- [ ] An empty Time Window shows a clear empty state
-- [ ] Fixture tests cover commits either side of local midnight, and a commit whose author and committer dates fall on different days
-- [ ] Selecting a Worktree makes the Commits panel list that Worktree's history, and commit, multi-commit, Time Window and branch Selections are built from that Worktree
-- [ ] The current-branch marker in the Branches panel follows the selected Worktree
-- [ ] Fixture tests: two Worktrees on different branches show different commit lists and Change Sets
+- [x] Presets for today, yesterday and last 24h, plus a custom range entry, all usable from the keyboard
+- [x] Matching uses committer date in local timezone; author date is ignored
+- [x] The resulting Selection follows ticket 06's rules: Net Diff when contiguous, otherwise Commit Stack
+- [x] An empty Time Window shows a clear empty state
+- [x] Fixture tests cover commits either side of local midnight, and a commit whose author and committer dates fall on different days
+- [x] Selecting a Worktree makes the Commits panel list that Worktree's history, and commit, multi-commit, Time Window and branch Selections are built from that Worktree
+- [x] The current-branch marker in the Branches panel follows the selected Worktree
+- [x] Fixture tests: two Worktrees on different branches show different commit lists and Change Sets

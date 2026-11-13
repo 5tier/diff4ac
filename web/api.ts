@@ -3,6 +3,7 @@ import type {
   ChangeSet,
   ChangeViewMode,
   CommitList,
+  TimeWindow,
   WorktreeList,
 } from "../src/types";
 
@@ -54,41 +55,88 @@ export function fetchWorktrees(signal?: AbortSignal): Promise<WorktreeList> {
   return getJson<WorktreeList>("/api/worktrees", signal);
 }
 
-export function fetchCommits(signal?: AbortSignal): Promise<CommitList> {
-  return getJson<CommitList>("/api/commits", signal);
+function worktreeQuery(worktreePath: string | null | undefined): string {
+  return worktreePath
+    ? `worktree=${encodeURIComponent(worktreePath)}`
+    : "";
+}
+
+export function fetchCommits(
+  signal?: AbortSignal,
+  worktreePath?: string | null,
+): Promise<CommitList> {
+  const query = worktreeQuery(worktreePath);
+  return getJson<CommitList>(
+    `/api/commits${query ? `?${query}` : ""}`,
+    signal,
+  );
 }
 
 export function fetchCommit(
   hash: string,
   signal?: AbortSignal,
+  worktreePath?: string | null,
 ): Promise<ChangeSet> {
-  return getJson<ChangeSet>(
-    `/api/commit?hash=${encodeURIComponent(hash)}`,
-    signal,
-  );
+  const query = new URLSearchParams({ hash });
+  if (worktreePath) {
+    query.set("worktree", worktreePath);
+  }
+  return getJson<ChangeSet>(`/api/commit?${query.toString()}`, signal);
 }
 
-export function fetchBranches(signal?: AbortSignal): Promise<BranchList> {
-  return getJson<BranchList>("/api/branches", signal);
+export function fetchBranches(
+  signal?: AbortSignal,
+  worktreePath?: string | null,
+): Promise<BranchList> {
+  const query = worktreeQuery(worktreePath);
+  return getJson<BranchList>(
+    `/api/branches${query ? `?${query}` : ""}`,
+    signal,
+  );
 }
 
 export function fetchBranch(
   name: string,
   signal?: AbortSignal,
+  worktreePath?: string | null,
 ): Promise<ChangeSet> {
-  return getJson<ChangeSet>(
-    `/api/branch?name=${encodeURIComponent(name)}`,
-    signal,
-  );
+  const query = new URLSearchParams({ name });
+  if (worktreePath) {
+    query.set("worktree", worktreePath);
+  }
+  return getJson<ChangeSet>(`/api/branch?${query.toString()}`, signal);
 }
 
 export function fetchCommitSet(
   hashes: readonly string[],
   mode: ChangeViewMode,
   signal?: AbortSignal,
+  worktreePath?: string | null,
 ): Promise<ChangeSet> {
-  return getJson<ChangeSet>(
-    `/api/commit-set?hashes=${encodeURIComponent(hashes.join(","))}&mode=${mode}`,
-    signal,
-  );
+  const query = new URLSearchParams({
+    hashes: hashes.join(","),
+    mode,
+  });
+  if (worktreePath) {
+    query.set("worktree", worktreePath);
+  }
+  return getJson<ChangeSet>(`/api/commit-set?${query.toString()}`, signal);
+}
+
+export function fetchTimeWindow(
+  window: TimeWindow,
+  mode: ChangeViewMode,
+  signal?: AbortSignal,
+  worktreePath?: string | null,
+): Promise<ChangeSet> {
+  const query = new URLSearchParams({
+    start: window.start,
+    end: window.end,
+    preset: window.preset,
+    mode,
+  });
+  if (worktreePath) {
+    query.set("worktree", worktreePath);
+  }
+  return getJson<ChangeSet>(`/api/time-window?${query.toString()}`, signal);
 }
