@@ -9,6 +9,7 @@ const COMMIT_FORMAT = [
   "%an",
   "%ae",
   "%cI",
+  "%P",
   "%s",
 ].join(`%x1f`) + `%x1e`;
 
@@ -61,7 +62,7 @@ function parseCommitLog(output: string, now: Date): CommitSummary[] {
       continue;
     }
 
-    const [hash, shortHash, name, email, committedAt, message] =
+    const [hash, shortHash, name, email, committedAt, parents, message] =
       trimmed.split(FIELD);
     if (!hash || !shortHash || !committedAt) {
       continue;
@@ -77,6 +78,7 @@ function parseCommitLog(output: string, now: Date): CommitSummary[] {
       },
       committedAt,
       relativeDate: relativeDate(committedAt, now),
+      firstParent: parents?.split(" ").filter(Boolean)[0] ?? null,
     });
   }
 

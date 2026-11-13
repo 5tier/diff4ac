@@ -21,6 +21,9 @@ export type KeyAction =
   | { readonly type: "cycle"; readonly direction: 1 | -1 }
   | { readonly type: "move"; readonly direction: 1 | -1 }
   | { readonly type: "select" }
+  | { readonly type: "toggle-pick" }
+  | { readonly type: "range-pick" }
+  | { readonly type: "toggle-mode" }
   | { readonly type: "scroll"; readonly direction: 1 | -1 }
   | { readonly type: "help" }
   | { readonly type: "close-help" };
@@ -86,6 +89,24 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "Enter",
     label: "Select commit",
     action: { type: "select" },
+  },
+  {
+    panel: "commits",
+    key: " ",
+    label: "Pick or unpick commit",
+    action: { type: "toggle-pick" },
+  },
+  {
+    panel: "commits",
+    key: "v",
+    label: "Start range pick",
+    action: { type: "range-pick" },
+  },
+  {
+    panel: "commits",
+    key: "t",
+    label: "Toggle Net Diff / Commit Stack",
+    action: { type: "toggle-mode" },
   },
   {
     panel: "files",

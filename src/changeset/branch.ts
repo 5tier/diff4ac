@@ -6,9 +6,8 @@ import {
 } from "../repository/branches";
 import type { ChangeSet } from "../types";
 import {
-  buildChangeFiles,
+  buildChangeFilesForRange,
   changeSetTotals,
-  parseNameStatus,
 } from "./files";
 
 export async function buildBranchChangeSet(
@@ -31,22 +30,10 @@ export async function buildBranchChangeSet(
     await git.text(["merge-base", baseBranch.ref, `refs/heads/${branch.name}`])
   ).trim();
 
-  const nameStatusOutput = await git.text([
-    "diff",
-    mergeBase,
-    branch.hash,
-    "--name-status",
-    "-z",
-    "--find-renames",
-    "--no-color",
-    "--no-ext-diff",
-  ]);
-
-  const files = await buildChangeFiles(
-    git,
-    { baseRef: mergeBase, targetRef: branch.hash },
-    parseNameStatus(nameStatusOutput),
-  );
+  const files = await buildChangeFilesForRange(git, {
+    baseRef: mergeBase,
+    targetRef: branch.hash,
+  });
 
   return {
     selection: { kind: "branch", branch, baseBranch },

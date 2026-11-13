@@ -189,6 +189,13 @@ button {
   white-space: pre-wrap;
 }
 
+.selection-note {
+  padding: 6px 10px;
+  color: var(--hunk);
+  background: rgba(192, 163, 229, 0.08);
+  border-bottom: 1px solid var(--border);
+}
+
 .file-list,
 .commit-list,
 .branch-list {
@@ -435,6 +442,59 @@ button {
   color: var(--muted);
 }
 
+.commit-stack-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.commit-stack .diff-view {
+  min-height: 0;
+}
+
+.commit-stack-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  color: var(--text);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.commit-stack-message {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stack-file-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.stack-file-group {
+  border-bottom: 1px solid var(--border);
+}
+
+.stack-file-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 10px;
+  color: var(--muted);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.stack-file-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .status-bar {
   display: flex;
   align-items: center;
@@ -450,6 +510,13 @@ button {
 .status-badge {
   color: var(--accent);
   font-weight: 700;
+}
+
+.status-mode {
+  color: var(--hunk);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 7px;
 }
 
 .status-selection {

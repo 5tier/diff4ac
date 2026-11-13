@@ -2,6 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildBranchChangeSet } from "../changeset/branch";
 import { buildCommitChangeSet } from "../changeset/commit";
+import {
+  buildCommitsChangeSet,
+  NonContiguousNetDiffError,
+} from "../changeset/commits";
 import { buildPendingChangeSet } from "../changeset/pending";
 import { GitGateway } from "../git/gateway";
 import {
@@ -217,6 +221,38 @@ async function handleRequest(
     try {
       return json(await buildCommitChangeSet(context.git, hash));
     } catch (error) {
+      return json(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        500,
+      );
+    }
+  }
+
+  if (url.pathname === "/api/commit-set") {
+    const rawHashes = url.searchParams.get("hashes") ?? "";
+    const hashes = rawHashes.split(",").filter(Boolean);
+    const mode = url.searchParams.get("mode") ?? "net";
+    const validHash = /^[0-9a-fA-F]{4,64}$/;
+
+    if (
+      hashes.length === 0 ||
+      !hashes.every((hash) => validHash.test(hash)) ||
+      (mode !== "net" && mode !== "stack")
+    ) {
+      return text(
+        "Bad request: commit hashes and a mode of net or stack are required",
+        400,
+      );
+    }
+
+    try {
+      return json(await buildCommitsChangeSet(context.git, hashes, mode));
+    } catch (error) {
+      if (error instanceof NonContiguousNetDiffError) {
+        return text(error.message, 400);
+      }
       return json(
         {
           error: error instanceof Error ? error.message : String(error),

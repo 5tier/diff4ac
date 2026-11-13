@@ -5,16 +5,20 @@ import type {
   BranchSummary,
   ChangeFile,
   ChangeSet,
+  ChangeViewMode,
+  CommitChangeGroup,
   CommitSummary,
   FileStatus,
   Selection,
   WorktreeInfo,
 } from "../src/types";
+import { isContiguousCommitSelection } from "../src/changeset/selection";
 import {
   fetchBranch,
   fetchBranches,
   fetchCommit,
   fetchCommits,
+  fetchCommitSet,
   fetchPending,
 } from "./api";
 import {
@@ -237,9 +241,15 @@ function diffLineClass(line: string): string {
   return "diff-line diff-context";
 }
 
-function DiffView({ file }: { readonly file: ChangeFile }) {
+function DiffView({
+  file,
+  id,
+}: {
+  readonly file: ChangeFile;
+  readonly id?: string;
+}) {
   return (
-    <div className="diff-view">
+    <div className="diff-view" id={id}>
       <div className="diff-heading">
         <span className="diff-heading-path">
           {file.oldPath ? (
@@ -273,6 +283,63 @@ function DiffView({ file }: { readonly file: ChangeFile }) {
   );
 }
 
+function stackFileId(commitHash: string, path: string): string {
+  return `stack-${commitHash}-${path.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+}
+
+function stackFileIndices(
+  groups: readonly CommitChangeGroup[],
+): Map<string, number> {
+  const indices = new Map<string, number>();
+  let index = 0;
+  for (const group of groups) {
+    for (const file of group.files) {
+      indices.set(`${group.commit.hash}:${file.path}`, index);
+      index++;
+    }
+  }
+  return indices;
+}
+
+function CommitStackView({
+  groups,
+}: {
+  readonly groups: readonly CommitChangeGroup[];
+}) {
+  if (groups.length === 0) {
+    return <div className="diff-empty">No commit changes.</div>;
+  }
+
+  return (
+    <div className="commit-stack">
+      {groups.map((group) => (
+        <section className="commit-stack-group" key={group.commit.hash}>
+          <header className="commit-stack-heading">
+            <span className="commit-hash">{group.commit.shortHash}</span>
+            <span className="commit-stack-message">{group.commit.message}</span>
+            <span className="file-counts">
+              <span className="muted">{group.totals.files} files</span>
+              <span className="add">+{group.totals.additions}</span>
+              <span className="del">−{group.totals.deletions}</span>
+            </span>
+          </header>
+          {group.files.length === 0 ? (
+            <div className="diff-empty">No file changes in this commit.</div>
+          ) : (
+            group.files.map((file) => (
+              <DiffView
+                key={`${group.commit.hash}:${file.path}`}
+                id={stackFileId(group.commit.hash, file.path)}
+                file={file}
+              />
+            ))
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function HelpOverlay({
   panel,
   onClose,
@@ -286,7 +353,9 @@ function HelpOverlay({
     <ul className="help-list">
       {entries.map((binding) => (
         <li className="help-row" key={`${binding.panel}:${binding.key}`}>
-          <kbd className="help-key">{binding.key}</kbd>
+          <kbd className="help-key">
+            {binding.key === " " ? "Space" : binding.key}
+          </kbd>
           <span className="help-label">{binding.label}</span>
         </li>
       ))}
@@ -332,6 +401,8 @@ function selectionLabel(selection: Selection): string {
       return "Pending";
     case "commit":
       return `Commit ${selection.commit.shortHash} · ${selection.commit.message}`;
+    case "commits":
+      return `${selection.commits.length} commits · ${modeLabel(selection.mode)}`;
     case "branch":
       return `Branch ${selection.branch.name} since ${selection.baseBranch.name}`;
   }
@@ -343,9 +414,24 @@ function selectionBadge(selection: Selection): string {
       return "Pending";
     case "commit":
       return `Commit ${selection.commit.shortHash}`;
+    case "commits":
+      return `Commits ${selection.commits.length}`;
     case "branch":
       return `Branch ${selection.branch.name}`;
   }
+}
+
+function modeLabel(mode: ChangeViewMode): string {
+  return mode === "net" ? "Net Diff" : "Commit Stack";
+}
+
+function modeStatusLabel(selection: Selection): string | null {
+  if (selection.kind !== "commits") {
+    return null;
+  }
+  return selection.contiguous
+    ? modeLabel(selection.mode)
+    : `${modeLabel(selection.mode)} (non-contiguous)`;
 }
 
 function emptyFilesMessage(selection: Selection): string {
@@ -354,11 +440,45 @@ function emptyFilesMessage(selection: Selection): string {
       return "No Pending changes in this Worktree.";
     case "commit":
       return "This commit has no file changes.";
+    case "commits":
+      return "These commits have no file changes.";
     case "branch":
       return selection.branch.name === selection.baseBranch.name
         ? "No changes: this is the Base Branch."
         : "No changes since the Base Branch.";
   }
+}
+
+function selectionIncludesCommit(selection: Selection, hash: string): boolean {
+  if (selection.kind === "commit") {
+    return selection.commit.hash === hash;
+  }
+  if (selection.kind === "commits") {
+    return selection.commits.some((commit) => commit.hash === hash);
+  }
+  return false;
+}
+
+function selectionFromPicks(
+  allCommits: readonly CommitSummary[],
+  hashes: readonly string[],
+  mode: ChangeViewMode,
+): Selection {
+  const commits = allCommits.filter((commit) => hashes.includes(commit.hash));
+  if (commits.length === 0) {
+    return { kind: "pending" };
+  }
+  if (commits.length === 1) {
+    return { kind: "commit", commit: commits[0] as CommitSummary };
+  }
+
+  const contiguous = isContiguousCommitSelection(commits);
+  return {
+    kind: "commits",
+    commits,
+    mode: contiguous ? mode : "stack",
+    contiguous,
+  };
 }
 
 export function App() {
@@ -381,6 +501,8 @@ export function App() {
   const [branchCursor, setBranchCursor] = useState(0);
   const [commitCursor, setCommitCursor] = useState(0);
   const [fileCursor, setFileCursor] = useState(0);
+  const [pickedHashes, setPickedHashes] = useState<readonly string[]>([]);
+  const [rangeAnchor, setRangeAnchor] = useState<number | null>(null);
   const diffRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -437,7 +559,13 @@ export function App() {
         ? fetchPending(controller.signal)
         : selection.kind === "commit"
           ? fetchCommit(selection.commit.hash, controller.signal)
-          : fetchBranch(selection.branch.name, controller.signal);
+          : selection.kind === "commits"
+            ? fetchCommitSet(
+                selection.commits.map((commit) => commit.hash),
+                selection.mode,
+                controller.signal,
+              )
+            : fetchBranch(selection.branch.name, controller.signal);
 
     request
       .then((loaded) => {
@@ -464,6 +592,11 @@ export function App() {
   const files = changeSet?.files ?? [];
   const selected = files.find((file) => file.path === selectedPath) ?? null;
   const pendingCount = pending?.totals.files ?? 0;
+  const commitGroups = changeSet?.commitGroups ?? [];
+  const isStack =
+    changeSet?.selection.kind === "commits" &&
+    changeSet.selection.mode === "stack";
+  const stackFileIndex = stackFileIndices(commitGroups);
 
   useEffect(() => {
     setBranchCursor((cursor) =>
@@ -488,9 +621,11 @@ export function App() {
       switch (action.type) {
         case "focus":
           setFocusedPanel(action.panel);
+          setRangeAnchor(null);
           break;
         case "cycle":
           setFocusedPanel((current) => nextPanel(current, action.direction));
+          setRangeAnchor(null);
           break;
         case "move":
           if (focusedPanel === "branches") {
@@ -501,12 +636,21 @@ export function App() {
               ),
             );
           } else if (focusedPanel === "commits") {
-            setCommitCursor((cursor) =>
-              Math.max(
-                0,
-                Math.min(cursor + action.direction, commits.length - 1),
-              ),
+            const nextCursor = Math.max(
+              0,
+              Math.min(commitCursor + action.direction, commits.length - 1),
             );
+            setCommitCursor(nextCursor);
+
+            if (rangeAnchor !== null) {
+              const start = Math.min(rangeAnchor, nextCursor);
+              const end = Math.max(rangeAnchor, nextCursor);
+              const hashes = commits
+                .slice(start, end + 1)
+                .map((commit) => commit.hash);
+              setPickedHashes(hashes);
+              setSelection(selectionFromPicks(commits, hashes, "net"));
+            }
           } else if (focusedPanel === "files") {
             setFileCursor((cursor) =>
               Math.max(
@@ -526,15 +670,21 @@ export function App() {
         case "select":
           if (focusedPanel === "worktrees") {
             setWorktreeCursor(0);
+            setPickedHashes([]);
+            setRangeAnchor(null);
             setSelection({ kind: "pending" });
           } else if (focusedPanel === "branches") {
             const branch = branches[branchCursor];
             if (branch && baseBranch) {
+              setPickedHashes([]);
+              setRangeAnchor(null);
               setSelection({ kind: "branch", branch, baseBranch });
             }
           } else if (focusedPanel === "commits") {
             const commit = commits[commitCursor];
             if (commit) {
+              setRangeAnchor(null);
+              setPickedHashes([commit.hash]);
               setSelection({ kind: "commit", commit });
             }
           } else if (focusedPanel === "files") {
@@ -544,6 +694,47 @@ export function App() {
             }
           }
           break;
+        case "toggle-pick": {
+          if (focusedPanel !== "commits") {
+            break;
+          }
+          const commit = commits[commitCursor];
+          if (!commit) {
+            break;
+          }
+
+          setRangeAnchor(null);
+          const next = pickedHashes.includes(commit.hash)
+            ? pickedHashes.filter((hash) => hash !== commit.hash)
+            : [...pickedHashes, commit.hash];
+          setPickedHashes(next);
+          setSelection(selectionFromPicks(commits, next, "net"));
+          break;
+        }
+        case "range-pick": {
+          if (focusedPanel !== "commits") {
+            break;
+          }
+          const commit = commits[commitCursor];
+          if (!commit) {
+            break;
+          }
+
+          setRangeAnchor(commitCursor);
+          setPickedHashes([commit.hash]);
+          setSelection({ kind: "commit", commit });
+          break;
+        }
+        case "toggle-mode": {
+          if (selection.kind !== "commits" || !selection.contiguous) {
+            break;
+          }
+          setSelection({
+            ...selection,
+            mode: selection.mode === "net" ? "stack" : "net",
+          });
+          break;
+        }
         case "scroll":
           diffRef.current?.scrollBy({ top: action.direction * 96 });
           break;
@@ -564,6 +755,9 @@ export function App() {
       files,
       fileCursor,
       focusedPanel,
+      pickedHashes,
+      rangeAnchor,
+      selection,
     ],
   );
 
@@ -631,6 +825,8 @@ export function App() {
               onClick={() => {
                 setFocusedPanel("worktrees");
                 setWorktreeCursor(0);
+                setPickedHashes([]);
+                setRangeAnchor(null);
                 setSelection({ kind: "pending" });
               }}
             >
@@ -673,6 +869,8 @@ export function App() {
                       onSelect={() => {
                         setFocusedPanel("branches");
                         setBranchCursor(index);
+                        setPickedHashes([]);
+                        setRangeAnchor(null);
                         if (baseBranch) {
                           setSelection({ kind: "branch", branch, baseBranch });
                         }
@@ -697,24 +895,30 @@ export function App() {
             ) : commits.length === 0 ? (
               <div className="placeholder">No commits on this branch yet.</div>
             ) : (
-              <ul className="commit-list">
-                {commits.map((commit, index) => (
-                  <CommitRow
-                    key={commit.hash}
-                    commit={commit}
-                    selected={
-                      selection.kind === "commit" &&
-                      selection.commit.hash === commit.hash
-                    }
-                    cursor={commitCursor === index}
-                    onSelect={() => {
-                      setFocusedPanel("commits");
-                      setCommitCursor(index);
-                      setSelection({ kind: "commit", commit });
-                    }}
-                  />
-                ))}
-              </ul>
+              <>
+                {selection.kind === "commits" && !selection.contiguous ? (
+                  <div className="selection-note">
+                    Non-contiguous picks: Commit Stack only.
+                  </div>
+                ) : null}
+                <ul className="commit-list">
+                  {commits.map((commit, index) => (
+                    <CommitRow
+                      key={commit.hash}
+                      commit={commit}
+                      selected={selectionIncludesCommit(selection, commit.hash)}
+                      cursor={commitCursor === index}
+                      onSelect={() => {
+                        setFocusedPanel("commits");
+                        setCommitCursor(index);
+                        setRangeAnchor(null);
+                        setPickedHashes([commit.hash]);
+                        setSelection({ kind: "commit", commit });
+                      }}
+                    />
+                  ))}
+                </ul>
+              </>
             )}
           </Panel>
 
@@ -730,6 +934,62 @@ export function App() {
               <div className="placeholder">Loading Change Set…</div>
             ) : error ? (
               <div className="error">{error}</div>
+            ) : isStack ? (
+              commitGroups.length === 0 ? (
+                <div className="placeholder">{emptyFilesMessage(selection)}</div>
+              ) : (
+                <div className="stack-file-list">
+                  {commitGroups.map((group) => (
+                    <section
+                      className="stack-file-group"
+                      key={group.commit.hash}
+                    >
+                      <div
+                        className="stack-file-heading"
+                        title={group.commit.message}
+                      >
+                        <span className="commit-hash">
+                          {group.commit.shortHash}
+                        </span>
+                        <span className="stack-file-message">
+                          {group.commit.message}
+                        </span>
+                      </div>
+                      {group.files.length === 0 ? (
+                        <div className="placeholder">No file changes.</div>
+                      ) : (
+                        <ul className="file-list">
+                          {group.files.map((file) => {
+                            const key = `${group.commit.hash}:${file.path}`;
+                            const index = stackFileIndex.get(key) ?? 0;
+                            return (
+                              <FileRow
+                                key={key}
+                                file={file}
+                                selected={file.path === selectedPath}
+                                cursor={fileCursor === index}
+                                onSelect={() => {
+                                  setFocusedPanel("files");
+                                  setFileCursor(index);
+                                  setSelectedPath(file.path);
+                                  document
+                                    .getElementById(
+                                      stackFileId(
+                                        group.commit.hash,
+                                        file.path,
+                                      ),
+                                    )
+                                    ?.scrollIntoView({ block: "start" });
+                                }}
+                              />
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </section>
+                  ))}
+                </div>
+              )
             ) : files.length === 0 ? (
               <div className="placeholder">{emptyFilesMessage(selection)}</div>
             ) : (
@@ -760,7 +1020,9 @@ export function App() {
           data-panel="diff"
           data-focused={focusedPanel === "diff" ? "true" : "false"}
         >
-          {selected ? (
+          {isStack ? (
+            <CommitStackView groups={commitGroups} />
+          ) : selected ? (
             <DiffView file={selected} />
           ) : (
             <div className="diff-empty">
@@ -776,6 +1038,11 @@ export function App() {
         <span className="status-badge" title={selectionLabel(selection)}>
           {selectionBadge(selection)}
         </span>
+        {selection.kind === "commits" ? (
+          <span className="status-mode" title={selectionLabel(selection)}>
+            {modeStatusLabel(selection)}
+          </span>
+        ) : null}
         {selection.kind === "commit" ? (
           <span className="status-selection" title={selection.commit.message}>
             {selection.commit.message}

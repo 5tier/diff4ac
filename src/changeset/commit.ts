@@ -1,37 +1,42 @@
 import type { GitGateway } from "../git/gateway";
 import { firstParent, readCommit } from "../repository/commits";
-import type { ChangeSet } from "../types";
+import type {
+  ChangeFile,
+  ChangeSet,
+  ChangeTotals,
+  CommitSummary,
+} from "../types";
 import {
-  buildChangeFiles,
+  buildChangeFilesForRange,
   changeSetTotals,
   emptyTreeRef,
-  parseNameStatus,
 } from "./files";
+
+export interface CommitFiles {
+  readonly files: readonly ChangeFile[];
+  readonly totals: ChangeTotals;
+}
+
+export async function buildCommitFiles(
+  git: GitGateway,
+  commit: CommitSummary,
+): Promise<CommitFiles> {
+  const parent = await firstParent(git, commit.hash);
+  const baseRef = parent ?? (await emptyTreeRef(git));
+  const files = await buildChangeFilesForRange(git, {
+    baseRef,
+    targetRef: commit.hash,
+  });
+
+  return { files, totals: changeSetTotals(files) };
+}
 
 export async function buildCommitChangeSet(
   git: GitGateway,
   rev: string,
 ): Promise<ChangeSet> {
   const commit = await readCommit(git, rev);
-  const parent = await firstParent(git, commit.hash);
-  const baseRef = parent ?? (await emptyTreeRef(git));
-
-  const nameStatusOutput = await git.text([
-    "diff",
-    baseRef,
-    commit.hash,
-    "--name-status",
-    "-z",
-    "--find-renames",
-    "--no-color",
-    "--no-ext-diff",
-  ]);
-
-  const files = await buildChangeFiles(
-    git,
-    { baseRef, targetRef: commit.hash },
-    parseNameStatus(nameStatusOutput),
-  );
+  const { files, totals } = await buildCommitFiles(git, commit);
 
   return {
     selection: { kind: "commit", commit },
@@ -40,6 +45,6 @@ export async function buildCommitChangeSet(
       branch: await git.currentBranch(),
     },
     files,
-    totals: changeSetTotals(files),
+    totals,
   };
 }
