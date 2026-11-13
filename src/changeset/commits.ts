@@ -1,0 +1,104 @@
+import type { GitGateway } from "../git/gateway";
+import { firstParent, listCommits } from "../repository/commits";
+import type {
+  ChangeSet,
+  ChangeViewMode,
+  CommitChangeGroup,
+  CommitSummary,
+} from "../types";
+import { buildCommitFiles } from "./commit";
+import {
+  buildChangeFilesForRange,
+  changeSetTotals,
+  emptyTreeRef,
+} from "./files";
+import { isContiguousCommitSelection } from "./selection";
+
+export class NonContiguousNetDiffError extends Error {
+  constructor() {
+    super("Net Diff is not available for a non-contiguous commit Selection");
+    this.name = "NonContiguousNetDiffError";
+  }
+}
+
+export async function buildCommitsChangeSet(
+  git: GitGateway,
+  hashes: readonly string[],
+  mode: ChangeViewMode,
+): Promise<ChangeSet> {
+  if (hashes.length === 0) {
+    throw new Error("commit Selection is empty");
+  }
+
+  const list = await listCommits(git);
+  const positions = new Map(
+    list.commits.map((commit, index) => [commit.hash, index] as const),
+  );
+  const byHash = new Map(list.commits.map((commit) => [commit.hash, commit] as const));
+
+  const selected: CommitSummary[] = [];
+  const seen = new Set<string>();
+  for (const hash of hashes) {
+    const commit = byHash.get(hash);
+    if (!commit) {
+      throw new Error(`commit "${hash}" was not found`);
+    }
+    if (!seen.has(hash)) {
+      seen.add(hash);
+      selected.push(commit);
+    }
+  }
+
+  selected.sort(
+    (a, b) => (positions.get(a.hash) ?? 0) - (positions.get(b.hash) ?? 0),
+  );
+
+  const contiguous = isContiguousCommitSelection(selected);
+  if (!contiguous && mode === "net") {
+    throw new NonContiguousNetDiffError();
+  }
+
+  const selection = {
+    kind: "commits" as const,
+    commits: selected,
+    mode,
+    contiguous,
+  };
+
+  if (mode === "net") {
+    const newest = selected[0];
+    const oldest = selected.at(-1);
+    if (!newest || !oldest) {
+      throw new Error("commit Selection is empty");
+    }
+
+    const parent = await firstParent(git, oldest.hash);
+    const baseRef = parent ?? (await emptyTreeRef(git));
+    const files = await buildChangeFilesForRange(git, {
+      baseRef,
+      targetRef: newest.hash,
+    });
+
+    return {
+      selection,
+      worktree: list.worktree,
+      files,
+      totals: changeSetTotals(files),
+    };
+  }
+
+  const commitGroups: CommitChangeGroup[] = [];
+  for (const commit of [...selected].reverse()) {
+    const { files, totals } = await buildCommitFiles(git, commit);
+    commitGroups.push({ commit, files, totals });
+  }
+
+  const files = commitGroups.flatMap((group) => group.files);
+  return {
+    selection,
+    worktree: list.worktree,
+    files,
+    totals: changeSetTotals(files),
+    commitGroups,
+  };
+}

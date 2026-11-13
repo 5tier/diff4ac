@@ -346,6 +346,23 @@ export async function buildChangeFiles(
   return files;
 }
 
+export async function buildChangeFilesForRange(
+  git: GitGateway,
+  range: DiffRange,
+): Promise<ChangeFile[]> {
+  const nameStatusOutput = await git.text([
+    "diff",
+    ...rangeArgs(range),
+    "--name-status",
+    "-z",
+    "--find-renames",
+    "--no-color",
+    "--no-ext-diff",
+  ]);
+
+  return buildChangeFiles(git, range, parseNameStatus(nameStatusOutput));
+}
+
 export function changeSetTotals(files: readonly ChangeFile[]): ChangeTotals {
   return files.reduce(
     (sum, file) => ({

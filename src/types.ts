@@ -73,6 +73,7 @@ export interface CommitSummary {
   readonly author: CommitAuthor;
   readonly committedAt: string;
   readonly relativeDate: string;
+  readonly firstParent: string | null;
 }
 
 export interface CommitList {
@@ -98,9 +99,23 @@ export interface BranchList {
   readonly branches: readonly BranchSummary[];
 }
 
+export type ChangeViewMode = "net" | "stack";
+
+export interface CommitChangeGroup {
+  readonly commit: CommitSummary;
+  readonly files: readonly ChangeFile[];
+  readonly totals: ChangeTotals;
+}
+
 export type Selection =
   | { readonly kind: "pending" }
   | { readonly kind: "commit"; readonly commit: CommitSummary }
+  | {
+      readonly kind: "commits";
+      readonly commits: readonly CommitSummary[];
+      readonly mode: ChangeViewMode;
+      readonly contiguous: boolean;
+    }
   | {
       readonly kind: "branch";
       readonly branch: BranchSummary;
@@ -112,6 +127,7 @@ export interface ChangeSet {
   readonly worktree: WorktreeInfo;
   readonly files: readonly ChangeFile[];
   readonly totals: ChangeTotals;
+  readonly commitGroups?: readonly CommitChangeGroup[];
 }
 
 export interface SessionInfo {

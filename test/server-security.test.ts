@@ -173,6 +173,52 @@ describe("HTTP server security", () => {
     expect(missing.status).toBe(404);
   });
 
+  test("wires the API to a multi-commit Change Set and its view modes", async () => {
+    const repo = createFixtureRepo();
+    repos.push(repo);
+    repo.write("a.txt", "one\n");
+    repo.commit("first");
+    repo.write("b.txt", "two\n");
+    const second = repo.commit("second");
+    repo.write("c.txt", "three\n");
+    const third = repo.commit("third");
+    const running = await serverFor(repo);
+
+    const net = await httpGet(
+      running.port,
+      `/api/commit-set?hashes=${third},${second}&mode=net&token=${encodeURIComponent(running.token)}`,
+    );
+    expect(net.status).toBe(200);
+    const netSet = JSON.parse(net.body) as {
+      selection: { kind: string; mode: string; contiguous: boolean };
+      files: { path: string }[];
+    };
+    expect(netSet.selection).toMatchObject({
+      kind: "commits",
+      mode: "net",
+      contiguous: true,
+    });
+    expect(netSet.files.map((file) => file.path)).toEqual(["b.txt", "c.txt"]);
+
+    const stack = await httpGet(
+      running.port,
+      `/api/commit-set?hashes=${third},${second}&mode=stack&token=${encodeURIComponent(running.token)}`,
+    );
+    expect(stack.status).toBe(200);
+    const stackSet = JSON.parse(stack.body) as {
+      commitGroups: { commit: { message: string } }[];
+    };
+    expect(stackSet.commitGroups.map((group) => group.commit.message)).toEqual(
+      ["second", "third"],
+    );
+
+    const missingMode = await httpGet(
+      running.port,
+      `/api/commit-set?hashes=${third},${second}&mode=sideways&token=${encodeURIComponent(running.token)}`,
+    );
+    expect(missingMode.status).toBe(400);
+  });
+
   test("requires the per-session token", async () => {
     const repo = fixture();
     const running = await serverFor(repo);

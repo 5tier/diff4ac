@@ -1,6 +1,7 @@
 import type {
   BranchList,
   ChangeSet,
+  ChangeViewMode,
   CommitList,
   WorktreeList,
 } from "../src/types";
@@ -77,6 +78,17 @@ export function fetchBranch(
 ): Promise<ChangeSet> {
   return getJson<ChangeSet>(
     `/api/branch?name=${encodeURIComponent(name)}`,
+    signal,
+  );
+}
+
+export function fetchCommitSet(
+  hashes: readonly string[],
+  mode: ChangeViewMode,
+  signal?: AbortSignal,
+): Promise<ChangeSet> {
+  return getJson<ChangeSet>(
+    `/api/commit-set?hashes=${encodeURIComponent(hashes.join(","))}&mode=${mode}`,
     signal,
   );
 }

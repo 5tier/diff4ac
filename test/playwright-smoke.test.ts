@@ -73,6 +73,9 @@ beforeAll(async () => {
   repo.write("src/beta.ts", "beta two\n");
   repo.commit("second commit");
 
+  repo.write("src/beta.ts", "beta three\n");
+  repo.commit("third commit");
+
   repo.write("src/alpha.ts", `${longFile}changed again\n`);
   repo.write("src/gamma.ts", "pending gamma\n");
 
@@ -223,6 +226,7 @@ test(
     ).toBe(firstCursorHash);
 
     await page.keyboard.press("j");
+    await page.keyboard.press("j");
     await page.keyboard.press("Enter");
     await page.waitForFunction(() =>
       document.querySelector(".top-bar-mode")?.textContent?.startsWith("Commit"),
@@ -235,6 +239,8 @@ test(
     const help = page.locator('[data-testid="help-overlay"]');
     await help.waitFor();
     expect(await help.textContent()).toContain("Select commit");
+    expect(await help.textContent()).toContain("Pick or unpick commit");
+    expect(await help.textContent()).toContain("Toggle Net Diff / Commit Stack");
     expect(await help.textContent()).toContain("Focus Files");
     await page.keyboard.press("Escape");
     await help.waitFor({ state: "detached" });
@@ -284,6 +290,83 @@ test(
     await page.keyboard.press("Enter");
     await page.waitForFunction(
       () => document.querySelector(".top-bar-mode")?.textContent === "Pending",
+    );
+  },
+  30_000,
+);
+
+test(
+  "picks commits with Space and v and toggles Net Diff and Commit Stack with t",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".file-row");
+
+    await page.keyboard.press("3");
+    expect(await focusedPanel()).toBe("commits");
+
+    await page.keyboard.press("Space");
+    await page.keyboard.press("j");
+    await page.keyboard.press("Space");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".commit-row-selected").length === 2,
+    );
+    await page.waitForFunction(
+      () => document.querySelector(".status-mode")?.textContent === "Net Diff",
+    );
+
+    await page.keyboard.press("t");
+    await page.waitForFunction(
+      () =>
+        document.querySelector(".status-mode")?.textContent === "Commit Stack",
+    );
+    await page.waitForFunction(
+      () => document.querySelectorAll(".commit-stack-group").length === 2,
+    );
+
+    const headers = await page
+      .locator(".commit-stack-heading .commit-stack-message")
+      .allTextContents();
+    expect(headers).toEqual(["second commit", "third commit"]);
+
+    await page.keyboard.press("t");
+    await page.waitForFunction(
+      () => document.querySelector(".status-mode")?.textContent === "Net Diff",
+    );
+    await page.waitForFunction(
+      () => document.querySelectorAll(".commit-stack-group").length === 0,
+    );
+
+    await page.keyboard.press("Space");
+    await page.keyboard.press("j");
+    await page.keyboard.press("Space");
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector(".status-mode")
+          ?.textContent?.includes("non-contiguous") ?? false,
+    );
+    const note = page.locator(".selection-note");
+    await note.waitFor();
+    expect(await note.textContent()).toContain("Commit Stack only");
+
+    await page.keyboard.press("t");
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector(".status-mode")
+          ?.textContent?.includes("non-contiguous") ?? false,
+    );
+
+    await page.reload();
+    await page.waitForSelector(".file-row");
+    await page.keyboard.press("3");
+    await page.keyboard.press("v");
+    await page.keyboard.press("j");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".commit-row-selected").length === 2,
+    );
+    await page.waitForFunction(
+      () => document.querySelector(".status-mode")?.textContent === "Net Diff",
     );
   },
   30_000,
