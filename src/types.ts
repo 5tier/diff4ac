@@ -37,24 +37,48 @@ export interface ChangeFile {
   readonly hunks: readonly Hunk[];
 }
 
+export interface ChangeTotals {
+  readonly files: number;
+  readonly additions: number;
+  readonly deletions: number;
+}
+
+export interface WorktreeInfo {
+  readonly path: string;
+  readonly branch: string;
+}
+
+export interface CommitAuthor {
+  readonly name: string;
+  readonly email: string;
+}
+
+export interface CommitSummary {
+  readonly hash: string;
+  readonly shortHash: string;
+  readonly message: string;
+  readonly author: CommitAuthor;
+  readonly committedAt: string;
+  readonly relativeDate: string;
+}
+
+export interface CommitList {
+  readonly worktree: WorktreeInfo;
+  readonly commits: readonly CommitSummary[];
+}
+
+export type Selection =
+  | { readonly kind: "pending" }
+  | { readonly kind: "commit"; readonly commit: CommitSummary };
+
 export interface ChangeSet {
-  readonly selection: { readonly kind: "pending" };
-  readonly worktree: {
-    readonly path: string;
-    readonly branch: string;
-  };
+  readonly selection: Selection;
+  readonly worktree: WorktreeInfo;
   readonly files: readonly ChangeFile[];
-  readonly totals: {
-    readonly files: number;
-    readonly additions: number;
-    readonly deletions: number;
-  };
+  readonly totals: ChangeTotals;
 }
 
 export interface SessionInfo {
-  readonly worktree: {
-    readonly path: string;
-    readonly branch: string;
-  };
+  readonly worktree: WorktreeInfo;
   readonly version: string;
 }

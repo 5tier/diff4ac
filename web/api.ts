@@ -1,4 +1,4 @@
-import type { ChangeSet } from "../src/types";
+import type { ChangeSet, CommitList } from "../src/types";
 
 const TOKEN_KEY = "diff4ac-token";
 
@@ -32,4 +32,18 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 
 export function fetchPending(signal?: AbortSignal): Promise<ChangeSet> {
   return getJson<ChangeSet>("/api/pending", signal);
+}
+
+export function fetchCommits(signal?: AbortSignal): Promise<CommitList> {
+  return getJson<CommitList>("/api/commits", signal);
+}
+
+export function fetchCommit(
+  hash: string,
+  signal?: AbortSignal,
+): Promise<ChangeSet> {
+  return getJson<ChangeSet>(
+    `/api/commit?hash=${encodeURIComponent(hash)}`,
+    signal,
+  );
 }

@@ -1,7 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildCommitChangeSet } from "../changeset/commit";
 import { buildPendingChangeSet } from "../changeset/pending";
 import { GitGateway } from "../git/gateway";
+import { listCommits } from "../repository/commits";
 import type { SessionInfo } from "../types";
 import { VERSION } from "../version";
 import {
@@ -144,6 +146,37 @@ async function handleRequest(
   if (url.pathname === "/api/pending") {
     try {
       return json(await buildPendingChangeSet(context.git));
+    } catch (error) {
+      return json(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        500,
+      );
+    }
+  }
+
+  if (url.pathname === "/api/commits") {
+    try {
+      return json(await listCommits(context.git));
+    } catch (error) {
+      return json(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        500,
+      );
+    }
+  }
+
+  if (url.pathname === "/api/commit") {
+    const hash = url.searchParams.get("hash");
+    if (!hash || !/^[0-9a-fA-F]{4,64}$/.test(hash)) {
+      return text("Bad request: a commit hash is required", 400);
+    }
+
+    try {
+      return json(await buildCommitChangeSet(context.git, hash));
     } catch (error) {
       return json(
         {

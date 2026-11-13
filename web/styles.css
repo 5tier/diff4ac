@@ -126,7 +126,20 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.worktree-row:hover {
+  background: var(--bg-panel);
+}
+
+.worktree-row-selected {
+  background: var(--bg-selected);
 }
 
 .worktree-icon {
@@ -152,10 +165,59 @@ button {
   white-space: pre-wrap;
 }
 
-.file-list {
+.file-list,
+.commit-list {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.panel-commits .panel-body {
+  max-height: 220px;
+}
+
+.commit-row {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.commit-row:hover {
+  background: var(--bg-panel);
+}
+
+.commit-row-selected {
+  background: var(--bg-selected);
+}
+
+.commit-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.commit-hash {
+  color: var(--hunk);
+  flex: none;
+}
+
+.commit-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-meta {
+  display: block;
+  padding-left: 0;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .file-row {
@@ -310,6 +372,12 @@ button {
 .status-badge {
   color: var(--accent);
   font-weight: 700;
+}
+
+.status-selection {
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status-spacer {

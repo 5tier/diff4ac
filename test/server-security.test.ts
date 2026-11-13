@@ -89,6 +89,45 @@ describe("HTTP server security", () => {
     expect(changeSet.files[0]?.diff).toContain("+two");
   });
 
+  test("wires the API to the commit list and a single-commit Change Set", async () => {
+    const repo = fixture();
+    const second = repo.commit("second");
+    const running = await serverFor(repo);
+
+    const listResponse = await httpGet(
+      running.port,
+      `/api/commits?token=${encodeURIComponent(running.token)}`,
+    );
+    expect(listResponse.status).toBe(200);
+    const list = JSON.parse(listResponse.body) as {
+      commits: { hash: string; message: string }[];
+    };
+    expect(list.commits.map((commit) => commit.message)).toEqual([
+      "second",
+      "initial",
+    ]);
+
+    const commitResponse = await httpGet(
+      running.port,
+      `/api/commit?hash=${second}&token=${encodeURIComponent(running.token)}`,
+    );
+    expect(commitResponse.status).toBe(200);
+    const changeSet = JSON.parse(commitResponse.body) as {
+      selection: { kind: string; commit: { hash: string } };
+      files: { path: string; diff: string }[];
+    };
+    expect(changeSet.selection.kind).toBe("commit");
+    expect(changeSet.selection.commit.hash).toBe(second);
+    expect(changeSet.files[0]?.path).toBe("src/app.ts");
+    expect(changeSet.files[0]?.diff).toContain("+two");
+
+    const missing = await httpGet(
+      running.port,
+      `/api/commit?token=${encodeURIComponent(running.token)}`,
+    );
+    expect(missing.status).toBe(400);
+  });
+
   test("requires the per-session token", async () => {
     const repo = fixture();
     const running = await serverFor(repo);
