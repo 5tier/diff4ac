@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type {
   ChangeFile,
@@ -9,28 +9,53 @@ import type {
   WorktreeInfo,
 } from "../src/types";
 import { fetchCommit, fetchCommits, fetchPending } from "./api";
+import {
+  bindingFor,
+  bindingsForPanel,
+  nextPanel,
+  PANEL_LABELS,
+  type KeyAction,
+  type KeyBinding,
+  type PanelId,
+} from "./keymap";
 
 interface PanelProps {
+  readonly id: PanelId;
   readonly title: string;
   readonly count?: number;
   readonly grow?: boolean;
+  readonly focused: boolean;
+  readonly cursor?: number;
   readonly className?: string;
   readonly children: ReactNode;
 }
 
 function Panel({
+  id,
   title,
   count,
   grow = false,
+  focused,
+  cursor,
   className,
   children,
 }: PanelProps) {
-  const classes = ["panel", grow ? "panel-grow" : "", className ?? ""]
+  const classes = [
+    "panel",
+    grow ? "panel-grow" : "",
+    focused ? "panel-focused" : "",
+    className ?? "",
+  ]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <section className={classes}>
+    <section
+      className={classes}
+      data-panel={id}
+      data-focused={focused ? "true" : "false"}
+      data-cursor={cursor}
+    >
       <header className="panel-title">
         <span>{title}</span>
         {count !== undefined ? <span className="panel-count">{count}</span> : null}
@@ -54,17 +79,27 @@ const STATUS_LABEL: Record<FileStatus, string> = {
 function FileRow({
   file,
   selected,
+  cursor,
   onSelect,
 }: {
   readonly file: ChangeFile;
   readonly selected: boolean;
+  readonly cursor: boolean;
   readonly onSelect: () => void;
 }) {
+  const classes = [
+    "file-row",
+    selected ? "file-row-selected" : "",
+    cursor ? "file-row-cursor" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <li>
       <button
         type="button"
-        className={selected ? "file-row file-row-selected" : "file-row"}
+        className={classes}
         onClick={onSelect}
         title={file.path}
       >
@@ -92,17 +127,27 @@ function FileRow({
 function CommitRow({
   commit,
   selected,
+  cursor,
   onSelect,
 }: {
   readonly commit: CommitSummary;
   readonly selected: boolean;
+  readonly cursor: boolean;
   readonly onSelect: () => void;
 }) {
+  const classes = [
+    "commit-row",
+    selected ? "commit-row-selected" : "",
+    cursor ? "commit-row-cursor" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <li>
       <button
         type="button"
-        className={selected ? "commit-row commit-row-selected" : "commit-row"}
+        className={classes}
         onClick={onSelect}
         title={`${commit.message}\n${commit.author.name} <${commit.author.email}>\n${commit.hash}`}
       >
@@ -182,6 +227,59 @@ function DiffView({ file }: { readonly file: ChangeFile }) {
   );
 }
 
+function HelpOverlay({
+  panel,
+  onClose,
+}: {
+  readonly panel: PanelId;
+  readonly onClose: () => void;
+}) {
+  const bindings = bindingsForPanel(panel);
+
+  const renderBindings = (entries: readonly KeyBinding[]) => (
+    <ul className="help-list">
+      {entries.map((binding) => (
+        <li className="help-row" key={`${binding.panel}:${binding.key}`}>
+          <kbd className="help-key">{binding.key}</kbd>
+          <span className="help-label">{binding.label}</span>
+        </li>
+      ))}
+    </ul>
+  );
+
+  return (
+    <div
+      className="help-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Keybindings for ${PANEL_LABELS[panel]}`}
+      data-testid="help-overlay"
+      onClick={onClose}
+    >
+      <div className="help-dialog" onClick={(event) => event.stopPropagation()}>
+        <header className="help-header">
+          <span>Keybindings · {PANEL_LABELS[panel]}</span>
+          <button type="button" className="help-close" onClick={onClose}>
+            Close
+          </button>
+        </header>
+
+        {bindings.panel.length > 0 ? (
+          <section className="help-section">
+            <h2>{PANEL_LABELS[panel]}</h2>
+            {renderBindings(bindings.panel)}
+          </section>
+        ) : null}
+
+        <section className="help-section">
+          <h2>Global</h2>
+          {renderBindings(bindings.global)}
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function selectionLabel(selection: Selection): string {
   if (selection.kind === "pending") {
     return "Pending";
@@ -205,6 +303,13 @@ export function App() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [focusedPanel, setFocusedPanel] = useState<PanelId>("files");
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [worktreeCursor, setWorktreeCursor] = useState(0);
+  const [commitCursor, setCommitCursor] = useState(0);
+  const [fileCursor, setFileCursor] = useState(0);
+  const diffRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -231,6 +336,7 @@ export function App() {
     setError(null);
     setChangeSet(null);
     setSelectedPath(null);
+    setFileCursor(0);
 
     const request =
       selection.kind === "pending"
@@ -245,6 +351,7 @@ export function App() {
           setPending(loaded);
         }
         setSelectedPath(loaded.files[0]?.path ?? null);
+        setFileCursor(0);
         setLoading(false);
       })
       .catch((reason: unknown) => {
@@ -262,6 +369,112 @@ export function App() {
   const selected = files.find((file) => file.path === selectedPath) ?? null;
   const pendingCount = pending?.totals.files ?? 0;
 
+  useEffect(() => {
+    setCommitCursor((cursor) =>
+      Math.max(0, Math.min(cursor, commits.length - 1)),
+    );
+  }, [commits.length]);
+
+  useEffect(() => {
+    setFileCursor((cursor) =>
+      Math.max(0, Math.min(cursor, files.length - 1)),
+    );
+  }, [files.length]);
+
+  const dispatch = useCallback(
+    (action: KeyAction) => {
+      switch (action.type) {
+        case "focus":
+          setFocusedPanel(action.panel);
+          break;
+        case "cycle":
+          setFocusedPanel((current) => nextPanel(current, action.direction));
+          break;
+        case "move":
+          if (focusedPanel === "commits") {
+            setCommitCursor((cursor) =>
+              Math.max(
+                0,
+                Math.min(cursor + action.direction, commits.length - 1),
+              ),
+            );
+          } else if (focusedPanel === "files") {
+            setFileCursor((cursor) =>
+              Math.max(
+                0,
+                Math.min(cursor + action.direction, files.length - 1),
+              ),
+            );
+          } else if (focusedPanel === "worktrees") {
+            setWorktreeCursor((cursor) =>
+              Math.max(
+                0,
+                Math.min(cursor + action.direction, 0),
+              ),
+            );
+          }
+          break;
+        case "select":
+          if (focusedPanel === "worktrees") {
+            setWorktreeCursor(0);
+            setSelection({ kind: "pending" });
+          } else if (focusedPanel === "commits") {
+            const commit = commits[commitCursor];
+            if (commit) {
+              setSelection({ kind: "commit", commit });
+            }
+          } else if (focusedPanel === "files") {
+            const file = files[fileCursor];
+            if (file) {
+              setSelectedPath(file.path);
+            }
+          }
+          break;
+        case "scroll":
+          diffRef.current?.scrollBy({ top: action.direction * 96 });
+          break;
+        case "help":
+          setHelpOpen(true);
+          break;
+        case "close-help":
+          setHelpOpen(false);
+          break;
+      }
+    },
+    [commits, commitCursor, files, fileCursor, focusedPanel],
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      const binding = bindingFor(focusedPanel, event.key);
+      if (!binding) {
+        return;
+      }
+
+      if (helpOpen) {
+        event.preventDefault();
+        if (binding.action.type === "close-help") {
+          dispatch(binding.action);
+        }
+        return;
+      }
+
+      if (binding.action.type === "close-help") {
+        return;
+      }
+
+      event.preventDefault();
+      dispatch(binding.action);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dispatch, focusedPanel, helpOpen]);
+
   return (
     <div className="app">
       <header className="top-bar">
@@ -276,15 +489,27 @@ export function App() {
 
       <div className="workspace">
         <aside className="sidebar">
-          <Panel title="Worktrees" count={1}>
+          <Panel
+            id="worktrees"
+            title="Worktrees"
+            count={1}
+            focused={focusedPanel === "worktrees"}
+            cursor={worktreeCursor}
+          >
             <button
               type="button"
-              className={
-                selection.kind === "pending"
-                  ? "worktree-row worktree-row-selected"
-                  : "worktree-row"
-              }
-              onClick={() => setSelection({ kind: "pending" })}
+              className={[
+                "worktree-row",
+                selection.kind === "pending" ? "worktree-row-selected" : "",
+                worktreeCursor === 0 ? "worktree-row-cursor" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={() => {
+                setFocusedPanel("worktrees");
+                setWorktreeCursor(0);
+                setSelection({ kind: "pending" });
+              }}
             >
               <span className="worktree-icon">▸</span>
               <span className="worktree-branch">{worktree?.branch ?? "—"}</span>
@@ -292,18 +517,29 @@ export function App() {
             </button>
           </Panel>
 
-          <Panel title="Branches">
+          <Panel
+            id="branches"
+            title="Branches"
+            focused={focusedPanel === "branches"}
+          >
             <div className="placeholder">Branches arrive in a later ticket.</div>
           </Panel>
 
-          <Panel title="Commits" count={commits.length} className="panel-commits">
+          <Panel
+            id="commits"
+            title="Commits"
+            count={commits.length}
+            focused={focusedPanel === "commits"}
+            cursor={commitCursor}
+            className="panel-commits"
+          >
             {commitsError ? (
               <div className="error">{commitsError}</div>
             ) : commits.length === 0 ? (
               <div className="placeholder">No commits on this branch yet.</div>
             ) : (
               <ul className="commit-list">
-                {commits.map((commit) => (
+                {commits.map((commit, index) => (
                   <CommitRow
                     key={commit.hash}
                     commit={commit}
@@ -311,14 +547,26 @@ export function App() {
                       selection.kind === "commit" &&
                       selection.commit.hash === commit.hash
                     }
-                    onSelect={() => setSelection({ kind: "commit", commit })}
+                    cursor={commitCursor === index}
+                    onSelect={() => {
+                      setFocusedPanel("commits");
+                      setCommitCursor(index);
+                      setSelection({ kind: "commit", commit });
+                    }}
                   />
                 ))}
               </ul>
             )}
           </Panel>
 
-          <Panel title="Files" count={files.length} grow>
+          <Panel
+            id="files"
+            title="Files"
+            count={files.length}
+            grow
+            focused={focusedPanel === "files"}
+            cursor={fileCursor}
+          >
             {loading ? (
               <div className="placeholder">Loading Change Set…</div>
             ) : error ? (
@@ -331,12 +579,17 @@ export function App() {
               </div>
             ) : (
               <ul className="file-list">
-                {files.map((file) => (
+                {files.map((file, index) => (
                   <FileRow
                     key={file.path}
                     file={file}
                     selected={file.path === selectedPath}
-                    onSelect={() => setSelectedPath(file.path)}
+                    cursor={fileCursor === index}
+                    onSelect={() => {
+                      setFocusedPanel("files");
+                      setFileCursor(index);
+                      setSelectedPath(file.path);
+                    }}
                   />
                 ))}
               </ul>
@@ -344,7 +597,14 @@ export function App() {
           </Panel>
         </aside>
 
-        <main className="diff-pane">
+        <main
+          ref={diffRef}
+          className={
+            focusedPanel === "diff" ? "diff-pane diff-pane-focused" : "diff-pane"
+          }
+          data-panel="diff"
+          data-focused={focusedPanel === "diff" ? "true" : "false"}
+        >
           {selected ? (
             <DiffView file={selected} />
           ) : (
@@ -373,6 +633,10 @@ export function App() {
         <span className="muted">{worktree?.branch ?? ""}</span>
         <span className="muted">read-only · refresh on demand</span>
       </footer>
+
+      {helpOpen ? (
+        <HelpOverlay panel={focusedPanel} onClose={() => setHelpOpen(false)} />
+      ) : null}
     </div>
   );
 }

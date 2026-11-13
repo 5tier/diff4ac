@@ -4,10 +4,10 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `1`–`4`, `0` and `Tab` move focus between panels, and the focused panel is visibly highlighted
-- [ ] `j`/`k` move the cursor in lists and scroll the Diff; `Enter` selects or drills into the item under the cursor
-- [ ] `?` opens a help overlay listing the bindings for the focused panel; `Esc` closes it
-- [ ] Every binding is defined in one keymap, and nothing is hard-coded in components
-- [ ] Playwright is set up, with a smoke test that launches against a fixture Repository and navigates with the keyboard
+- [x] `1`–`4`, `0` and `Tab` move focus between panels, and the focused panel is visibly highlighted
+- [x] `j`/`k` move the cursor in lists and scroll the Diff; `Enter` selects or drills into the item under the cursor
+- [x] `?` opens a help overlay listing the bindings for the focused panel; `Esc` closes it
+- [x] Every binding is defined in one keymap, and nothing is hard-coded in components
+- [x] Playwright is set up, with a smoke test that launches against a fixture Repository and navigates with the keyboard

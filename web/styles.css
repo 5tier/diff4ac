@@ -100,6 +100,15 @@ button {
   flex: 1;
 }
 
+.panel-focused {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.panel-focused .panel-title {
+  color: #dceaf7;
+  background: #222a32;
+}
+
 .panel-title {
   display: flex;
   align-items: center;
@@ -139,6 +148,19 @@ button {
 }
 
 .worktree-row-selected {
+  background: var(--bg-selected);
+}
+
+.worktree-row-cursor,
+.commit-row-cursor,
+.file-row-cursor {
+  box-shadow: inset 2px 0 0 rgba(127, 183, 232, 0.55);
+}
+
+.panel-focused .worktree-row-cursor,
+.panel-focused .commit-row-cursor,
+.panel-focused .file-row-cursor {
+  box-shadow: inset 2px 0 0 var(--accent);
   background: var(--bg-selected);
 }
 
@@ -293,6 +315,10 @@ button {
   background: var(--bg);
 }
 
+.diff-pane-focused {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
 .diff-view {
   min-height: 100%;
 }
@@ -382,4 +408,94 @@ button {
 
 .status-spacer {
   flex: 1;
+}
+
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.help-dialog {
+  width: min(540px, 90vw);
+  max-height: 80vh;
+  overflow: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+.help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  color: var(--accent);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+
+.help-close {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.help-close:hover {
+  background: var(--bg-selected);
+}
+
+.help-section {
+  padding: 10px 16px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.help-section:last-child {
+  border-bottom: 0;
+}
+
+.help-section h2 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.help-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.help-key {
+  min-width: 72px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: center;
+  font: inherit;
+}
+
+.help-label {
+  color: var(--text);
 }
