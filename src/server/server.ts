@@ -1,8 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildBranchChangeSet } from "../changeset/branch";
 import { buildCommitChangeSet } from "../changeset/commit";
 import { buildPendingChangeSet } from "../changeset/pending";
 import { GitGateway } from "../git/gateway";
+import {
+  listBranches,
+  UnknownBranchError,
+} from "../repository/branches";
 import { listCommits } from "../repository/commits";
 import type { SessionInfo } from "../types";
 import { VERSION } from "../version";
@@ -147,6 +152,40 @@ async function handleRequest(
     try {
       return json(await buildPendingChangeSet(context.git));
     } catch (error) {
+      return json(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        500,
+      );
+    }
+  }
+
+  if (url.pathname === "/api/branches") {
+    try {
+      return json(await listBranches(context.git));
+    } catch (error) {
+      return json(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        500,
+      );
+    }
+  }
+
+  if (url.pathname === "/api/branch") {
+    const name = url.searchParams.get("name");
+    if (!name) {
+      return text("Bad request: a branch name is required", 400);
+    }
+
+    try {
+      return json(await buildBranchChangeSet(context.git, name));
+    } catch (error) {
+      if (error instanceof UnknownBranchError) {
+        return text(error.message, 404);
+      }
       return json(
         {
           error: error instanceof Error ? error.message : String(error),

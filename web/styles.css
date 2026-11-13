@@ -152,12 +152,14 @@ button {
 }
 
 .worktree-row-cursor,
+.branch-row-cursor,
 .commit-row-cursor,
 .file-row-cursor {
   box-shadow: inset 2px 0 0 rgba(127, 183, 232, 0.55);
 }
 
 .panel-focused .worktree-row-cursor,
+.panel-focused .branch-row-cursor,
 .panel-focused .commit-row-cursor,
 .panel-focused .file-row-cursor {
   box-shadow: inset 2px 0 0 var(--accent);
@@ -188,7 +190,8 @@ button {
 }
 
 .file-list,
-.commit-list {
+.commit-list,
+.branch-list {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -196,6 +199,55 @@ button {
 
 .panel-commits .panel-body {
   max-height: 220px;
+}
+
+.panel-branches .panel-body {
+  max-height: 160px;
+}
+
+.branch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.branch-row:hover:not(:disabled) {
+  background: var(--bg-panel);
+}
+
+.branch-row:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.branch-row-selected {
+  background: var(--bg-selected);
+}
+
+.branch-marker {
+  width: 1em;
+}
+
+.branch-current {
+  width: 1em;
+  color: var(--accent);
+}
+
+.branch-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-hash {
+  color: var(--hunk);
 }
 
 .commit-row {

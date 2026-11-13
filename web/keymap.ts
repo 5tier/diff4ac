@@ -52,6 +52,24 @@ export const KEYMAP: readonly KeyBinding[] = [
     action: { type: "select" },
   },
   {
+    panel: "branches",
+    key: "j",
+    label: "Move down",
+    action: { type: "move", direction: 1 },
+  },
+  {
+    panel: "branches",
+    key: "k",
+    label: "Move up",
+    action: { type: "move", direction: -1 },
+  },
+  {
+    panel: "branches",
+    key: "Enter",
+    label: "Review branch",
+    action: { type: "select" },
+  },
+  {
     panel: "commits",
     key: "j",
     label: "Move down",

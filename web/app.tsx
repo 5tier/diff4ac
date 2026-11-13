@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type {
+  BaseBranch,
+  BranchSummary,
   ChangeFile,
   ChangeSet,
   CommitSummary,
@@ -8,7 +10,13 @@ import type {
   Selection,
   WorktreeInfo,
 } from "../src/types";
-import { fetchCommit, fetchCommits, fetchPending } from "./api";
+import {
+  fetchBranch,
+  fetchBranches,
+  fetchCommit,
+  fetchCommits,
+  fetchPending,
+} from "./api";
 import {
   bindingFor,
   bindingsForPanel,
@@ -163,6 +171,44 @@ function CommitRow({
   );
 }
 
+function BranchRow({
+  branch,
+  selected,
+  cursor,
+  disabled,
+  onSelect,
+}: {
+  readonly branch: BranchSummary;
+  readonly selected: boolean;
+  readonly cursor: boolean;
+  readonly disabled: boolean;
+  readonly onSelect: () => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className={[
+          "branch-row",
+          selected ? "branch-row-selected" : "",
+          cursor ? "branch-row-cursor" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        onClick={onSelect}
+        disabled={disabled}
+        title={`${branch.name}${branch.current ? " (current)" : ""}\n${branch.hash}`}
+      >
+        <span className={branch.current ? "branch-current" : "branch-marker"}>
+          {branch.current ? "●" : " "}
+        </span>
+        <span className="branch-name">{branch.name}</span>
+        <span className="branch-hash">{branch.shortHash}</span>
+      </button>
+    </li>
+  );
+}
+
 function diffLineClass(line: string): string {
   if (
     line.startsWith("diff --git") ||
@@ -281,22 +327,47 @@ function HelpOverlay({
 }
 
 function selectionLabel(selection: Selection): string {
-  if (selection.kind === "pending") {
-    return "Pending";
+  switch (selection.kind) {
+    case "pending":
+      return "Pending";
+    case "commit":
+      return `Commit ${selection.commit.shortHash} · ${selection.commit.message}`;
+    case "branch":
+      return `Branch ${selection.branch.name} since ${selection.baseBranch.name}`;
   }
-  return `Commit ${selection.commit.shortHash} · ${selection.commit.message}`;
 }
 
 function selectionBadge(selection: Selection): string {
-  return selection.kind === "pending"
-    ? "Pending"
-    : `Commit ${selection.commit.shortHash}`;
+  switch (selection.kind) {
+    case "pending":
+      return "Pending";
+    case "commit":
+      return `Commit ${selection.commit.shortHash}`;
+    case "branch":
+      return `Branch ${selection.branch.name}`;
+  }
+}
+
+function emptyFilesMessage(selection: Selection): string {
+  switch (selection.kind) {
+    case "pending":
+      return "No Pending changes in this Worktree.";
+    case "commit":
+      return "This commit has no file changes.";
+    case "branch":
+      return selection.branch.name === selection.baseBranch.name
+        ? "No changes: this is the Base Branch."
+        : "No changes since the Base Branch.";
+  }
 }
 
 export function App() {
   const [pending, setPending] = useState<ChangeSet | null>(null);
   const [commits, setCommits] = useState<readonly CommitSummary[]>([]);
   const [commitsError, setCommitsError] = useState<string | null>(null);
+  const [branches, setBranches] = useState<readonly BranchSummary[]>([]);
+  const [baseBranch, setBaseBranch] = useState<BaseBranch | null>(null);
+  const [branchesError, setBranchesError] = useState<string | null>(null);
   const [selection, setSelection] = useState<Selection>({ kind: "pending" });
   const [worktree, setWorktree] = useState<WorktreeInfo | null>(null);
   const [changeSet, setChangeSet] = useState<ChangeSet | null>(null);
@@ -307,6 +378,7 @@ export function App() {
   const [focusedPanel, setFocusedPanel] = useState<PanelId>("files");
   const [helpOpen, setHelpOpen] = useState(false);
   const [worktreeCursor, setWorktreeCursor] = useState(0);
+  const [branchCursor, setBranchCursor] = useState(0);
   const [commitCursor, setCommitCursor] = useState(0);
   const [fileCursor, setFileCursor] = useState(0);
   const diffRef = useRef<HTMLElement | null>(null);
@@ -332,6 +404,28 @@ export function App() {
 
   useEffect(() => {
     const controller = new AbortController();
+
+    fetchBranches(controller.signal)
+      .then((list) => {
+        setBranches(list.branches);
+        setBaseBranch(list.baseBranch);
+        setWorktree(list.worktree);
+        setBranchesError(null);
+      })
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") {
+          return;
+        }
+        setBranchesError(
+          reason instanceof Error ? reason.message : String(reason),
+        );
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     setChangeSet(null);
@@ -341,7 +435,9 @@ export function App() {
     const request =
       selection.kind === "pending"
         ? fetchPending(controller.signal)
-        : fetchCommit(selection.commit.hash, controller.signal);
+        : selection.kind === "commit"
+          ? fetchCommit(selection.commit.hash, controller.signal)
+          : fetchBranch(selection.branch.name, controller.signal);
 
     request
       .then((loaded) => {
@@ -370,6 +466,12 @@ export function App() {
   const pendingCount = pending?.totals.files ?? 0;
 
   useEffect(() => {
+    setBranchCursor((cursor) =>
+      Math.max(0, Math.min(cursor, branches.length - 1)),
+    );
+  }, [branches.length]);
+
+  useEffect(() => {
     setCommitCursor((cursor) =>
       Math.max(0, Math.min(cursor, commits.length - 1)),
     );
@@ -391,7 +493,14 @@ export function App() {
           setFocusedPanel((current) => nextPanel(current, action.direction));
           break;
         case "move":
-          if (focusedPanel === "commits") {
+          if (focusedPanel === "branches") {
+            setBranchCursor((cursor) =>
+              Math.max(
+                0,
+                Math.min(cursor + action.direction, branches.length - 1),
+              ),
+            );
+          } else if (focusedPanel === "commits") {
             setCommitCursor((cursor) =>
               Math.max(
                 0,
@@ -418,6 +527,11 @@ export function App() {
           if (focusedPanel === "worktrees") {
             setWorktreeCursor(0);
             setSelection({ kind: "pending" });
+          } else if (focusedPanel === "branches") {
+            const branch = branches[branchCursor];
+            if (branch && baseBranch) {
+              setSelection({ kind: "branch", branch, baseBranch });
+            }
           } else if (focusedPanel === "commits") {
             const commit = commits[commitCursor];
             if (commit) {
@@ -441,7 +555,16 @@ export function App() {
           break;
       }
     },
-    [commits, commitCursor, files, fileCursor, focusedPanel],
+    [
+      baseBranch,
+      branches,
+      branchCursor,
+      commits,
+      commitCursor,
+      files,
+      fileCursor,
+      focusedPanel,
+    ],
   );
 
   useEffect(() => {
@@ -520,9 +643,45 @@ export function App() {
           <Panel
             id="branches"
             title="Branches"
+            count={branches.length}
             focused={focusedPanel === "branches"}
+            cursor={branchCursor}
+            className="panel-branches"
           >
-            <div className="placeholder">Branches arrive in a later ticket.</div>
+            {branchesError ? (
+              <div className="error">{branchesError}</div>
+            ) : branches.length === 0 ? (
+              <div className="placeholder">No local branches.</div>
+            ) : (
+              <>
+                {baseBranch ? null : (
+                  <div className="placeholder">
+                    Base Branch not detected (no origin/HEAD, main or master).
+                  </div>
+                )}
+                <ul className="branch-list">
+                  {branches.map((branch, index) => (
+                    <BranchRow
+                      key={branch.name}
+                      branch={branch}
+                      cursor={branchCursor === index}
+                      selected={
+                        selection.kind === "branch" &&
+                        selection.branch.name === branch.name
+                      }
+                      disabled={baseBranch === null}
+                      onSelect={() => {
+                        setFocusedPanel("branches");
+                        setBranchCursor(index);
+                        if (baseBranch) {
+                          setSelection({ kind: "branch", branch, baseBranch });
+                        }
+                      }}
+                    />
+                  ))}
+                </ul>
+              </>
+            )}
           </Panel>
 
           <Panel
@@ -572,11 +731,7 @@ export function App() {
             ) : error ? (
               <div className="error">{error}</div>
             ) : files.length === 0 ? (
-              <div className="placeholder">
-                {selection.kind === "pending"
-                  ? "No Pending changes in this Worktree."
-                  : "This commit has no file changes."}
-              </div>
+              <div className="placeholder">{emptyFilesMessage(selection)}</div>
             ) : (
               <ul className="file-list">
                 {files.map((file, index) => (
@@ -630,6 +785,7 @@ export function App() {
         <span className="add">+{changeSet?.totals.additions ?? 0}</span>
         <span className="del">−{changeSet?.totals.deletions ?? 0}</span>
         <span className="status-spacer" />
+        <span className="muted">base: {baseBranch?.name ?? "—"}</span>
         <span className="muted">{worktree?.branch ?? ""}</span>
         <span className="muted">read-only · refresh on demand</span>
       </footer>

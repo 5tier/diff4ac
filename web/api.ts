@@ -1,4 +1,4 @@
-import type { ChangeSet, CommitList } from "../src/types";
+import type { BranchList, ChangeSet, CommitList } from "../src/types";
 
 const TOKEN_KEY = "diff4ac-token";
 
@@ -44,6 +44,20 @@ export function fetchCommit(
 ): Promise<ChangeSet> {
   return getJson<ChangeSet>(
     `/api/commit?hash=${encodeURIComponent(hash)}`,
+    signal,
+  );
+}
+
+export function fetchBranches(signal?: AbortSignal): Promise<BranchList> {
+  return getJson<BranchList>("/api/branches", signal);
+}
+
+export function fetchBranch(
+  name: string,
+  signal?: AbortSignal,
+): Promise<ChangeSet> {
+  return getJson<ChangeSet>(
+    `/api/branch?name=${encodeURIComponent(name)}`,
     signal,
   );
 }
