@@ -117,9 +117,14 @@ function parseNumstat(output: string): Map<string, NumstatRecord> {
   return records;
 }
 
-export function parseUntracked(statusOutput: string): string[] {
+interface StatusEntry {
+  readonly code: string;
+  readonly path: string;
+}
+
+function parseStatusEntries(statusOutput: string): StatusEntry[] {
   const tokens = nulTokens(statusOutput);
-  const untracked: string[] = [];
+  const entries: StatusEntry[] = [];
   let index = 0;
 
   while (index < tokens.length) {
@@ -135,12 +140,20 @@ export function parseUntracked(statusOutput: string): string[] {
       index++;
     }
 
-    if (code === "??") {
-      untracked.push(path);
-    }
+    entries.push({ code, path });
   }
 
-  return untracked;
+  return entries;
+}
+
+export function parseUntracked(statusOutput: string): string[] {
+  return parseStatusEntries(statusOutput)
+    .filter((entry) => entry.code === "??")
+    .map((entry) => entry.path);
+}
+
+export function countPendingFiles(statusOutput: string): number {
+  return parseStatusEntries(statusOutput).length;
 }
 
 export function looksBinary(diff: string): boolean {

@@ -2,11 +2,16 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { join } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
 import { startServer, type RunningServer } from "../src/server/server";
-import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
+import {
+  createFixtureRepo,
+  type FixtureCheckout,
+  type FixtureRepo,
+} from "./helpers/fixture";
 
 const PROJECT_ROOT = join(import.meta.dir, "..");
 
 let repo: FixtureRepo;
+let linkedWorktree: FixtureCheckout;
 let running: RunningServer;
 let browser: Browser;
 let page: Page;
@@ -71,6 +76,9 @@ beforeAll(async () => {
   repo.write("src/alpha.ts", `${longFile}changed again\n`);
   repo.write("src/gamma.ts", "pending gamma\n");
 
+  linkedWorktree = repo.addWorktree("agent", { branch: "agent-work" });
+  linkedWorktree.write("src/linked.ts", "linked pending\n");
+
   running = await startServer({ repoPath: repo.root });
   browser = await launchChromium();
   page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
@@ -85,6 +93,46 @@ afterAll(async () => {
 });
 
 test(
+  "shows Worktree Pending counts independently of the current Selection",
+  async () => {
+    const slowPage = await browser.newPage({
+      viewport: { width: 1200, height: 800 },
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await slowPage.route("**/api/pending*", async (route) => {
+      await gate;
+      await route.continue();
+    });
+
+    try {
+      await slowPage.goto(running.url);
+      await slowPage.waitForSelector(".worktree-row");
+
+      const worktreeText = (
+        await slowPage.locator(".worktree-row").allTextContents()
+      ).join("\n");
+      expect(worktreeText).toContain("2 pending");
+      expect(worktreeText).toContain("1 pending");
+      expect(await slowPage.locator(".file-row").count()).toBe(0);
+      expect(
+        await slowPage.locator('[data-panel="files"]').textContent(),
+      ).toContain("Loading Change Set");
+
+      release();
+      await slowPage.waitForSelector(".file-row");
+    } finally {
+      release();
+      await slowPage.close();
+    }
+  },
+  30_000,
+);
+
+test(
   "navigates panels, lists, diff and help with the keyboard",
   async () => {
     expect(await focusedPanel()).toBe("files");
@@ -92,6 +140,46 @@ test(
       "src/alpha.ts",
     );
 
+    const worktreeRows = page.locator(".worktree-row");
+    expect(await worktreeRows.count()).toBe(2);
+    const worktreeText = (await worktreeRows.allTextContents()).join("\n");
+    expect(worktreeText).toContain(repo.root);
+    expect(worktreeText).toContain(linkedWorktree.root);
+    expect(worktreeText).toContain("agent-work");
+    expect(worktreeText).toContain("2 pending");
+    expect(worktreeText).toContain("1 pending");
+
+    await page.keyboard.press("1");
+    expect(await focusedPanel()).toBe("worktrees");
+    await page.keyboard.press("j");
+    expect(
+      await page.locator(".worktree-row-cursor .worktree-path").textContent(),
+    ).toBe(linkedWorktree.root);
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(
+      (linkedPath) =>
+        document.querySelector(".top-bar-path")?.textContent === linkedPath &&
+        document.querySelectorAll(".file-row").length === 1,
+      linkedWorktree.root,
+    );
+    expect(await page.locator(".file-row .file-path").textContent()).toContain(
+      "src/linked.ts",
+    );
+
+    await page.keyboard.press("k");
+    expect(
+      await page.locator(".worktree-row-cursor .worktree-path").textContent(),
+    ).toBe(repo.root);
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(
+      (mainPath) =>
+        document.querySelector(".top-bar-path")?.textContent === mainPath &&
+        document.querySelectorAll(".file-row").length === 2,
+      repo.root,
+    );
+
+    await page.keyboard.press("4");
+    expect(await focusedPanel()).toBe("files");
     await page.keyboard.press("j");
     expect(await page.locator(".file-row-cursor .file-path").textContent()).toContain(
       "src/gamma.ts",

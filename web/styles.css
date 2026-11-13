@@ -131,6 +131,16 @@ button {
   min-height: 0;
 }
 
+.worktree-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.panel-worktrees .panel-body {
+  max-height: 190px;
+}
+
 .worktree-row {
   display: flex;
   align-items: center;
@@ -167,14 +177,38 @@ button {
 }
 
 .worktree-icon {
+  flex: none;
+  color: var(--muted);
+}
+
+.worktree-current {
+  flex: none;
   color: var(--accent);
 }
 
-.worktree-branch {
+.worktree-info {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.worktree-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.worktree-branch {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .worktree-pending {
+  flex: none;
   color: var(--muted);
 }
 

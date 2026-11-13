@@ -1,4 +1,9 @@
-import type { BranchList, ChangeSet, CommitList } from "../src/types";
+import type {
+  BranchList,
+  ChangeSet,
+  CommitList,
+  WorktreeList,
+} from "../src/types";
 
 const TOKEN_KEY = "diff4ac-token";
 
@@ -32,6 +37,20 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 
 export function fetchPending(signal?: AbortSignal): Promise<ChangeSet> {
   return getJson<ChangeSet>("/api/pending", signal);
+}
+
+export function fetchWorktreePending(
+  path: string,
+  signal?: AbortSignal,
+): Promise<ChangeSet> {
+  return getJson<ChangeSet>(
+    `/api/pending?worktree=${encodeURIComponent(path)}`,
+    signal,
+  );
+}
+
+export function fetchWorktrees(signal?: AbortSignal): Promise<WorktreeList> {
+  return getJson<WorktreeList>("/api/worktrees", signal);
 }
 
 export function fetchCommits(signal?: AbortSignal): Promise<CommitList> {

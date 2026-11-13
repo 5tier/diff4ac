@@ -27,13 +27,13 @@ export interface WriteOptions {
   readonly stage?: boolean;
 }
 
-const BASE_DATE = Date.UTC(2024, 0, 1, 12, 0, 0);
-
-function dateAt(index: number): string {
-  return new Date(BASE_DATE + index * 60_000).toISOString();
+export interface WorktreeOptions {
+  readonly branch?: string;
+  readonly detach?: boolean;
+  readonly startPoint?: string;
 }
 
-export interface FixtureRepo {
+export interface FixtureCheckout {
   readonly root: string;
   write(path: string, content: string, options?: WriteOptions): void;
   append(path: string, content: string): void;
@@ -43,17 +43,32 @@ export interface FixtureRepo {
   unstage(...paths: string[]): void;
   commit(message: string, options?: CommitOptions): string;
   git(args: readonly string[]): string;
+}
+
+export interface FixtureRepo extends FixtureCheckout {
+  addWorktree(name: string, options?: WorktreeOptions): FixtureCheckout;
   dispose(): void;
+}
+
+const BASE_DATE = Date.UTC(2024, 0, 1, 12, 0, 0);
+
+function dateAt(index: number): string {
+  return new Date(BASE_DATE + index * 60_000).toISOString();
 }
 
 export function createFixtureRepo(): FixtureRepo {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "diff4ac-fixture-")));
   let commitIndex = 0;
+  let worktreesRoot: string | null = null;
 
-  const git = (args: readonly string[], env: Record<string, string> = {}): string => {
+  const gitIn = (
+    cwd: string,
+    args: readonly string[],
+    env: Record<string, string> = {},
+  ): string => {
     const proc = Bun.spawnSync({
       cmd: ["git", "--no-optional-locks", ...args],
-      cwd: root,
+      cwd,
       stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
@@ -80,76 +95,117 @@ export function createFixtureRepo(): FixtureRepo {
     return proc.stdout.toString();
   };
 
-  const absolute = (path: string) => join(root, path);
+  const createCheckout = (checkoutRoot: string): FixtureCheckout => {
+    const absolute = (path: string) => join(checkoutRoot, path);
 
-  const write = (path: string, content: string, options: WriteOptions = {}) => {
-    mkdirSync(dirname(absolute(path)), { recursive: true });
-    writeFileSync(absolute(path), content);
-    if (options.stage) {
-      git(["add", "--", path]);
-    }
+    const write = (
+      path: string,
+      content: string,
+      options: WriteOptions = {},
+    ) => {
+      mkdirSync(dirname(absolute(path)), { recursive: true });
+      writeFileSync(absolute(path), content);
+      if (options.stage) {
+        gitIn(checkoutRoot, ["add", "--", path]);
+      }
+    };
+
+    return {
+      root: checkoutRoot,
+      git(args) {
+        return gitIn(checkoutRoot, args);
+      },
+      write,
+      append(path, content) {
+        const existing = readFileSync(absolute(path), "utf8");
+        writeFileSync(absolute(path), `${existing}${content}`);
+      },
+      remove(path, options = {}) {
+        unlinkSync(absolute(path));
+        if (options.stage) {
+          gitIn(checkoutRoot, ["add", "-A", "--", path]);
+        }
+      },
+      rename(oldPath, newPath, options = {}) {
+        mkdirSync(dirname(absolute(newPath)), { recursive: true });
+        renameSync(absolute(oldPath), absolute(newPath));
+        if (options.stage) {
+          gitIn(checkoutRoot, ["add", "-A", "--", oldPath, newPath]);
+        }
+      },
+      stage(...paths) {
+        gitIn(checkoutRoot, ["add", "--", ...paths]);
+      },
+      unstage(...paths) {
+        gitIn(checkoutRoot, ["reset", "-q", "HEAD", "--", ...paths]);
+      },
+      commit(message, options = {}) {
+        commitIndex++;
+        if (options.addAll ?? true) {
+          gitIn(checkoutRoot, ["add", "-A"]);
+        }
+
+        const author: FixtureAuthor = options.author ?? {
+          name: "Fixture Author",
+          email: "fixture@example.com",
+        };
+        const date = options.date ?? dateAt(commitIndex);
+        const trailers = options.trailers ?? [];
+        const body = trailers.length
+          ? `${message}\n\n${trailers.join("\n")}`
+          : message;
+
+        gitIn(checkoutRoot, ["commit", "-q", "-m", body], {
+          GIT_AUTHOR_NAME: author.name,
+          GIT_AUTHOR_EMAIL: author.email,
+          GIT_COMMITTER_NAME: author.name,
+          GIT_COMMITTER_EMAIL: author.email,
+          GIT_AUTHOR_DATE: date,
+          GIT_COMMITTER_DATE: date,
+        });
+
+        return gitIn(checkoutRoot, ["rev-parse", "HEAD"]).trim();
+      },
+    };
   };
 
-  git(["init", "-q", "-b", "main"]);
-  git(["config", "user.name", "Fixture Author"]);
-  git(["config", "user.email", "fixture@example.com"]);
-  git(["config", "commit.gpgsign", "false"]);
+  gitIn(root, ["init", "-q", "-b", "main"]);
+  gitIn(root, ["config", "user.name", "Fixture Author"]);
+  gitIn(root, ["config", "user.email", "fixture@example.com"]);
+  gitIn(root, ["config", "commit.gpgsign", "false"]);
+
+  const main = createCheckout(root);
 
   return {
-    root,
-    git,
-    write,
-    append(path, content) {
-      const existing = readFileSync(absolute(path), "utf8");
-      writeFileSync(absolute(path), `${existing}${content}`);
-    },
-    remove(path, options = {}) {
-      unlinkSync(absolute(path));
-      if (options.stage) {
-        git(["add", "-A", "--", path]);
-      }
-    },
-    rename(oldPath, newPath, options = {}) {
-      mkdirSync(dirname(absolute(newPath)), { recursive: true });
-      renameSync(absolute(oldPath), absolute(newPath));
-      if (options.stage) {
-        git(["add", "-A", "--", oldPath, newPath]);
-      }
-    },
-    stage(...paths) {
-      git(["add", "--", ...paths]);
-    },
-    unstage(...paths) {
-      git(["reset", "-q", "HEAD", "--", ...paths]);
-    },
-    commit(message, options = {}) {
-      commitIndex++;
-      if (options.addAll ?? true) {
-        git(["add", "-A"]);
+    ...main,
+    addWorktree(name, options = {}) {
+      if (!worktreesRoot) {
+        worktreesRoot = realpathSync(
+          mkdtempSync(join(tmpdir(), "diff4ac-worktrees-")),
+        );
       }
 
-      const author: FixtureAuthor = options.author ?? {
-        name: "Fixture Author",
-        email: "fixture@example.com",
-      };
-      const date = options.date ?? dateAt(commitIndex);
-      const trailers = options.trailers ?? [];
-      const body = trailers.length
-        ? `${message}\n\n${trailers.join("\n")}`
-        : message;
+      const path = join(worktreesRoot, name);
+      const args = ["worktree", "add", "-q"];
 
-      git(["commit", "-q", "-m", body], {
-        GIT_AUTHOR_NAME: author.name,
-        GIT_AUTHOR_EMAIL: author.email,
-        GIT_COMMITTER_NAME: author.name,
-        GIT_COMMITTER_EMAIL: author.email,
-        GIT_AUTHOR_DATE: date,
-        GIT_COMMITTER_DATE: date,
-      });
+      if (options.branch) {
+        args.push("-b", options.branch);
+      } else if (options.detach) {
+        args.push("--detach");
+      }
 
-      return git(["rev-parse", "HEAD"]).trim();
+      args.push(path);
+      if (options.startPoint) {
+        args.push(options.startPoint);
+      }
+
+      gitIn(root, args);
+      return createCheckout(realpathSync(path));
     },
     dispose() {
+      if (worktreesRoot) {
+        rmSync(worktreesRoot, { recursive: true, force: true });
+      }
       rmSync(root, { recursive: true, force: true });
     },
   };

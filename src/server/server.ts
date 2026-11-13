@@ -9,6 +9,11 @@ import {
   UnknownBranchError,
 } from "../repository/branches";
 import { listCommits } from "../repository/commits";
+import {
+  listWorktrees,
+  openWorktree,
+  UnknownWorktreeError,
+} from "../repository/worktrees";
 import type { SessionInfo } from "../types";
 import { VERSION } from "../version";
 import {
@@ -148,10 +153,31 @@ async function handleRequest(
     return json(session);
   }
 
-  if (url.pathname === "/api/pending") {
+  if (url.pathname === "/api/worktrees") {
     try {
-      return json(await buildPendingChangeSet(context.git));
+      return json(await listWorktrees(context.git));
     } catch (error) {
+      return json(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        500,
+      );
+    }
+  }
+
+  if (url.pathname === "/api/pending") {
+    const worktreePath = url.searchParams.get("worktree");
+
+    try {
+      const git = worktreePath
+        ? await openWorktree(context.git, worktreePath)
+        : context.git;
+      return json(await buildPendingChangeSet(git));
+    } catch (error) {
+      if (error instanceof UnknownWorktreeError) {
+        return text(error.message, 404);
+      }
       return json(
         {
           error: error instanceof Error ? error.message : String(error),

@@ -48,6 +48,19 @@ export interface WorktreeInfo {
   readonly branch: string;
 }
 
+export interface WorktreeSummary {
+  readonly path: string;
+  readonly branch: string | null;
+  readonly head: string;
+  readonly shortHead: string;
+  readonly pendingCount: number;
+  readonly current: boolean;
+}
+
+export interface WorktreeList {
+  readonly worktrees: readonly WorktreeSummary[];
+}
+
 export interface CommitAuthor {
   readonly name: string;
   readonly email: string;

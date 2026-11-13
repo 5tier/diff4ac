@@ -9,6 +9,7 @@ import type {
   FileStatus,
   Selection,
   WorktreeInfo,
+  WorktreeSummary,
 } from "../src/types";
 import {
   fetchBranch,
@@ -16,6 +17,8 @@ import {
   fetchCommit,
   fetchCommits,
   fetchPending,
+  fetchWorktreePending,
+  fetchWorktrees,
 } from "./api";
 import {
   bindingFor,
@@ -166,6 +169,48 @@ function CommitRow({
         <span className="commit-meta">
           {commit.author.name} · {commit.relativeDate}
         </span>
+      </button>
+    </li>
+  );
+}
+
+function WorktreeRow({
+  worktree,
+  selected,
+  cursor,
+  onSelect,
+}: {
+  readonly worktree: WorktreeSummary;
+  readonly selected: boolean;
+  readonly cursor: boolean;
+  readonly onSelect: () => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className={[
+          "worktree-row",
+          selected ? "worktree-row-selected" : "",
+          cursor ? "worktree-row-cursor" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        data-worktree-path={worktree.path}
+        data-pending-count={worktree.pendingCount}
+        onClick={onSelect}
+        title={`${worktree.path}\n${worktree.branch ?? `detached HEAD ${worktree.shortHead}`}`}
+      >
+        <span className={worktree.current ? "worktree-current" : "worktree-icon"}>
+          {worktree.current ? "●" : "▸"}
+        </span>
+        <span className="worktree-info">
+          <span className="worktree-path">{worktree.path}</span>
+          <span className="worktree-branch">
+            {worktree.branch ?? `detached HEAD · ${worktree.shortHead}`}
+          </span>
+        </span>
+        <span className="worktree-pending">{worktree.pendingCount} pending</span>
       </button>
     </li>
   );
@@ -363,6 +408,11 @@ function emptyFilesMessage(selection: Selection): string {
 
 export function App() {
   const [pending, setPending] = useState<ChangeSet | null>(null);
+  const [worktrees, setWorktrees] = useState<readonly WorktreeSummary[]>([]);
+  const [worktreesError, setWorktreesError] = useState<string | null>(null);
+  const [selectedWorktreePath, setSelectedWorktreePath] = useState<
+    string | null
+  >(null);
   const [commits, setCommits] = useState<readonly CommitSummary[]>([]);
   const [commitsError, setCommitsError] = useState<string | null>(null);
   const [branches, setBranches] = useState<readonly BranchSummary[]>([]);
@@ -405,6 +455,26 @@ export function App() {
   useEffect(() => {
     const controller = new AbortController();
 
+    fetchWorktrees(controller.signal)
+      .then((list) => {
+        setWorktrees(list.worktrees);
+        setWorktreesError(null);
+      })
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") {
+          return;
+        }
+        setWorktreesError(
+          reason instanceof Error ? reason.message : String(reason),
+        );
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
     fetchBranches(controller.signal)
       .then((list) => {
         setBranches(list.branches);
@@ -434,7 +504,9 @@ export function App() {
 
     const request =
       selection.kind === "pending"
-        ? fetchPending(controller.signal)
+        ? selectedWorktreePath
+          ? fetchWorktreePending(selectedWorktreePath, controller.signal)
+          : fetchPending(controller.signal)
         : selection.kind === "commit"
           ? fetchCommit(selection.commit.hash, controller.signal)
           : fetchBranch(selection.branch.name, controller.signal);
@@ -459,11 +531,35 @@ export function App() {
       });
 
     return () => controller.abort();
-  }, [selection]);
+  }, [selection, selectedWorktreePath]);
 
   const files = changeSet?.files ?? [];
   const selected = files.find((file) => file.path === selectedPath) ?? null;
-  const pendingCount = pending?.totals.files ?? 0;
+  const selectedWorktree =
+    selection.kind === "pending"
+      ? (selectedWorktreePath ??
+        pending?.worktree.path ??
+        changeSet?.worktree.path ??
+        worktrees.find((worktree) => worktree.current)?.path ??
+        worktree?.path ??
+        null)
+      : null;
+
+  useEffect(() => {
+    setWorktreeCursor((cursor) =>
+      Math.max(0, Math.min(cursor, worktrees.length - 1)),
+    );
+  }, [worktrees.length]);
+
+  useEffect(() => {
+    if (selectedWorktreePath) {
+      return;
+    }
+    const currentIndex = worktrees.findIndex((worktree) => worktree.current);
+    if (currentIndex >= 0) {
+      setWorktreeCursor(currentIndex);
+    }
+  }, [selectedWorktreePath, worktrees]);
 
   useEffect(() => {
     setBranchCursor((cursor) =>
@@ -518,15 +614,18 @@ export function App() {
             setWorktreeCursor((cursor) =>
               Math.max(
                 0,
-                Math.min(cursor + action.direction, 0),
+                Math.min(cursor + action.direction, worktrees.length - 1),
               ),
             );
           }
           break;
         case "select":
           if (focusedPanel === "worktrees") {
-            setWorktreeCursor(0);
-            setSelection({ kind: "pending" });
+            const worktree = worktrees[worktreeCursor];
+            if (worktree) {
+              setSelectedWorktreePath(worktree.path);
+              setSelection({ kind: "pending" });
+            }
           } else if (focusedPanel === "branches") {
             const branch = branches[branchCursor];
             if (branch && baseBranch) {
@@ -564,6 +663,9 @@ export function App() {
       files,
       fileCursor,
       focusedPanel,
+      selectedWorktreePath,
+      worktrees,
+      worktreeCursor,
     ],
   );
 
@@ -615,29 +717,33 @@ export function App() {
           <Panel
             id="worktrees"
             title="Worktrees"
-            count={1}
+            count={worktrees.length}
             focused={focusedPanel === "worktrees"}
             cursor={worktreeCursor}
+            className="panel-worktrees"
           >
-            <button
-              type="button"
-              className={[
-                "worktree-row",
-                selection.kind === "pending" ? "worktree-row-selected" : "",
-                worktreeCursor === 0 ? "worktree-row-cursor" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onClick={() => {
-                setFocusedPanel("worktrees");
-                setWorktreeCursor(0);
-                setSelection({ kind: "pending" });
-              }}
-            >
-              <span className="worktree-icon">▸</span>
-              <span className="worktree-branch">{worktree?.branch ?? "—"}</span>
-              <span className="worktree-pending">{pendingCount} pending</span>
-            </button>
+            {worktreesError ? (
+              <div className="error">{worktreesError}</div>
+            ) : worktrees.length === 0 ? (
+              <div className="placeholder">Loading Worktrees…</div>
+            ) : (
+              <ul className="worktree-list">
+                {worktrees.map((worktree, index) => (
+                  <WorktreeRow
+                    key={worktree.path}
+                    worktree={worktree}
+                    selected={selectedWorktree === worktree.path}
+                    cursor={worktreeCursor === index}
+                    onSelect={() => {
+                      setFocusedPanel("worktrees");
+                      setWorktreeCursor(index);
+                      setSelectedWorktreePath(worktree.path);
+                      setSelection({ kind: "pending" });
+                    }}
+                  />
+                ))}
+              </ul>
+            )}
           </Panel>
 
           <Panel
