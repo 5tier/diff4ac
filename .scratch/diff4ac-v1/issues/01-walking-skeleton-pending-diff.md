@@ -4,13 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `bunx diff4ac` (and `bunx diff4ac <path>`) starts the server and opens the browser; `--port` and `--no-open` work
-- [ ] A clear error and non-zero exit when the path is not inside a git Repository
-- [ ] Server binds to `127.0.0.1` only, requires a random per-session token, and rejects requests with an unexpected `Host` or `Origin`
-- [ ] SPA shows the lazygit-style layout (left column of panels, Diff on the right, status bar) with Pending as the default Selection
-- [ ] Pending covers staged and unstaged changes against HEAD; each file shows its `+/−` counts; selecting a file shows its unified diff
-- [ ] git is only ever invoked with read-only commands and `--no-optional-locks`, and output is parsed from machine-readable formats
-- [ ] A test helper scripts real fixture Repositories in a temp directory (deterministic authors, dates, commits, Pending changes)
-- [ ] `bun test` covers the Pending Change Set against fixtures, plus token, `Host` and `Origin` rejection
+- [x] `bunx diff4ac` (and `bunx diff4ac <path>`) starts the server and opens the browser; `--port` and `--no-open` work
+- [x] A clear error and non-zero exit when the path is not inside a git Repository
+- [x] Server binds to `127.0.0.1` only, requires a random per-session token, and rejects requests with an unexpected `Host` or `Origin`
+- [x] SPA shows the lazygit-style layout (left column of panels, Diff on the right, status bar) with Pending as the default Selection
+- [x] Pending covers staged and unstaged changes against HEAD; each file shows its `+/−` counts; selecting a file shows its unified diff
+- [x] git is only ever invoked with read-only commands and `--no-optional-locks`, and output is parsed from machine-readable formats
+- [x] A test helper scripts real fixture Repositories in a temp directory (deterministic authors, dates, commits, Pending changes)
+- [x] `bun test` covers the Pending Change Set against fixtures, plus token, `Host` and `Origin` rejection

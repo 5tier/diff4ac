@@ -1,0 +1,317 @@
+:root {
+  --bg: #101214;
+  --bg-alt: #16191c;
+  --bg-panel: #1a1e22;
+  --bg-selected: #26323d;
+  --border: #2a3036;
+  --text: #cdd6df;
+  --muted: #7d8792;
+  --accent: #7fb7e8;
+  --add: #7ec699;
+  --del: #e28a8a;
+  --hunk: #c0a3e5;
+  font-family: "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 32px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.brand {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.top-bar-path {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.top-bar-mode {
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 7px;
+}
+
+.workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  min-width: 280px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-alt);
+  overflow: hidden;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-grow {
+  flex: 1;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  color: var(--accent);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.panel-count {
+  color: var(--muted);
+}
+
+.panel-body {
+  overflow: auto;
+  min-height: 0;
+}
+
+.worktree-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+}
+
+.worktree-icon {
+  color: var(--accent);
+}
+
+.worktree-branch {
+  flex: 1;
+}
+
+.worktree-pending {
+  color: var(--muted);
+}
+
+.placeholder {
+  padding: 8px 10px;
+  color: var(--muted);
+}
+
+.error {
+  padding: 8px 10px;
+  color: var(--del);
+  white-space: pre-wrap;
+}
+
+.file-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-row:hover {
+  background: var(--bg-panel);
+}
+
+.file-row-selected {
+  background: var(--bg-selected);
+}
+
+.file-status {
+  width: 14px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.file-status-added,
+.file-status-untracked {
+  color: var(--add);
+}
+
+.file-status-deleted {
+  color: var(--del);
+}
+
+.file-status-renamed,
+.file-status-copied {
+  color: var(--hunk);
+}
+
+.file-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-counts {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.add {
+  color: var(--add);
+}
+
+.del {
+  color: var(--del);
+}
+
+.binary,
+.muted {
+  color: var(--muted);
+}
+
+.diff-pane {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.diff-view {
+  min-height: 100%;
+}
+
+.diff-heading {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.diff-heading-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diff-arrow {
+  color: var(--muted);
+}
+
+.diff-lines {
+  padding: 6px 0 40px;
+}
+
+.diff-line {
+  padding: 0 12px;
+  white-space: pre;
+  line-height: 1.45;
+}
+
+.diff-meta {
+  color: var(--muted);
+}
+
+.diff-hunk {
+  color: var(--hunk);
+  background: rgba(192, 163, 229, 0.08);
+}
+
+.diff-add {
+  color: var(--add);
+  background: rgba(126, 198, 153, 0.1);
+}
+
+.diff-del {
+  color: var(--del);
+  background: rgba(226, 138, 138, 0.1);
+}
+
+.diff-context {
+  color: var(--text);
+}
+
+.diff-empty {
+  padding: 20px 14px;
+  color: var(--muted);
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 26px;
+  padding: 0 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.status-badge {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.status-spacer {
+  flex: 1;
+}

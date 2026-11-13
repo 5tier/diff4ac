@@ -36,7 +36,7 @@ Which commits (or uncommitted changes) the Reviewer is looking at: Pending, a si
 _Avoid_: Range, scope, query
 
 **Pending**:
-The uncommitted changes (staged and unstaged) in a Worktree, relative to its HEAD.
+The uncommitted changes in a Worktree relative to its HEAD: staged, unstaged and untracked files (ignored files excluded).
 _Avoid_: Working copy, WIP, dirty changes
 
 **Time Window**:

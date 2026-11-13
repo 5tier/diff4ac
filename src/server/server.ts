@@ -1,0 +1,201 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { buildPendingChangeSet } from "../changeset/pending";
+import { GitGateway } from "../git/gateway";
+import type { SessionInfo } from "../types";
+import { VERSION } from "../version";
+import {
+  generateToken,
+  isAllowedHost,
+  isAllowedOrigin,
+  requestToken,
+  tokenMatches,
+} from "./security";
+
+const PROJECT_ROOT = join(import.meta.dir, "..", "..");
+const DEFAULT_WEB_DIR = join(PROJECT_ROOT, "dist", "web");
+
+const SECURITY_HEADERS: Record<string, string> = {
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "no-referrer",
+  "Content-Security-Policy":
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:",
+};
+
+function json(data: unknown, status = 200): Response {
+  return Response.json(data, {
+    status,
+    headers: { ...SECURITY_HEADERS },
+  });
+}
+
+function text(message: string, status: number): Response {
+  return new Response(message, {
+    status,
+    headers: {
+      ...SECURITY_HEADERS,
+      "Content-Type": "text/plain; charset=utf-8",
+    },
+  });
+}
+
+export interface StartServerOptions {
+  readonly repoPath: string;
+  readonly port?: number;
+  readonly token?: string;
+  readonly webDir?: string;
+}
+
+export interface RunningServer {
+  readonly port: number;
+  readonly url: string;
+  readonly token: string;
+  readonly server: Bun.Server<unknown>;
+  stop(): void;
+}
+
+interface RequestContext {
+  readonly git: GitGateway;
+  readonly token: string;
+  readonly port: number;
+  readonly webDir: string;
+}
+
+function serveIndex(context: RequestContext, method: string): Response {
+  const indexPath = join(context.webDir, "index.html");
+  if (!existsSync(indexPath)) {
+    return text(
+      "diff4ac: the SPA has not been built. Run `bun run build` first.",
+      500,
+    );
+  }
+
+  const html = readFileSync(indexPath, "utf8").replaceAll(
+    "__TOKEN__",
+    encodeURIComponent(context.token),
+  );
+
+  return new Response(method === "HEAD" ? null : html, {
+    status: 200,
+    headers: {
+      ...SECURITY_HEADERS,
+      "Content-Type": "text/html; charset=utf-8",
+    },
+  });
+}
+
+function serveAsset(
+  context: RequestContext,
+  pathname: string,
+  method: string,
+): Response {
+  const name = decodeURIComponent(pathname.slice("/assets/".length));
+  if (!name || name.includes("/") || name.includes("\\") || name.includes("..")) {
+    return text("Not found", 404);
+  }
+
+  const assetPath = join(context.webDir, "assets", name);
+  if (!existsSync(assetPath)) {
+    return text("Not found", 404);
+  }
+
+  const headers = { ...SECURITY_HEADERS };
+  if (method === "HEAD") {
+    return new Response(null, { status: 200, headers });
+  }
+
+  return new Response(Bun.file(assetPath), { status: 200, headers });
+}
+
+async function handleRequest(
+  request: Request,
+  context: RequestContext,
+): Promise<Response> {
+  if (!isAllowedHost(request.headers.get("host"), context.port)) {
+    return text("Forbidden: unexpected Host header", 403);
+  }
+
+  if (!isAllowedOrigin(request.headers.get("origin"), context.port)) {
+    return text("Forbidden: unexpected Origin header", 403);
+  }
+
+  const url = new URL(request.url);
+  if (!tokenMatches(requestToken(request, url), context.token)) {
+    return text("Unauthorized: missing or invalid session token", 401);
+  }
+
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return text("Method not allowed", 405);
+  }
+
+  if (url.pathname === "/api/session") {
+    const session: SessionInfo = {
+      worktree: {
+        path: context.git.worktreeRoot,
+        branch: await context.git.currentBranch(),
+      },
+      version: VERSION,
+    };
+    return json(session);
+  }
+
+  if (url.pathname === "/api/pending") {
+    try {
+      return json(await buildPendingChangeSet(context.git));
+    } catch (error) {
+      return json(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        500,
+      );
+    }
+  }
+
+  if (url.pathname === "/" || url.pathname === "/index.html") {
+    return serveIndex(context, request.method);
+  }
+
+  if (url.pathname.startsWith("/assets/")) {
+    return serveAsset(context, url.pathname, request.method);
+  }
+
+  return text("Not found", 404);
+}
+
+export async function startServer(
+  options: StartServerOptions,
+): Promise<RunningServer> {
+  const git = await GitGateway.open(options.repoPath);
+  const token = options.token ?? generateToken();
+  const webDir = options.webDir ?? DEFAULT_WEB_DIR;
+  const requestedPort = options.port ?? 0;
+
+  let server: Bun.Server<unknown>;
+  server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: requestedPort,
+    fetch: (request) =>
+      handleRequest(request, {
+        git,
+        token,
+        port: server.port ?? requestedPort,
+        webDir,
+      }),
+  });
+
+  const port = server.port ?? requestedPort;
+  const url = `http://127.0.0.1:${port}/?token=${encodeURIComponent(token)}`;
+
+  return {
+    port,
+    url,
+    token,
+    server,
+    stop() {
+      server.stop(true);
+    },
+  };
+}
