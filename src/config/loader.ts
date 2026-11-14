@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { DEFAULT_NOISE_PATTERNS, isValidGlob } from "../filters";
 import { KEYMAP, type KeybindingOverrides } from "../keymap";
 import type {
   AgentPatternConfig,
@@ -17,6 +18,7 @@ interface ParsedSource {
   readonly baseBranch?: string;
   readonly keybindings: KeybindingOverrides;
   readonly agents: readonly AgentPatternConfig[];
+  readonly noise?: readonly string[];
   readonly diagnostics: readonly ConfigDiagnostic[];
 }
 
@@ -189,6 +191,7 @@ function readSource(file: string): ParsedSource {
   const diagnostics: ConfigDiagnostic[] = [];
   const keybindings: Record<string, string> = {};
   let baseBranch: string | undefined;
+  let noise: string[] | undefined;
 
   if ("baseBranch" in record) {
     const value = record.baseBranch;
@@ -200,6 +203,27 @@ function readSource(file: string): ParsedSource {
       });
     } else {
       baseBranch = value.trim();
+    }
+  }
+
+  if ("noise" in record) {
+    const value = record.noise;
+    if (
+      !Array.isArray(value) ||
+      !value.every(
+        (pattern) =>
+          typeof pattern === "string" && isValidGlob(pattern.trim()),
+      )
+    ) {
+      diagnostics.push({
+        file,
+        field: "noise",
+        message: "must be an array of glob patterns",
+      });
+    } else {
+      noise = [
+        ...new Set(value.map((pattern: string) => pattern.trim())),
+      ];
     }
   }
 
@@ -304,7 +328,7 @@ function readSource(file: string): ParsedSource {
     }
   }
 
-  return { baseBranch, keybindings, agents, diagnostics };
+  return { baseBranch, keybindings, agents, noise, diagnostics };
 }
 
 function scopesConflict(
@@ -451,6 +475,10 @@ export function loadConfig(options: LoadConfigOptions): ConfigInfo {
     ...(baseBranchFile ? { baseBranchFile } : {}),
     keybindings: conflicts.keybindings,
     agents: mergeAgentPatterns(globalSource.agents, repositorySource.agents),
+    noise:
+      repositorySource.noise ??
+      globalSource.noise ??
+      DEFAULT_NOISE_PATTERNS,
     diagnostics: [
       ...globalSource.diagnostics,
       ...repositorySource.diagnostics,

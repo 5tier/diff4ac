@@ -141,12 +141,25 @@ export type Selection =
       readonly baseBranch: BaseBranch;
     };
 
+export interface FilterRequest {
+  readonly disabledExtensions: readonly string[];
+  readonly includeGlobs: readonly string[];
+  readonly excludeGlobs: readonly string[];
+  readonly hideNoise: boolean;
+}
+
+export interface FilterInfo extends FilterRequest {
+  readonly availableExtensions: readonly string[];
+  readonly hiddenFiles: number;
+}
+
 export interface ChangeSet {
   readonly selection: Selection;
   readonly worktree: WorktreeInfo;
   readonly files: readonly ChangeFile[];
   readonly totals: ChangeTotals;
   readonly commitGroups?: readonly CommitChangeGroup[];
+  readonly filter?: FilterInfo;
 }
 
 export interface SessionInfo {
@@ -171,5 +184,6 @@ export interface ConfigInfo {
   readonly baseBranchFile?: string;
   readonly keybindings: Readonly<Record<string, string>>;
   readonly agents: readonly AgentPatternConfig[];
+  readonly noise: readonly string[];
   readonly diagnostics: readonly ConfigDiagnostic[];
 }

@@ -817,3 +817,136 @@ button {
   color: var(--del);
   white-space: pre-wrap;
 }
+
+.filters-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.filters-dialog {
+  width: min(560px, 92vw);
+  max-height: 82vh;
+  overflow: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+.filters-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  color: var(--accent);
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+
+.filters-close,
+.filters-actions button {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.filters-close:hover,
+.filters-actions button:hover {
+  background: var(--bg-selected);
+}
+
+.filters-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.filters-section h2 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.filters-extension-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.filters-extension,
+.filters-noise {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.filters-field {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.filters-field textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.filters-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.status-filters {
+  color: var(--hunk);
+  max-width: 28%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-hidden {
+  flex: none;
+  color: #e2c27e;
+  font-weight: 700;
+}
+
+.filters-hint {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.filters-noise-patterns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.filters-noise-patterns code {
+  color: var(--hunk);
+  font: inherit;
+}

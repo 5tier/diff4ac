@@ -15,6 +15,7 @@ import {
 } from "../changeset/commits";
 import { buildPendingChangeSet } from "../changeset/pending";
 import { loadConfig } from "../config/loader";
+import { applyFilters, isValidGlob, type FilterSettings } from "../filters";
 import { GitGateway } from "../git/gateway";
 import {
   listBranches,
@@ -111,9 +112,65 @@ async function gitForRequest(
     : context.git;
 }
 
-function reviewJson(changeSet: ChangeSet, context: RequestContext): Response {
+function parseFilterSettings(
+  url: URL,
+  noisePatterns: readonly string[],
+): FilterSettings | null {
+  const disabledExtensions = url.searchParams
+    .getAll("ext")
+    .map((extension) => extension.trim().toLowerCase());
+  if (
+    !disabledExtensions.every(
+      (extension) =>
+        extension === "" ||
+        (extension.startsWith(".") &&
+          extension.length <= 64 &&
+          !/[/\\\0\r\n]/.test(extension)),
+    )
+  ) {
+    return null;
+  }
+
+  const parseGlobs = (name: string) =>
+    url.searchParams
+      .getAll(name)
+      .map((pattern) => pattern.trim())
+      .filter(Boolean);
+  const includeGlobs = parseGlobs("include");
+  const excludeGlobs = parseGlobs("exclude");
+
+  if (
+    !includeGlobs.every(isValidGlob) ||
+    !excludeGlobs.every(isValidGlob)
+  ) {
+    return null;
+  }
+
+  return {
+    disabledExtensions,
+    includeGlobs,
+    excludeGlobs,
+    hideNoise: url.searchParams.get("noise") !== "0",
+    noisePatterns,
+  };
+}
+
+function reviewJson(
+  changeSet: ChangeSet,
+  context: RequestContext,
+  url: URL,
+): Response {
+  const filters = parseFilterSettings(url, context.config.noise);
+  if (!filters) {
+    return text("Bad request: invalid filter", 400);
+  }
+
   return json(
-    annotateChangeSet(changeSet, context.reviewMarks, context.repositoryId),
+    annotateChangeSet(
+      applyFilters(changeSet, filters),
+      context.reviewMarks,
+      context.repositoryId,
+    ),
   );
 }
 
@@ -375,7 +432,7 @@ async function handleRequest(
   if (url.pathname === "/api/pending") {
     try {
       const git = await gitForRequest(context, url);
-      return reviewJson(await buildPendingChangeSet(git), context);
+      return reviewJson(await buildPendingChangeSet(git), context, url);
     } catch (error) {
       return gitApiFailure(error);
     }
@@ -401,6 +458,7 @@ async function handleRequest(
       return reviewJson(
         await buildBranchChangeSet(git, name, context.config.baseBranch),
         context,
+        url,
       );
     } catch (error) {
       if (error instanceof UnknownBranchError) {
@@ -438,6 +496,7 @@ async function handleRequest(
           agentPatterns: context.agentPatterns,
         }),
         context,
+        url,
       );
     } catch (error) {
       return gitApiFailure(error);
@@ -468,6 +527,7 @@ async function handleRequest(
           agentPatterns: context.agentPatterns,
         }),
         context,
+        url,
       );
     } catch (error) {
       return gitApiFailure(error);
@@ -526,6 +586,7 @@ async function handleRequest(
           },
         ),
         context,
+        url,
       );
     } catch (error) {
       return gitApiFailure(error);

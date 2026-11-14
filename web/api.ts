@@ -4,6 +4,7 @@ import type {
   ChangeViewMode,
   CommitList,
   ConfigInfo,
+  FilterRequest,
   TimeWindow,
   WorktreeList,
 } from "../src/types";
@@ -42,18 +43,45 @@ export function fetchConfig(signal?: AbortSignal): Promise<ConfigInfo> {
   return getJson<ConfigInfo>("/api/config", signal);
 }
 
-export function fetchPending(signal?: AbortSignal): Promise<ChangeSet> {
-  return getJson<ChangeSet>("/api/pending", signal);
+function appendFilters(
+  params: URLSearchParams,
+  filters: FilterRequest | undefined,
+): URLSearchParams {
+  if (!filters) {
+    return params;
+  }
+  for (const extension of filters.disabledExtensions) {
+    params.append("ext", extension);
+  }
+  for (const pattern of filters.includeGlobs) {
+    params.append("include", pattern);
+  }
+  for (const pattern of filters.excludeGlobs) {
+    params.append("exclude", pattern);
+  }
+  params.set("noise", filters.hideNoise ? "1" : "0");
+  return params;
+}
+
+export function fetchPending(
+  signal?: AbortSignal,
+  filters?: FilterRequest,
+): Promise<ChangeSet> {
+  const query = appendFilters(new URLSearchParams(), filters).toString();
+  return getJson<ChangeSet>(
+    `/api/pending${query ? `?${query}` : ""}`,
+    signal,
+  );
 }
 
 export function fetchWorktreePending(
   path: string,
   signal?: AbortSignal,
+  filters?: FilterRequest,
 ): Promise<ChangeSet> {
-  return getJson<ChangeSet>(
-    `/api/pending?worktree=${encodeURIComponent(path)}`,
-    signal,
-  );
+  const query = new URLSearchParams({ worktree: path });
+  appendFilters(query, filters);
+  return getJson<ChangeSet>(`/api/pending?${query.toString()}`, signal);
 }
 
 export function fetchWorktrees(signal?: AbortSignal): Promise<WorktreeList> {
@@ -81,11 +109,13 @@ export function fetchCommit(
   hash: string,
   signal?: AbortSignal,
   worktreePath?: string | null,
+  filters?: FilterRequest,
 ): Promise<ChangeSet> {
   const query = new URLSearchParams({ hash });
   if (worktreePath) {
     query.set("worktree", worktreePath);
   }
+  appendFilters(query, filters);
   return getJson<ChangeSet>(`/api/commit?${query.toString()}`, signal);
 }
 
@@ -104,11 +134,13 @@ export function fetchBranch(
   name: string,
   signal?: AbortSignal,
   worktreePath?: string | null,
+  filters?: FilterRequest,
 ): Promise<ChangeSet> {
   const query = new URLSearchParams({ name });
   if (worktreePath) {
     query.set("worktree", worktreePath);
   }
+  appendFilters(query, filters);
   return getJson<ChangeSet>(`/api/branch?${query.toString()}`, signal);
 }
 
@@ -117,6 +149,7 @@ export function fetchCommitSet(
   mode: ChangeViewMode,
   signal?: AbortSignal,
   worktreePath?: string | null,
+  filters?: FilterRequest,
 ): Promise<ChangeSet> {
   const query = new URLSearchParams({
     hashes: hashes.join(","),
@@ -125,6 +158,7 @@ export function fetchCommitSet(
   if (worktreePath) {
     query.set("worktree", worktreePath);
   }
+  appendFilters(query, filters);
   return getJson<ChangeSet>(`/api/commit-set?${query.toString()}`, signal);
 }
 
@@ -134,6 +168,7 @@ export function fetchTimeWindow(
   signal?: AbortSignal,
   worktreePath?: string | null,
   agent?: string | null,
+  filters?: FilterRequest,
 ): Promise<ChangeSet> {
   const query = new URLSearchParams({
     start: window.start,
@@ -147,6 +182,7 @@ export function fetchTimeWindow(
   if (agent) {
     query.set("agent", agent);
   }
+  appendFilters(query, filters);
   return getJson<ChangeSet>(`/api/time-window?${query.toString()}`, signal);
 }
 
