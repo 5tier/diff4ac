@@ -140,3 +140,32 @@ export function fetchTimeWindow(
   }
   return getJson<ChangeSet>(`/api/time-window?${query.toString()}`, signal);
 }
+
+export interface ReviewMarkResponse {
+  readonly path: string;
+  readonly contentHash: string;
+  readonly reviewed: boolean;
+}
+
+export async function setReviewMark(
+  path: string,
+  contentHash: string,
+  reviewed: boolean,
+  signal?: AbortSignal,
+): Promise<ReviewMarkResponse> {
+  const response = await fetch("/api/review-mark", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-diff4ac-token": sessionToken,
+    },
+    body: JSON.stringify({ path, contentHash, reviewed }),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`${response.status}: ${await response.text()}`);
+  }
+
+  return (await response.json()) as ReviewMarkResponse;
+}

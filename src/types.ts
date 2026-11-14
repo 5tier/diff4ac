@@ -35,6 +35,8 @@ export interface ChangeFile {
   readonly binary: boolean;
   readonly diff: string;
   readonly hunks: readonly Hunk[];
+  readonly contentHash: string;
+  readonly reviewed?: boolean;
 }
 
 export interface ChangeTotals {

@@ -32,6 +32,7 @@ import {
   fetchTimeWindow,
   fetchWorktreePending,
   fetchWorktrees,
+  setReviewMark,
 } from "./api";
 import {
   bindingFor,
@@ -112,10 +113,12 @@ function FileRow({
   readonly cursor: boolean;
   readonly onSelect: () => void;
 }) {
+  const reviewed = file.reviewed === true;
   const classes = [
     "file-row",
     selected ? "file-row-selected" : "",
     cursor ? "file-row-cursor" : "",
+    reviewed ? "file-row-reviewed" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -126,10 +129,13 @@ function FileRow({
         type="button"
         className={classes}
         onClick={onSelect}
-        title={file.path}
+        title={reviewed ? `${file.path} (reviewed)` : file.path}
       >
         <span className={`file-status file-status-${file.status}`}>
           {STATUS_LABEL[file.status]}
+        </span>
+        <span className="file-review" aria-hidden="true">
+          {reviewed ? "✓" : ""}
         </span>
         <span className="file-path">
           {file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
@@ -691,6 +697,33 @@ function sameTimeWindowSelection(
   );
 }
 
+function setChangeFileReviewState(
+  changeSet: ChangeSet,
+  path: string,
+  contentHash: string,
+  reviewed: boolean,
+): ChangeSet {
+  const update = (file: ChangeFile): ChangeFile =>
+    file.path === path && file.contentHash === contentHash
+      ? { ...file, reviewed }
+      : file;
+
+  if (changeSet.commitGroups) {
+    const commitGroups = changeSet.commitGroups.map((group) => ({
+      ...group,
+      files: group.files.map(update),
+    }));
+
+    return {
+      ...changeSet,
+      files: commitGroups.flatMap((group) => group.files),
+      commitGroups,
+    };
+  }
+
+  return { ...changeSet, files: changeSet.files.map(update) };
+}
+
 export function App() {
   const [pending, setPending] = useState<ChangeSet | null>(null);
   const [worktrees, setWorktrees] = useState<readonly WorktreeSummary[]>([]);
@@ -708,6 +741,7 @@ export function App() {
   const [changeSet, setChangeSet] = useState<ChangeSet | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [markError, setMarkError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [focusedPanel, setFocusedPanel] = useState<PanelId>("files");
@@ -1119,6 +1153,48 @@ export function App() {
         case "time-window-close":
           setTimeWindowOpen(false);
           break;
+        case "toggle-mark": {
+          const file =
+            focusedPanel === "diff"
+              ? files.find((candidate) => candidate.path === selectedPath)
+              : (files[fileCursor] ??
+                files.find((candidate) => candidate.path === selectedPath));
+          if (!file) {
+            break;
+          }
+
+          const reviewed = file.reviewed !== true;
+          setMarkError(null);
+          setChangeSet((current) =>
+            current
+              ? setChangeFileReviewState(
+                  current,
+                  file.path,
+                  file.contentHash,
+                  reviewed,
+                )
+              : current,
+          );
+
+          void setReviewMark(file.path, file.contentHash, reviewed)
+            .then(() => setMarkError(null))
+            .catch((reason: unknown) => {
+              setChangeSet((current) =>
+                current
+                  ? setChangeFileReviewState(
+                      current,
+                      file.path,
+                      file.contentHash,
+                      !reviewed,
+                    )
+                  : current,
+              );
+              setMarkError(
+                reason instanceof Error ? reason.message : String(reason),
+              );
+            });
+          break;
+        }
         case "scroll":
           diffRef.current?.scrollBy({ top: action.direction * 96 });
           break;
@@ -1144,6 +1220,7 @@ export function App() {
       worktreeCursor,
       pickedHashes,
       rangeAnchor,
+      selectedPath,
       selection,
       openTimeWindows,
     ],
@@ -1478,6 +1555,15 @@ export function App() {
         <span>{changeSet?.totals.files ?? 0} files</span>
         <span className="add">+{changeSet?.totals.additions ?? 0}</span>
         <span className="del">−{changeSet?.totals.deletions ?? 0}</span>
+        <span className="review-progress">
+          {files.filter((file) => file.reviewed === true).length}/
+          {files.length} reviewed
+        </span>
+        {markError ? (
+          <span className="status-error" title={markError}>
+            Review Mark failed
+          </span>
+        ) : null}
         <span className="status-spacer" />
         <span className="muted">base: {baseBranch?.name ?? "—"}</span>
         <span className="muted">{worktree?.branch ?? ""}</span>

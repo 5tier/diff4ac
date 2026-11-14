@@ -355,6 +355,15 @@ button {
   background: var(--bg-selected);
 }
 
+.file-row-reviewed .file-path {
+  color: var(--muted);
+}
+
+.file-review {
+  width: 1em;
+  color: var(--add);
+}
+
 .file-status {
   width: 14px;
   text-align: center;
@@ -557,6 +566,14 @@ button {
   max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.review-progress {
+  color: var(--muted);
+}
+
+.status-error {
+  color: var(--del);
 }
 
 .status-spacer {

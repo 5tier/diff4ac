@@ -4,11 +4,11 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `m` toggles a Review Mark on the selected file; marked files are visibly distinct in the file tree
-- [ ] The status bar shows reviewed/total for the current Change Set
-- [ ] Marks persist under `~/.diff4ac/`, keyed by Repository identity, path and new-content hash, and nothing is written to the Repository
-- [ ] A mark no longer applies once the file's new content differs
-- [ ] Deleted files can be marked (keyed on the deletion)
-- [ ] Fixture tests: mark a file, change its content, and assert the mark lapses; an unchanged file stays marked across sessions
+- [x] `m` toggles a Review Mark on the selected file; marked files are visibly distinct in the file tree
+- [x] The status bar shows reviewed/total for the current Change Set
+- [x] Marks persist under `~/.diff4ac/`, keyed by Repository identity, path and new-content hash, and nothing is written to the Repository
+- [x] A mark no longer applies once the file's new content differs
+- [x] Deleted files can be marked (keyed on the deletion)
+- [x] Fixture tests: mark a file, change its content, and assert the mark lapses; an unchanged file stays marked across sessions
