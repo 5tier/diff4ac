@@ -169,3 +169,13 @@ export async function setReviewMark(
 
   return (await response.json()) as ReviewMarkResponse;
 }
+
+export function subscribeRepositoryChanges(
+  onChange: () => void,
+): () => void {
+  const source = new EventSource(
+    `/api/events?token=${encodeURIComponent(sessionToken)}`,
+  );
+  source.addEventListener("repository-changed", onChange);
+  return () => source.close();
+}

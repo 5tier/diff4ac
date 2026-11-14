@@ -27,6 +27,7 @@ export type KeyAction =
   | { readonly type: "time-windows" }
   | { readonly type: "time-window-close" }
   | { readonly type: "toggle-mark" }
+  | { readonly type: "refresh" }
   | { readonly type: "scroll"; readonly direction: 1 | -1 }
   | { readonly type: "help" }
   | { readonly type: "close-help" };
@@ -220,6 +221,12 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "Tab",
     label: "Cycle panels",
     action: { type: "cycle", direction: 1 },
+  },
+  {
+    panel: "global",
+    key: "r",
+    label: "Refresh Repository",
+    action: { type: "refresh" },
   },
   {
     panel: "global",

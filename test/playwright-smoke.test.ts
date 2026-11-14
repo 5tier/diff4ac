@@ -85,6 +85,7 @@ beforeAll(async () => {
 
   repo.write("src/main-only.ts", "main only\n");
   repo.commit("main after linked");
+  repo.git(["branch", "doomed"]);
 
   repo.write("src/alpha.ts", `${longFile}changed again\n`);
   repo.write("src/gamma.ts", "pending gamma\n");
@@ -504,6 +505,105 @@ test(
     expect(
       await page.locator(".review-progress").textContent(),
     ).toContain("0/2 reviewed");
+  },
+  30_000,
+);
+
+test(
+  "shows the Repository changed banner and refreshes only on r",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".file-row");
+
+    await page.keyboard.press("4");
+    await page.keyboard.press("j");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".diff-heading-path")
+        ?.textContent?.includes("src/gamma.ts"),
+    );
+    expect(await page.locator(".file-row").count()).toBe(2);
+
+    repo.write("src/delta.ts", "delta\n");
+
+    const banner = page.locator('[data-testid="repository-banner"]');
+    await banner.waitFor({ timeout: 5000 });
+    expect(await page.locator(".file-row").count()).toBe(2);
+    expect(
+      await page.locator(".diff-heading-path").textContent(),
+    ).toContain("src/gamma.ts");
+
+    await page.keyboard.press("r");
+    await banner.waitFor({ state: "detached" });
+    await page.waitForFunction(
+      () => document.querySelectorAll(".file-row").length === 3,
+    );
+    expect(
+      await page.locator(".diff-heading-path").textContent(),
+    ).toContain("src/gamma.ts");
+  },
+  30_000,
+);
+
+test(
+  "falls back to Pending with a notice when the selected branch disappears",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".branch-row");
+
+    await page.keyboard.press("2");
+    await page.locator(".branch-row", { hasText: "doomed" }).click();
+    await page.waitForFunction(() =>
+      document.querySelector(".top-bar-mode")?.textContent?.includes(
+        "Branch doomed",
+      ),
+    );
+
+    repo.git(["branch", "-D", "doomed"]);
+
+    const banner = page.locator('[data-testid="repository-banner"]');
+    await banner.waitFor({ timeout: 5000 });
+    await page.keyboard.press("r");
+    await banner.waitFor({ state: "detached" });
+    await page.waitForFunction(
+      () => document.querySelector(".top-bar-mode")?.textContent === "Pending",
+    );
+
+    const notice = page.locator('[data-testid="refresh-notice"]');
+    await notice.waitFor();
+    expect(await notice.textContent()).toContain("no longer exists");
+  },
+  30_000,
+);
+
+test(
+  "lapses a Review Mark for changed content after refresh",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".file-row");
+    await page.keyboard.press("4");
+
+    const marked = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/review-mark") &&
+        response.request().method() === "POST",
+    );
+    await page.keyboard.press("m");
+    await marked;
+    await page.waitForFunction(
+      () => document.querySelectorAll(".file-row-reviewed").length === 1,
+    );
+
+    repo.append("src/alpha.ts", "changed after marking\n");
+
+    const banner = page.locator('[data-testid="repository-banner"]');
+    await banner.waitFor({ timeout: 5000 });
+    await page.keyboard.press("r");
+    await banner.waitFor({ state: "detached" });
+    await page.waitForFunction(
+      () => document.querySelectorAll(".file-row-reviewed").length === 0,
+    );
   },
   30_000,
 );

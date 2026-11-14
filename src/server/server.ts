@@ -15,6 +15,7 @@ import {
 } from "../repository/branches";
 import { listCommits } from "../repository/commits";
 import { repositoryIdentity } from "../repository/identity";
+import { RepositoryWatcher } from "../repository/watcher";
 import {
   listWorktrees,
   openWorktree,
@@ -113,6 +114,7 @@ export interface StartServerOptions {
   readonly token?: string;
   readonly webDir?: string;
   readonly stateDir?: string;
+  readonly watchDebounceMs?: number;
 }
 
 export interface RunningServer {
@@ -123,6 +125,11 @@ export interface RunningServer {
   stop(): void;
 }
 
+interface EventHub {
+  subscribe(listener: () => void): () => void;
+  emit(): void;
+}
+
 interface RequestContext {
   readonly git: GitGateway;
   readonly token: string;
@@ -130,6 +137,76 @@ interface RequestContext {
   readonly webDir: string;
   readonly repositoryId: string;
   readonly reviewMarks: ReviewMarkStore;
+  readonly events: EventHub;
+}
+
+function createEventHub(): EventHub {
+  const listeners = new Set<() => void>();
+  return {
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    emit() {
+      for (const listener of listeners) {
+        listener();
+      }
+    },
+  };
+}
+
+function serveEvents(context: RequestContext, request: Request): Response {
+  const encoder = new TextEncoder();
+  let cleanup: (() => void) | null = null;
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      let closed = false;
+      const send = (text: string) => {
+        if (closed) {
+          return;
+        }
+        try {
+          controller.enqueue(encoder.encode(text));
+        } catch {
+          closed = true;
+        }
+      };
+
+      const unsubscribe = context.events.subscribe(() => {
+        send("event: repository-changed\ndata: {}\n\n");
+      });
+      const ping = setInterval(() => send(": ping\n\n"), 15_000);
+
+      cleanup = () => {
+        if (closed) {
+          return;
+        }
+        closed = true;
+        clearInterval(ping);
+        unsubscribe();
+        try {
+          controller.close();
+        } catch {
+          // The client already went away.
+        }
+      };
+
+      request.signal.addEventListener("abort", cleanup, { once: true });
+      send(": connected\n\n");
+    },
+    cancel() {
+      cleanup?.();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      ...SECURITY_HEADERS,
+      "Content-Type": "text/event-stream; charset=utf-8",
+      Connection: "keep-alive",
+    },
+  });
 }
 
 function serveIndex(context: RequestContext, method: string): Response {
@@ -245,6 +322,13 @@ async function handleRequest(
       reviewed,
     );
     return json({ path, contentHash, reviewed });
+  }
+
+  if (url.pathname === "/api/events") {
+    if (request.method !== "GET") {
+      return text("Method not allowed", 405);
+    }
+    return serveEvents(context, request);
   }
 
   if (url.pathname === "/api/session") {
@@ -432,11 +516,17 @@ export async function startServer(
   const reviewMarks = new ReviewMarkStore(
     options.stateDir ?? defaultReviewMarkDirectory(),
   );
+  const events = createEventHub();
+  const watcher = await RepositoryWatcher.start(git, {
+    debounceMs: options.watchDebounceMs ?? 150,
+    onChanged: () => events.emit(),
+  });
 
   let server: Bun.Server<unknown>;
   server = Bun.serve({
     hostname: "127.0.0.1",
     port: requestedPort,
+    idleTimeout: 0,
     fetch: (request) =>
       handleRequest(request, {
         git,
@@ -445,6 +535,7 @@ export async function startServer(
         webDir,
         repositoryId,
         reviewMarks,
+        events,
       }),
   });
 
@@ -457,6 +548,7 @@ export async function startServer(
     token,
     server,
     stop() {
+      watcher.stop();
       server.stop(true);
     },
   };

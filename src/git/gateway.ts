@@ -10,6 +10,7 @@ export interface GitResult {
 export interface GitRunOptions {
   readonly cwd: string;
   readonly allowExitCodes?: readonly number[];
+  readonly input?: string | Uint8Array;
 }
 
 export class GitError extends Error {
@@ -32,6 +33,7 @@ export class NotAGitRepositoryError extends Error {
 
 const READ_ONLY_SUBCOMMANDS = new Set([
   "cat-file",
+  "check-ignore",
   "diff",
   "for-each-ref",
   "log",
@@ -72,12 +74,12 @@ export async function runGit(
   assertReadOnly(args);
 
   const allowExitCodes = options.allowExitCodes ?? [0];
-  let proc: Bun.Subprocess<"ignore", "pipe", "pipe">;
+  let proc: Bun.Subprocess<"pipe", "pipe", "pipe">;
   try {
     proc = Bun.spawn({
       cmd: ["git", "--no-optional-locks", ...args],
       cwd: options.cwd,
-      stdin: "ignore",
+      stdin: "pipe",
       stdout: "pipe",
       stderr: "pipe",
       env: {
@@ -93,6 +95,11 @@ export async function runGit(
       `could not run git: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+
+  if (options.input !== undefined) {
+    proc.stdin.write(options.input);
+  }
+  await proc.stdin.end();
 
   const [stdoutBuffer, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).arrayBuffer(),

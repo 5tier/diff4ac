@@ -33,6 +33,7 @@ import {
   fetchWorktreePending,
   fetchWorktrees,
   setReviewMark,
+  subscribeRepositoryChanges,
 } from "./api";
 import {
   bindingFor,
@@ -697,6 +698,25 @@ function sameTimeWindowSelection(
   );
 }
 
+function isNotFoundError(reason: unknown): boolean {
+  return reason instanceof Error && reason.message.startsWith("404:");
+}
+
+function missingSelectionLabel(selection: Selection): string {
+  switch (selection.kind) {
+    case "pending":
+      return "This Worktree";
+    case "commit":
+      return `Commit ${selection.commit.shortHash}`;
+    case "commits":
+      return `${selection.commits.length} commits`;
+    case "time-window":
+      return `Time Window ${selection.window.label}`;
+    case "branch":
+      return `Branch ${selection.branch.name}`;
+  }
+}
+
 function setChangeFileReviewState(
   changeSet: ChangeSet,
   path: string,
@@ -743,6 +763,9 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [markError, setMarkError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [repositoryChanged, setRepositoryChanged] = useState(false);
+  const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   const [focusedPanel, setFocusedPanel] = useState<PanelId>("files");
   const [helpOpen, setHelpOpen] = useState(false);
@@ -765,6 +788,10 @@ export function App() {
   const [pickedHashes, setPickedHashes] = useState<readonly string[]>([]);
   const [rangeAnchor, setRangeAnchor] = useState<number | null>(null);
   const diffRef = useRef<HTMLElement | null>(null);
+  const selectedPathRef = useRef<string | null>(null);
+  selectedPathRef.current = selectedPath;
+  const preserveOnNextLoad = useRef(false);
+  const pendingScrollTop = useRef<number | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -783,7 +810,7 @@ export function App() {
       });
 
     return () => controller.abort();
-  }, [selectedWorktreePath]);
+  }, [selectedWorktreePath, refreshVersion]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -803,7 +830,7 @@ export function App() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [refreshVersion]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -825,15 +852,24 @@ export function App() {
       });
 
     return () => controller.abort();
-  }, [selectedWorktreePath]);
+  }, [selectedWorktreePath, refreshVersion]);
+
+  useEffect(() => subscribeRepositoryChanges(() => setRepositoryChanged(true)), []);
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
+    const preserve = preserveOnNextLoad.current;
+    preserveOnNextLoad.current = false;
+    const previousPath = selectedPathRef.current;
+    const previousScroll = diffRef.current?.scrollTop ?? null;
+
     setError(null);
-    setChangeSet(null);
-    setSelectedPath(null);
-    setFileCursor(0);
+    if (!preserve) {
+      setLoading(true);
+      setChangeSet(null);
+      setSelectedPath(null);
+      setFileCursor(0);
+    }
 
     const request =
       selection.kind === "pending"
@@ -880,20 +916,62 @@ export function App() {
         ) {
           setSelection(loaded.selection);
         }
-        setSelectedPath(loaded.files[0]?.path ?? null);
-        setFileCursor(0);
+
+        const nextPath =
+          preserve &&
+          previousPath &&
+          loaded.files.some((file) => file.path === previousPath)
+            ? previousPath
+            : (loaded.files[0]?.path ?? null);
+        const nextIndex = nextPath
+          ? loaded.files.findIndex((file) => file.path === nextPath)
+          : -1;
+
+        setSelectedPath(nextPath);
+        setFileCursor(preserve && nextIndex >= 0 ? nextIndex : 0);
+        if (preserve && previousScroll !== null) {
+          pendingScrollTop.current = previousScroll;
+        }
         setLoading(false);
       })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError") {
           return;
         }
+
+        if (preserve && isNotFoundError(reason)) {
+          setRepositoryChanged(false);
+          setError(null);
+          setLoading(false);
+          setPickedHashes([]);
+          setRangeAnchor(null);
+          setRefreshNotice(
+            `${missingSelectionLabel(selection)} no longer exists — showing Pending.`,
+          );
+          if (selection.kind === "pending") {
+            setSelectedWorktreePath(null);
+          }
+          setSelection({ kind: "pending" });
+          return;
+        }
+
         setError(reason instanceof Error ? reason.message : String(reason));
         setLoading(false);
       });
 
     return () => controller.abort();
-  }, [selection, selectedWorktreePath]);
+  }, [selection, selectedWorktreePath, refreshVersion]);
+
+  useEffect(() => {
+    if (loading || pendingScrollTop.current === null) {
+      return;
+    }
+    const top = pendingScrollTop.current;
+    pendingScrollTop.current = null;
+    requestAnimationFrame(() => {
+      diffRef.current?.scrollTo({ top });
+    });
+  }, [changeSet, loading]);
 
   const files = changeSet?.files ?? [];
   const selected = files.find((file) => file.path === selectedPath) ?? null;
@@ -1020,6 +1098,13 @@ export function App() {
     },
     [chooseTimeWindowOption, timeWindowCursor],
   );
+
+  const refreshRepository = useCallback(() => {
+    preserveOnNextLoad.current = true;
+    setRepositoryChanged(false);
+    setRefreshNotice(null);
+    setRefreshVersion((version) => version + 1);
+  }, []);
 
   const dispatch = useCallback(
     (action: KeyAction) => {
@@ -1195,6 +1280,9 @@ export function App() {
             });
           break;
         }
+        case "refresh":
+          refreshRepository();
+          break;
         case "scroll":
           diffRef.current?.scrollBy({ top: action.direction * 96 });
           break;
@@ -1223,6 +1311,7 @@ export function App() {
       selectedPath,
       selection,
       openTimeWindows,
+      refreshRepository,
     ],
   );
 
@@ -1291,6 +1380,26 @@ export function App() {
           {selectionBadge(selection)}
         </span>
       </header>
+
+      {repositoryChanged ? (
+        <div
+          className="repository-banner"
+          data-testid="repository-banner"
+          role="status"
+        >
+          Repository changed — press <kbd>r</kbd> to refresh
+        </div>
+      ) : null}
+
+      {refreshNotice ? (
+        <div
+          className="repository-notice"
+          data-testid="refresh-notice"
+          role="status"
+        >
+          {refreshNotice}
+        </div>
+      ) : null}
 
       <div className="workspace">
         <aside className="sidebar">

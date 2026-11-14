@@ -73,6 +73,34 @@ button {
   padding: 1px 7px;
 }
 
+.repository-banner,
+.repository-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.repository-banner {
+  color: var(--hunk);
+  background: rgba(192, 163, 229, 0.12);
+}
+
+.repository-notice {
+  color: var(--muted);
+  background: var(--bg-panel);
+}
+
+.repository-banner kbd {
+  padding: 0 5px;
+  color: var(--text);
+  background: var(--bg-selected);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
 .workspace {
   display: flex;
   flex: 1;

@@ -219,6 +219,63 @@ describe("Review Marks HTTP API", () => {
     expect(await pendingFile(secondSession)).toMatchObject({ reviewed: false });
   });
 
+  test("shows a commit Review Mark in a Time Window covering that commit", async () => {
+    const repo = fixture();
+    repo.write("src/app.ts", "one\n");
+    const commit = repo.commit("initial");
+
+    const tempHome = stateDir();
+    const running = await startServer({
+      repoPath: repo.root,
+      stateDir: join(tempHome, ".diff4ac"),
+    });
+    servers.push(running);
+
+    const commitResponse = await request(
+      running,
+      `/api/commit?hash=${commit}`,
+    );
+    expect(commitResponse.status).toBe(200);
+    const commitSet = (await commitResponse.json()) as ChangeSet;
+    const file = commitSet.files[0];
+    if (!file) {
+      throw new Error("expected a changed file");
+    }
+    expect(file.reviewed).toBe(false);
+
+    const marked = await request(running, "/api/review-mark", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        path: file.path,
+        contentHash: file.contentHash,
+        reviewed: true,
+      }),
+    });
+    expect(marked.status).toBe(200);
+
+    const query = new URLSearchParams({
+      start: "2024-01-01T00:00:00.000Z",
+      end: "2024-01-02T00:00:00.000Z",
+      preset: "custom",
+      mode: "auto",
+    });
+    const windowResponse = await request(
+      running,
+      `/api/time-window?${query.toString()}`,
+    );
+    expect(windowResponse.status).toBe(200);
+    const windowSet = (await windowResponse.json()) as ChangeSet;
+    expect(windowSet.selection.kind).toBe("time-window");
+    expect(windowSet.files).toHaveLength(1);
+    expect(windowSet.files[0]).toMatchObject({
+      path: file.path,
+      contentHash: file.contentHash,
+      reviewed: true,
+    });
+    expect(existsSync(join(repo.root, ".diff4ac"))).toBe(false);
+  });
+
   test("rejects malformed Review Mark requests", async () => {
     const repo = fixture();
     repo.write("src/app.ts", "one\n");

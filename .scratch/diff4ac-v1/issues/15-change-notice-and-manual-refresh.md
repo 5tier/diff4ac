@@ -4,12 +4,12 @@
 
 **Blocked by:** 05, 14
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The server watches git refs, HEAD, the index, the Worktree list and each Worktree's files, and debounces bursts into one event
-- [ ] An SSE endpoint delivers change events, using the session token
-- [ ] The SPA shows the banner on an event and does not change the displayed Change Set until `r`
-- [ ] `r` refetches and keeps the Selection, Filters, focused panel and scroll position where they still exist
-- [ ] If the Selection no longer exists (for example, a deleted branch), the SPA falls back to Pending with a notice
-- [ ] Review Marks for changed content show as lapsed after refresh
-- [ ] Tests: modify a fixture Repository while the server runs and assert one debounced event; a Playwright test covers the banner and `r`
+- [x] The server watches git refs, HEAD, the index, the Worktree list and each Worktree's files, and debounces bursts into one event
+- [x] An SSE endpoint delivers change events, using the session token
+- [x] The SPA shows the banner on an event and does not change the displayed Change Set until `r`
+- [x] `r` refetches and keeps the Selection, Filters, focused panel and scroll position where they still exist
+- [x] If the Selection no longer exists (for example, a deleted branch), the SPA falls back to Pending with a notice
+- [x] Review Marks for changed content show as lapsed after refresh
+- [x] Tests: modify a fixture Repository while the server runs and assert one debounced event; a Playwright test covers the banner and `r`
