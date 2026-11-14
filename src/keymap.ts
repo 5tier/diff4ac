@@ -32,6 +32,7 @@ export type KeyAction =
   | { readonly type: "filters-close" }
   | { readonly type: "toggle-noise" }
   | { readonly type: "refresh" }
+  | { readonly type: "toggle-diff-view" }
   | { readonly type: "scroll"; readonly direction: 1 | -1 }
   | { readonly type: "help" }
   | { readonly type: "close-help" };
@@ -298,6 +299,13 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "r",
     label: "Refresh Repository",
     action: { type: "refresh" },
+  },
+  {
+    id: "global.toggleDiffView",
+    panel: "global",
+    key: "s",
+    label: "Toggle side-by-side diff",
+    action: { type: "toggle-diff-view" },
   },
   {
     id: "global.closeHelp",

@@ -51,6 +51,12 @@ import {
   type PanelId,
 } from "./keymap";
 import { FiltersDialog, type FiltersDraft } from "./FiltersDialog";
+import {
+  countDiffRows,
+  DiffView,
+  VIRTUAL_ROW_THRESHOLD,
+} from "./DiffView";
+import type { DiffViewMode } from "../src/diff/rows";
 
 interface PanelProps {
   readonly id: PanelId;
@@ -292,76 +298,6 @@ function BranchRow({
   );
 }
 
-function diffLineClass(line: string): string {
-  if (
-    line.startsWith("diff --git") ||
-    line.startsWith("index ") ||
-    line.startsWith("--- ") ||
-    line.startsWith("+++ ") ||
-    line.startsWith("new file mode") ||
-    line.startsWith("deleted file mode") ||
-    line.startsWith("similarity index") ||
-    line.startsWith("rename from") ||
-    line.startsWith("rename to") ||
-    line.startsWith("old mode") ||
-    line.startsWith("new mode")
-  ) {
-    return "diff-line diff-meta";
-  }
-  if (line.startsWith("@@")) {
-    return "diff-line diff-hunk";
-  }
-  if (line.startsWith("+")) {
-    return "diff-line diff-add";
-  }
-  if (line.startsWith("-")) {
-    return "diff-line diff-del";
-  }
-  return "diff-line diff-context";
-}
-
-function DiffView({
-  file,
-  id,
-}: {
-  readonly file: ChangeFile;
-  readonly id?: string;
-}) {
-  return (
-    <div className="diff-view" id={id}>
-      <div className="diff-heading">
-        <span className="diff-heading-path">
-          {file.oldPath ? (
-            <>
-              <span className="muted">{file.oldPath}</span>
-              <span className="diff-arrow"> → </span>
-              {file.path}
-            </>
-          ) : (
-            file.path
-          )}
-        </span>
-        <span className="file-counts">
-          <span className="add">+{file.additions}</span>
-          <span className="del">−{file.deletions}</span>
-        </span>
-      </div>
-
-      {file.binary ? (
-        <div className="diff-empty">Binary file changed — preview not available yet.</div>
-      ) : (
-        <div className="diff-lines">
-          {file.diff.split("\n").map((line, index) => (
-            <div key={index} className={diffLineClass(line)}>
-              {line === "" ? "\u00a0" : line}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function stackFileId(commitHash: string, path: string): string {
   return `stack-${commitHash}-${path.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
@@ -382,12 +318,18 @@ function stackFileIndices(
 
 function CommitStackView({
   groups,
+  viewMode,
 }: {
   readonly groups: readonly CommitChangeGroup[];
+  readonly viewMode: DiffViewMode;
 }) {
   if (groups.length === 0) {
     return <div className="diff-empty">No commit changes.</div>;
   }
+
+  const forceVirtual =
+    countDiffRows(groups.flatMap((group) => group.files)) >
+    VIRTUAL_ROW_THRESHOLD;
 
   return (
     <div className="commit-stack">
@@ -410,6 +352,8 @@ function CommitStackView({
                 key={`${group.commit.hash}:${file.path}`}
                 id={stackFileId(group.commit.hash, file.path)}
                 file={file}
+                viewMode={viewMode}
+                forceVirtual={forceVirtual}
               />
             ))
           )}
@@ -850,6 +794,15 @@ export function App() {
     [disabledExtensions, excludeGlobs, hideNoise, includeGlobs],
   );
   const [helpOpen, setHelpOpen] = useState(false);
+  const [diffView, setDiffView] = useState<DiffViewMode>(() => {
+    try {
+      return sessionStorage.getItem("diff4ac-diff-view") === "side-by-side"
+        ? "side-by-side"
+        : "unified";
+    } catch {
+      return "unified";
+    }
+  });
   const [timeWindowOpen, setTimeWindowOpen] = useState(false);
   const [timeWindowDialogMode, setTimeWindowDialogMode] = useState<
     "list" | "custom"
@@ -968,6 +921,14 @@ export function App() {
   }, [selectedWorktreePath, refreshVersion]);
 
   useEffect(() => subscribeRepositoryChanges(() => setRepositoryChanged(true)), []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("diff4ac-diff-view", diffView);
+    } catch {
+      return;
+    }
+  }, [diffView]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1445,6 +1406,11 @@ export function App() {
         case "refresh":
           refreshRepository();
           break;
+        case "toggle-diff-view":
+          setDiffView((current) =>
+            current === "unified" ? "side-by-side" : "unified",
+          );
+          break;
         case "scroll":
           diffRef.current?.scrollBy({ top: action.direction * 96 });
           break;
@@ -1821,10 +1787,10 @@ export function App() {
                   : emptyFilesMessage(selection)}
               </div>
             ) : (
-              <CommitStackView groups={commitGroups} />
+              <CommitStackView groups={commitGroups} viewMode={diffView} />
             )
           ) : selected ? (
-            <DiffView file={selected} />
+            <DiffView file={selected} viewMode={diffView} />
           ) : !loading && !error && files.length === 0 ? (
             <div className="diff-empty">
               {hiddenFiles > 0

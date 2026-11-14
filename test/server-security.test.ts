@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { request } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { startServer, type RunningServer } from "../src/server/server";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import { createTempHome, type TempHome } from "./helpers/home";
@@ -7,6 +17,7 @@ import { createTempHome, type TempHome } from "./helpers/home";
 interface HttpResponse {
   readonly status: number;
   readonly body: string;
+  readonly headers: Record<string, string | string[] | undefined>;
 }
 
 function httpGet(
@@ -30,6 +41,7 @@ function httpGet(
           resolve({
             status: res.statusCode ?? 0,
             body: Buffer.concat(chunks).toString("utf8"),
+            headers: res.headers,
           });
         });
       },
@@ -43,6 +55,7 @@ function httpGet(
 const repos: FixtureRepo[] = [];
 const servers: RunningServer[] = [];
 const homes: TempHome[] = [];
+const webDirs: string[] = [];
 
 function fixture(): FixtureRepo {
   const repo = createFixtureRepo();
@@ -53,10 +66,31 @@ function fixture(): FixtureRepo {
   return repo;
 }
 
-async function serverFor(repo: FixtureRepo): Promise<RunningServer> {
+function webFixture(): string {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "diff4ac-web-")));
+  const assets = join(dir, "assets");
+  mkdirSync(assets, { recursive: true });
+  writeFileSync(
+    join(dir, "index.html"),
+    "<html><body>diff4ac fixture index</body></html>\n",
+  );
+  writeFileSync(join(assets, "main.js"), "console.log('fixture asset');\n");
+  writeFileSync(join(dir, "secret.txt"), "outside assets\n");
+  webDirs.push(dir);
+  return dir;
+}
+
+async function serverFor(
+  repo: FixtureRepo,
+  webDir?: string,
+): Promise<RunningServer> {
   const home = createTempHome();
   homes.push(home);
-  const running = await startServer({ repoPath: repo.root, homeDir: home.path });
+  const running = await startServer({
+    repoPath: repo.root,
+    homeDir: home.path,
+    ...(webDir ? { webDir } : {}),
+  });
   servers.push(running);
   return running;
 }
@@ -70,6 +104,9 @@ afterEach(() => {
   }
   for (const home of homes.splice(0)) {
     home.dispose();
+  }
+  for (const dir of webDirs.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 
@@ -265,6 +302,86 @@ describe("HTTP server security", () => {
 
     expect(response.status).toBe(403);
     expect(response.body).toContain("Host");
+  });
+
+  test("serves static assets without a token or cookie", async () => {
+    const repo = fixture();
+    const webDir = webFixture();
+    const running = await serverFor(repo, webDir);
+
+    const asset = await httpGet(running.port, "/assets/main.js");
+    expect(asset.status).toBe(200);
+    expect(asset.body).toContain("fixture asset");
+    expect(asset.headers["set-cookie"]).toBeUndefined();
+    expect(asset.headers["x-content-type-options"]).toBe("nosniff");
+
+    const rejectedHost = await httpGet(running.port, "/assets/main.js", {
+      host: "evil.example",
+    });
+    expect(rejectedHost.status).toBe(403);
+
+    const index = await httpGet(
+      running.port,
+      `/?token=${encodeURIComponent(running.token)}`,
+    );
+    expect(index.status).toBe(200);
+    expect(index.body).toContain("diff4ac fixture index");
+    expect(index.headers["set-cookie"]).toBeUndefined();
+
+    expect((await httpGet(running.port, "/")).status).toBe(401);
+    expect((await httpGet(running.port, "/api/pending")).status).toBe(401);
+
+    const pending = await httpGet(
+      running.port,
+      `/api/pending?token=${encodeURIComponent(running.token)}`,
+    );
+    expect(pending.status).toBe(200);
+    expect(pending.headers["set-cookie"]).toBeUndefined();
+  });
+
+  test("rejects traversal, directory and symlink escapes under assets", async () => {
+    const repo = fixture();
+    const webDir = webFixture();
+    const assets = join(webDir, "assets");
+    symlinkSync(join(webDir, "secret.txt"), join(assets, "leak.txt"));
+    mkdirSync(join(assets, "nested"), { recursive: true });
+    writeFileSync(join(assets, "nested", "secret.txt"), "nested inside assets\n");
+    symlinkSync(
+      join(assets, "nested", "secret.txt"),
+      join(assets, "nested-link.txt"),
+    );
+    const running = await serverFor(repo, webDir);
+
+    const normalisedEscape = await httpGet(
+      running.port,
+      "/assets/../index.html",
+    );
+    expect(normalisedEscape.status).toBe(401);
+    expect(normalisedEscape.body).not.toContain("diff4ac fixture index");
+
+    for (const path of [
+      "/assets/%2e%2e%2findex.html",
+      "/assets/..%2findex.html",
+      "/assets/%2e%2e%2f%2e%2e%2fsecret.txt",
+      "/assets/%2e%2e%5cindex.html",
+      "/assets/",
+      "/assets",
+      "/assets/leak.txt",
+      "/assets/nested-link.txt",
+    ]) {
+      const response = await httpGet(running.port, path);
+      expect(response.status).toBeLessThan(500);
+      expect(response.status).not.toBe(200);
+      expect(response.body).not.toContain("outside assets");
+      expect(response.body).not.toContain("nested inside assets");
+      expect(response.body).not.toContain("diff4ac fixture index");
+    }
+
+    const withToken = await httpGet(
+      running.port,
+      `/assets/%2e%2e%2findex.html?token=${encodeURIComponent(running.token)}`,
+    );
+    expect(withToken.status).toBe(404);
   });
 
   test("rejects requests with an unexpected Origin header", async () => {

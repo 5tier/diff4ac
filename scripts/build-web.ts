@@ -12,6 +12,7 @@ const result = await Bun.build({
   entrypoints: [join(root, "web", "main.tsx")],
   outdir: assetsDir,
   target: "browser",
+  splitting: true,
   minify: true,
   sourcemap: "none",
   naming: "[name].[ext]",

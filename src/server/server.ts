@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import {
   BUILT_IN_AGENT_PATTERNS,
   compileAgentPatterns,
@@ -302,18 +302,54 @@ function serveIndex(context: RequestContext, method: string): Response {
   });
 }
 
+function resolveAssetPath(
+  webDir: string,
+  pathname: string,
+): string | null {
+  let name: string;
+  try {
+    name = decodeURIComponent(pathname.slice("/assets/".length));
+  } catch {
+    return null;
+  }
+
+  if (
+    !name ||
+    name.includes("/") ||
+    name.includes("\\") ||
+    name.includes("\0") ||
+    name.includes("..")
+  ) {
+    return null;
+  }
+
+  const assetsDir = join(webDir, "assets");
+  try {
+    const assetsReal = realpathSync(assetsDir);
+    const candidateReal = realpathSync(join(assetsDir, name));
+    if (!candidateReal.startsWith(`${assetsReal}${sep}`)) {
+      return null;
+    }
+    const relative = candidateReal.slice(assetsReal.length + sep.length);
+    if (!relative || relative.includes(sep)) {
+      return null;
+    }
+    if (!statSync(candidateReal).isFile()) {
+      return null;
+    }
+    return candidateReal;
+  } catch {
+    return null;
+  }
+}
+
 function serveAsset(
   context: RequestContext,
   pathname: string,
   method: string,
 ): Response {
-  const name = decodeURIComponent(pathname.slice("/assets/".length));
-  if (!name || name.includes("/") || name.includes("\\") || name.includes("..")) {
-    return text("Not found", 404);
-  }
-
-  const assetPath = join(context.webDir, "assets", name);
-  if (!existsSync(assetPath)) {
+  const assetPath = resolveAssetPath(context.webDir, pathname);
+  if (!assetPath) {
     return text("Not found", 404);
   }
 
@@ -338,7 +374,8 @@ async function handleRequest(
   }
 
   const url = new URL(request.url);
-  if (!tokenMatches(requestToken(request, url), context.token)) {
+  const isStaticAsset = url.pathname.startsWith("/assets/");
+  if (!isStaticAsset && !tokenMatches(requestToken(request, url), context.token)) {
     return text("Unauthorized: missing or invalid session token", 401);
   }
 
