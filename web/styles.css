@@ -89,6 +89,36 @@ button {
   padding: 1px 7px;
 }
 
+.search-prompt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 220px;
+  padding: 1px 7px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--bg);
+}
+
+.search-slash {
+  color: var(--accent);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font: inherit;
+}
+
+.search-input::placeholder {
+  color: var(--muted);
+}
+
 .repository-banner,
 .repository-notice {
   display: flex;
@@ -594,6 +624,17 @@ button {
   background: rgba(126, 198, 153, 0.38);
 }
 
+.diff-search-match {
+  border-radius: 2px;
+  background: rgba(240, 198, 92, 0.32);
+  box-shadow: inset 0 -1px 0 rgba(240, 198, 92, 0.65);
+}
+
+.diff-search-current {
+  background: rgba(240, 198, 92, 0.58);
+  box-shadow: inset 0 0 0 1px rgba(240, 198, 92, 0.9);
+}
+
 .diff-meta {
   color: var(--muted);
 }
@@ -849,6 +890,19 @@ button {
   color: var(--text);
 }
 
+.help-note {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.help-note kbd {
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+}
+
 .time-window-overlay {
   position: fixed;
   inset: 0;
@@ -1072,6 +1126,13 @@ button {
   flex: none;
   color: #e2c27e;
   font-weight: 700;
+}
+
+.status-search {
+  color: #e2c27e;
+  max-width: 26%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .filters-hint {

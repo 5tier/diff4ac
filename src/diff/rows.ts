@@ -302,6 +302,92 @@ export function buildDiffRows(
     : buildUnifiedRows(hunks, highlights);
 }
 
+export interface HighlightRange {
+  readonly start: number;
+  readonly end: number;
+  readonly current?: boolean;
+}
+
+export interface DiffTextSegment {
+  readonly text: string;
+  readonly style?: Readonly<Record<string, string>>;
+  readonly word: boolean;
+  readonly search: boolean;
+  readonly current: boolean;
+}
+
+export function highlightSegments(
+  text: string,
+  tokens: readonly TokenSpan[] | null,
+  wordRanges: readonly WordRange[] | null,
+  searchRanges: readonly HighlightRange[] | null = null,
+): DiffTextSegment[] {
+  const source =
+    tokens && tokens.length > 0
+      ? tokens
+      : [{ content: text, style: undefined } as TokenSpan];
+  const total = source.reduce((length, token) => length + token.content.length, 0);
+  const word = wordRanges ?? [];
+  const search = searchRanges ?? [];
+
+  if (total !== text.length) {
+    return highlightSegments(
+      text,
+      [{ content: text, style: undefined } as TokenSpan],
+      wordRanges,
+      searchRanges,
+    );
+  }
+
+  const segments: DiffTextSegment[] = [];
+  let offset = 0;
+
+  for (const token of source) {
+    const start = offset;
+    const end = offset + token.content.length;
+    offset = end;
+
+    const boundaries = new Set<number>([start, end]);
+    for (const range of [...word, ...search]) {
+      if (range.end <= start || range.start >= end) {
+        continue;
+      }
+      boundaries.add(Math.max(range.start, start));
+      boundaries.add(Math.min(range.end, end));
+    }
+
+    const sorted = [...boundaries].sort((left, right) => left - right);
+    for (let index = 0; index < sorted.length - 1; index++) {
+      const segmentStart = sorted[index];
+      const segmentEnd = sorted[index + 1];
+      if (
+        segmentStart === undefined ||
+        segmentEnd === undefined ||
+        segmentEnd <= segmentStart
+      ) {
+        continue;
+      }
+
+      const wordHighlighted = word.some(
+        (range) => range.start < segmentEnd && range.end > segmentStart,
+      );
+      const searchHits = search.filter(
+        (range) => range.start < segmentEnd && range.end > segmentStart,
+      );
+
+      segments.push({
+        text: text.slice(segmentStart, segmentEnd),
+        ...(token.style ? { style: token.style } : {}),
+        word: wordHighlighted,
+        search: searchHits.length > 0,
+        current: searchHits.some((range) => range.current === true),
+      });
+    }
+  }
+
+  return segments;
+}
+
 export function wordDiffSegments(
   text: string,
   tokens: readonly TokenSpan[] | null,
@@ -311,63 +397,10 @@ export function wordDiffSegments(
   readonly style?: Readonly<Record<string, string>>;
   readonly highlighted: boolean;
 }[] {
-  const source =
-    tokens && tokens.length > 0
-      ? tokens
-      : [{ content: text, style: undefined } as TokenSpan];
-  const total = source.reduce((length, token) => length + token.content.length, 0);
-  const safeRanges = ranges ?? [];
-
-  if (total !== text.length) {
-    return [{ text, highlighted: false }];
-  }
-
-  const segments: {
-    text: string;
-    style?: Readonly<Record<string, string>>;
-    highlighted: boolean;
-  }[] = [];
-  let offset = 0;
-
-  for (const token of source) {
-    const start = offset;
-    const end = offset + token.content.length;
-    let position = start;
-
-    for (const range of safeRanges) {
-      if (range.end <= start || range.start >= end) {
-        continue;
-      }
-
-      const rangeStart = Math.max(range.start, start);
-      const rangeEnd = Math.min(range.end, end);
-
-      if (rangeStart > position) {
-        segments.push({
-          text: text.slice(position, rangeStart),
-          ...(token.style ? { style: token.style } : {}),
-          highlighted: false,
-        });
-      }
-      segments.push({
-        text: text.slice(rangeStart, rangeEnd),
-        ...(token.style ? { style: token.style } : {}),
-        highlighted: true,
-      });
-      position = rangeEnd;
-    }
-
-    if (position < end) {
-      segments.push({
-        text: text.slice(position, end),
-        ...(token.style ? { style: token.style } : {}),
-        highlighted: false,
-      });
-    }
-
-    offset = end;
-  }
-
-  return segments;
+  return highlightSegments(text, tokens, ranges).map((segment) => ({
+    text: segment.text,
+    ...(segment.style ? { style: segment.style } : {}),
+    highlighted: segment.word,
+  }));
 }
 

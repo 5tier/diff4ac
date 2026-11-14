@@ -841,3 +841,178 @@ test(
   },
   30_000,
 );
+
+test(
+  "searches the Change Set and jumps between hunks and files",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".file-row");
+
+    const baseLines = Array.from(
+      { length: 240 },
+      (_, index) => `line ${index + 1}`,
+    );
+    repo.write("src/hunks.ts", `${baseLines.join("\n")}\n`);
+    repo.commit("hunk baseline");
+
+    const changed = [...baseLines];
+    for (let index = 1; index < baseLines.length; index += 20) {
+      changed[index] = `line ${index + 1} changed`;
+    }
+    repo.write("src/hunks.ts", `${changed.join("\n")}\n`);
+    repo.write("src/needle-a.ts", "needle alpha\n");
+    repo.write("src/needle-b.ts", "needle beta\n");
+    repo.write("bun.lock", "lockfile after baseline\n");
+
+    const banner = page.locator('[data-testid="repository-banner"]');
+    await banner.waitFor({ timeout: 5000 });
+    await page.keyboard.press("r");
+    await banner.waitFor({ state: "detached" });
+    await page.waitForFunction(() =>
+      Array.from(document.querySelectorAll(".file-row .file-path")).some(
+        (element) => element.textContent?.includes("src/hunks.ts"),
+      ),
+    );
+
+    await page.locator(".file-row", { hasText: "src/hunks.ts" }).click();
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".diff-heading-path")
+        ?.textContent?.includes("src/hunks.ts"),
+    );
+    await page.keyboard.press("0");
+    expect(await focusedPanel()).toBe("diff");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-line").length > 0,
+    );
+
+    await page.keyboard.press("?");
+    const hunkHelp = page.locator('[data-testid="help-overlay"]');
+    await hunkHelp.waitFor();
+    expect(await hunkHelp.textContent()).toContain("Next hunk");
+    expect(await hunkHelp.textContent()).toContain("Next file");
+    expect(await hunkHelp.textContent()).toContain("Next match");
+    expect(await hunkHelp.textContent()).toContain("Clear search");
+    await page.keyboard.press("Escape");
+    await hunkHelp.waitFor({ state: "detached" });
+
+    await page
+      .locator(".diff-pane")
+      .evaluate((element) => element.scrollTo({ top: 0 }));
+    await page.keyboard.press("]");
+    await page.waitForFunction(
+      () => (document.querySelector(".diff-pane")?.scrollTop ?? 0) > 0,
+    );
+    const afterNextHunk = await page
+      .locator(".diff-pane")
+      .evaluate((element) => element.scrollTop);
+
+    await page.keyboard.press("[");
+    await page.waitForFunction(
+      (previous) =>
+        (document.querySelector(".diff-pane")?.scrollTop ?? 0) < previous,
+      afterNextHunk,
+    );
+
+    await page.keyboard.press("}");
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".diff-heading-path")
+        ?.textContent?.includes("src/needle-a.ts"),
+    );
+    await page.keyboard.press("{");
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".diff-heading-path")
+        ?.textContent?.includes("src/hunks.ts"),
+    );
+
+    await page.keyboard.press("/");
+    const searchInput = page.locator('[data-testid="search-input"]');
+    await searchInput.waitFor();
+    await searchInput.fill("needle");
+    await page.keyboard.press("Enter");
+    await searchInput.waitFor({ state: "detached" });
+
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".diff-heading-path")
+        ?.textContent?.includes("src/needle-a.ts"),
+    );
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-search-match").length > 0,
+    );
+    expect(
+      await page.locator('[data-testid="search-status"]').textContent(),
+    ).toContain("1/2 matches");
+
+    await page.keyboard.press("n");
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".diff-heading-path")
+        ?.textContent?.includes("src/needle-b.ts"),
+    );
+    expect(
+      await page.locator('[data-testid="search-status"]').textContent(),
+    ).toContain("2/2 matches");
+
+    await page.keyboard.press("N");
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".diff-heading-path")
+        ?.textContent?.includes("src/needle-a.ts"),
+    );
+
+    await page.keyboard.press("s");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-split-row").length > 0,
+    );
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-search-match").length > 0,
+    );
+    await page.keyboard.press("s");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-split-row").length === 0,
+    );
+
+    await page.keyboard.press("Escape");
+    await page
+      .locator('[data-testid="search-status"]')
+      .waitFor({ state: "detached" });
+
+    const rowsBeforeNoise = await page.locator(".file-row").count();
+    await page.keyboard.press("n");
+    await page.waitForFunction(
+      (previous) => document.querySelectorAll(".file-row").length > previous,
+      rowsBeforeNoise,
+    );
+
+    await page.keyboard.press("3");
+    expect(await focusedPanel()).toBe("commits");
+    await page.keyboard.press("Space");
+    await page.keyboard.press("j");
+    await page.keyboard.press("Space");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".commit-row-selected").length === 2,
+    );
+    await page.keyboard.press("t");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".commit-stack-group").length === 2,
+    );
+
+    await page.keyboard.press("/");
+    await searchInput.waitFor();
+    await searchInput.fill("line 39");
+    await page.keyboard.press("Enter");
+    await searchInput.waitFor({ state: "detached" });
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-search-match").length > 0,
+    );
+    expect(
+      await page.locator('[data-testid="search-status"]').textContent(),
+    ).toContain("matches");
+
+    await page.keyboard.press("Escape");
+  },
+  30_000,
+);

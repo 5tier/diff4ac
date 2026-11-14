@@ -44,6 +44,7 @@ import {
   applyKeybindingOverrides,
   bindingFor,
   bindingForFilters,
+  bindingForSearch,
   bindingForTimeWindow,
   bindingsForPanel,
   nextPanel,
@@ -57,9 +58,23 @@ import { FiltersDialog, type FiltersDraft } from "./FiltersDialog";
 import {
   countDiffRows,
   DiffView,
+  ROW_HEIGHT,
   VIRTUAL_ROW_THRESHOLD,
+  type DiffJump,
 } from "./DiffView";
 import type { DiffViewMode } from "../src/diff/rows";
+import {
+  findSearchMatches,
+  stepMatchIndex,
+  type SearchFile,
+  type SearchMatch,
+} from "../src/diff/search";
+import {
+  hunkAtRow,
+  nextFileTarget,
+  nextHunkTarget,
+  type HunkLocation,
+} from "../src/diff/navigation";
 
 interface PanelProps {
   readonly id: PanelId;
@@ -305,6 +320,12 @@ function stackFileId(commitHash: string, path: string): string {
   return `stack-${commitHash}-${path.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
+function stackFileKey(commitHash: string, path: string): string {
+  return `${commitHash}:${path}`;
+}
+
+const VIEWPORT_TOP_ROWS = 2;
+
 function stackFileIndices(
   groups: readonly CommitChangeGroup[],
 ): Map<string, number> {
@@ -323,10 +344,16 @@ function CommitStackView({
   groups,
   context,
   viewMode,
+  searchMatches,
+  currentMatch,
+  jump,
 }: {
   readonly groups: readonly CommitChangeGroup[];
   readonly context: FileRequestContext;
   readonly viewMode: DiffViewMode;
+  readonly searchMatches: readonly SearchMatch[];
+  readonly currentMatch: SearchMatch | null;
+  readonly jump: DiffJump | null;
 }) {
   if (groups.length === 0) {
     return <div className="diff-empty">No commit changes.</div>;
@@ -352,16 +379,25 @@ function CommitStackView({
           {group.files.length === 0 ? (
             <div className="diff-empty">No file changes in this commit.</div>
           ) : (
-            group.files.map((file) => (
-              <DiffView
-                key={`${group.commit.hash}:${file.path}`}
-                id={stackFileId(group.commit.hash, file.path)}
-                file={file}
-                context={context}
-                viewMode={viewMode}
-                forceVirtual={forceVirtual}
-              />
-            ))
+            group.files.map((file) => {
+              const key = stackFileKey(group.commit.hash, file.path);
+              return (
+                <DiffView
+                  key={key}
+                  id={stackFileId(group.commit.hash, file.path)}
+                  fileKey={key}
+                  file={file}
+                  context={context}
+                  viewMode={viewMode}
+                  forceVirtual={forceVirtual}
+                  searchMatches={searchMatches.filter(
+                    (match) => match.fileKey === key,
+                  )}
+                  currentMatch={currentMatch}
+                  jump={jump}
+                />
+              );
+            })
           )}
         </section>
       ))}
@@ -379,6 +415,9 @@ function HelpOverlay({
   readonly onClose: () => void;
 }) {
   const bindings = bindingsForPanel(keymap, panel);
+  const searchBindings = keymap.filter(
+    (binding) => binding.panel === "search",
+  );
 
   const renderBindings = (entries: readonly KeyBinding[]) => (
     <ul className="help-list">
@@ -420,6 +459,14 @@ function HelpOverlay({
             {renderBindings(bindings.panel)}
           </section>
         ) : null}
+
+        <section className="help-section">
+          <h2>Search</h2>
+          <p className="help-note">
+            Active while a search is set. Otherwise <kbd>n</kbd> toggles Noise.
+          </p>
+          {renderBindings(searchBindings)}
+        </section>
 
         <section className="help-section">
           <h2>Global</h2>
@@ -856,6 +903,11 @@ export function App() {
   const [fileCursor, setFileCursor] = useState(0);
   const [pickedHashes, setPickedHashes] = useState<readonly string[]>([]);
   const [rangeAnchor, setRangeAnchor] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [matchIndex, setMatchIndex] = useState(-1);
+  const [jump, setJump] = useState<DiffJump | null>(null);
+  const jumpNonce = useRef(0);
   const diffRef = useRef<HTMLElement | null>(null);
   const selectedPathRef = useRef<string | null>(null);
   selectedPathRef.current = selectedPath;
@@ -1141,6 +1193,178 @@ export function App() {
       changeSet?.selection.kind === "time-window") &&
     changeSet.selection.mode === "stack";
   const stackFileIndex = stackFileIndices(commitGroups);
+
+  const searchFiles = useMemo<SearchFile[]>(() => {
+    if (isStack) {
+      return commitGroups.flatMap((group) =>
+        group.files.map((file) => ({
+          key: stackFileKey(group.commit.hash, file.path),
+          path: file.path,
+          hunks: file.hunks,
+          ...(file.collapsed ? { collapsed: true } : {}),
+        })),
+      );
+    }
+
+    return files.map((file) => ({
+      key: file.path,
+      path: file.path,
+      hunks: file.hunks,
+      ...(file.collapsed ? { collapsed: true } : {}),
+    }));
+  }, [commitGroups, files, isStack]);
+
+  const searchMatches = useMemo(
+    () => findSearchMatches(searchFiles, searchQuery, diffView),
+    [diffView, searchFiles, searchQuery],
+  );
+  const searchActive = searchQuery.trim() !== "" && !searchOpen;
+  const currentMatch =
+    matchIndex >= 0 ? (searchMatches[matchIndex] ?? null) : null;
+  const collapsedSearchFiles =
+    searchQuery.trim() !== ""
+      ? searchFiles.filter((file) => file.collapsed === true).length
+      : 0;
+
+  useEffect(() => {
+    setMatchIndex((current) => {
+      if (searchMatches.length === 0) {
+        return -1;
+      }
+      return current < 0 || current >= searchMatches.length ? 0 : current;
+    });
+  }, [searchMatches]);
+
+  const selectSearchFile = useCallback(
+    (fileKey: string) => {
+      if (isStack) {
+        const file = searchFiles.find((candidate) => candidate.key === fileKey);
+        if (!file) {
+          return;
+        }
+        setSelectedPath(file.path);
+        setFileCursor(stackFileIndex.get(fileKey) ?? 0);
+        return;
+      }
+
+      const index = files.findIndex((file) => file.path === fileKey);
+      if (index >= 0) {
+        setSelectedPath(fileKey);
+        setFileCursor(index);
+      }
+    },
+    [files, isStack, searchFiles, stackFileIndex],
+  );
+
+  const jumpToTarget = useCallback(
+    (fileKey: string, row: number) => {
+      selectSearchFile(fileKey);
+      jumpNonce.current += 1;
+      setJump({ fileKey, row, nonce: jumpNonce.current });
+    },
+    [selectSearchFile],
+  );
+
+  useEffect(() => {
+    if (jump) {
+      setJump(null);
+    }
+  }, [jump]);
+
+  const jumpToMatch = useCallback(
+    (index: number) => {
+      const match = searchMatches[index];
+      if (!match) {
+        return;
+      }
+      setMatchIndex(index);
+      jumpToTarget(match.fileKey, match.row);
+    },
+    [jumpToTarget, searchMatches],
+  );
+
+  const updateSearchQuery = useCallback((value: string) => {
+    setSearchQuery(value);
+    setMatchIndex(value.trim() === "" ? -1 : 0);
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+    setSearchOpen(false);
+    setMatchIndex(-1);
+  }, []);
+
+  const commitSearch = useCallback(() => {
+    setSearchOpen(false);
+    const index =
+      matchIndex >= 0 && matchIndex < searchMatches.length ? matchIndex : 0;
+    if (searchMatches[index]) {
+      jumpToMatch(index);
+    }
+  }, [jumpToMatch, matchIndex, searchMatches]);
+
+  const currentDiffFileKey = useCallback((): string | null => {
+    if (!isStack) {
+      return selectedPath;
+    }
+
+    const pane = diffRef.current;
+    if (!pane) {
+      return null;
+    }
+    const views = Array.from(
+      pane.querySelectorAll<HTMLElement>(".diff-view"),
+    );
+    if (views.length === 0) {
+      return null;
+    }
+
+    const paneTop = pane.getBoundingClientRect().top;
+    let key = views[0]?.dataset.fileKey ?? null;
+    for (const view of views) {
+      if (view.getBoundingClientRect().top <= paneTop + 1) {
+        key = view.dataset.fileKey ?? key;
+      } else {
+        break;
+      }
+    }
+    return key;
+  }, [isStack, selectedPath]);
+
+  const paneRowForFile = useCallback((fileKey: string): number => {
+    const pane = diffRef.current;
+    if (!pane) {
+      return 0;
+    }
+
+    const view = Array.from(
+      pane.querySelectorAll<HTMLElement>(".diff-view"),
+    ).find((candidate) => candidate.dataset.fileKey === fileKey);
+    const target = view?.querySelector<HTMLElement>(".diff-lines") ?? view;
+    if (!target) {
+      return 0;
+    }
+
+    const paneRect = pane.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const offset = targetRect.top - paneRect.top + pane.scrollTop;
+    const row = Math.floor((pane.scrollTop - offset) / ROW_HEIGHT);
+    return Math.max(0, row + VIEWPORT_TOP_ROWS);
+  }, []);
+
+  const currentHunkLocation = useCallback((): HunkLocation | null => {
+    const fileKey = currentDiffFileKey();
+    if (!fileKey) {
+      return null;
+    }
+
+    return (
+      hunkAtRow(searchFiles, diffView, fileKey, paneRowForFile(fileKey)) ?? {
+        fileKey,
+        hunkIndex: -1,
+      }
+    );
+  }, [currentDiffFileKey, diffView, paneRowForFile, searchFiles]);
 
   useEffect(() => {
     setBranchCursor((cursor) =>
@@ -1489,6 +1713,42 @@ export function App() {
             current === "unified" ? "side-by-side" : "unified",
           );
           break;
+        case "jump-hunk": {
+          const target = nextHunkTarget(
+            searchFiles,
+            diffView,
+            currentHunkLocation(),
+            action.direction,
+          );
+          if (target) {
+            jumpToTarget(target.fileKey, target.row);
+          }
+          break;
+        }
+        case "jump-file": {
+          const target = nextFileTarget(
+            searchFiles,
+            currentDiffFileKey(),
+            action.direction,
+          );
+          if (target) {
+            jumpToTarget(target.fileKey, target.row);
+          }
+          break;
+        }
+        case "search-open":
+          setSearchOpen(true);
+          break;
+        case "search-next":
+          if (searchMatches.length > 0) {
+            jumpToMatch(
+              stepMatchIndex(searchMatches.length, matchIndex, action.direction),
+            );
+          }
+          break;
+        case "search-clear":
+          clearSearch();
+          break;
         case "scroll":
           diffRef.current?.scrollBy({ top: action.direction * 96 });
           break;
@@ -1522,6 +1782,15 @@ export function App() {
       agentFilter,
       agentNames,
       allCommits,
+      clearSearch,
+      currentDiffFileKey,
+      currentHunkLocation,
+      diffView,
+      jumpToMatch,
+      jumpToTarget,
+      matchIndex,
+      searchFiles,
+      searchMatches,
     ],
   );
 
@@ -1570,6 +1839,26 @@ export function App() {
         return;
       }
 
+      if (searchOpen) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          clearSearch();
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          commitSearch();
+        }
+        return;
+      }
+
+      if (searchActive) {
+        const searchBinding = bindingForSearch(keymap, event.key);
+        if (searchBinding) {
+          event.preventDefault();
+          dispatch(searchBinding.action);
+          return;
+        }
+      }
+
       const binding = bindingFor(keymap, focusedPanel, event.key);
       if (!binding || binding.action.type === "close-help") {
         return;
@@ -1582,12 +1871,16 @@ export function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
+    clearSearch,
+    commitSearch,
     dispatch,
     dispatchTimeWindow,
     focusedPanel,
     filtersOpen,
     helpOpen,
     keymap,
+    searchActive,
+    searchOpen,
     timeWindowDialogMode,
     timeWindowOpen,
   ]);
@@ -1596,6 +1889,21 @@ export function App() {
     <div className="app">
       <header className="top-bar">
         <span className="brand">diff4ac</span>
+        {searchOpen ? (
+          <span className="search-prompt">
+            <span className="search-slash">/</span>
+            <input
+              className="search-input"
+              data-testid="search-input"
+              type="text"
+              value={searchQuery}
+              autoFocus
+              aria-label="Search Change Set"
+              placeholder="search this Change Set"
+              onChange={(event) => updateSearchQuery(event.target.value)}
+            />
+          </span>
+        ) : null}
         <span className="top-bar-path" title={worktree?.path}>
           {worktree?.path ?? ""}
         </span>
@@ -1866,10 +2174,27 @@ export function App() {
                   : emptyFilesMessage(selection)}
               </div>
             ) : (
-              <CommitStackView groups={commitGroups} context={fileContext} viewMode={diffView} />
+              <CommitStackView
+                groups={commitGroups}
+                context={fileContext}
+                viewMode={diffView}
+                searchMatches={searchMatches}
+                currentMatch={currentMatch}
+                jump={jump}
+              />
             )
           ) : selected ? (
-            <DiffView file={selected} context={fileContext} viewMode={diffView} />
+            <DiffView
+              fileKey={selected.path}
+              file={selected}
+              context={fileContext}
+              viewMode={diffView}
+              searchMatches={searchMatches.filter(
+                (match) => match.fileKey === selected.path,
+              )}
+              currentMatch={currentMatch}
+              jump={jump}
+            />
           ) : !loading && !error && files.length === 0 ? (
             <div className="diff-empty">
               {hiddenFiles > 0
@@ -1923,6 +2248,24 @@ export function App() {
         </span>
         {hiddenFiles > 0 ? (
           <span className="status-hidden">{hiddenFilesLabel(hiddenFiles)}</span>
+        ) : null}
+        {searchQuery.trim() !== "" ? (
+          <span
+            className="status-search"
+            data-testid="search-status"
+            title={`Search: ${searchQuery}`}
+          >
+            /{searchQuery} ·{" "}
+            {searchMatches.length === 0
+              ? "0 matches"
+              : `${Math.max(matchIndex, 0) + 1}/${searchMatches.length} matches`}
+          </span>
+        ) : null}
+        {collapsedSearchFiles > 0 ? (
+          <span className="status-hidden" data-testid="search-note">
+            search skips {collapsedSearchFiles} collapsed large diff
+            {collapsedSearchFiles === 1 ? "" : "s"}
+          </span>
         ) : null}
         {markError ? (
           <span className="status-error" title={markError}>

@@ -4,11 +4,11 @@
 
 **Blocked by:** 11
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Keys jump to the next and previous hunk, and to the next and previous file, across file boundaries
-- [ ] `/` opens a search prompt; matches are highlighted across the whole Change Set, not only the visible file
-- [ ] `n`/`N` cycle through matches, moving to the right file and scrolling it into view
-- [ ] The match count is shown; `Esc` clears the search
-- [ ] Bindings come from the keymap and appear in `?` help
-- [ ] A Playwright smoke test covers search and hunk jumping
+- [x] Keys jump to the next and previous hunk, and to the next and previous file, across file boundaries
+- [x] `/` opens a search prompt; matches are highlighted across the whole Change Set, not only the visible file
+- [x] `n`/`N` cycle through matches, moving to the right file and scrolling it into view
+- [x] The match count is shown; `Esc` clears the search
+- [x] Bindings come from the keymap and appear in `?` help
+- [x] A Playwright smoke test covers search and hunk jumping

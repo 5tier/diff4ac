@@ -35,10 +35,20 @@ export type KeyAction =
   | { readonly type: "refresh" }
   | { readonly type: "toggle-diff-view" }
   | { readonly type: "scroll"; readonly direction: 1 | -1 }
+  | { readonly type: "jump-hunk"; readonly direction: 1 | -1 }
+  | { readonly type: "jump-file"; readonly direction: 1 | -1 }
+  | { readonly type: "search-open" }
+  | { readonly type: "search-next"; readonly direction: 1 | -1 }
+  | { readonly type: "search-clear" }
   | { readonly type: "help" }
   | { readonly type: "close-help" };
 
-export type KeyScope = PanelId | "global" | "time-window" | "filters";
+export type KeyScope =
+  | PanelId
+  | "global"
+  | "time-window"
+  | "filters"
+  | "search";
 
 export interface KeyBinding {
   readonly id: string;
@@ -239,6 +249,34 @@ export const KEYMAP: readonly KeyBinding[] = [
     action: { type: "expand-diff" },
   },
   {
+    id: "diff.nextHunk",
+    panel: "diff",
+    key: "]",
+    label: "Next hunk",
+    action: { type: "jump-hunk", direction: 1 },
+  },
+  {
+    id: "diff.previousHunk",
+    panel: "diff",
+    key: "[",
+    label: "Previous hunk",
+    action: { type: "jump-hunk", direction: -1 },
+  },
+  {
+    id: "diff.nextFile",
+    panel: "diff",
+    key: "}",
+    label: "Next file",
+    action: { type: "jump-file", direction: 1 },
+  },
+  {
+    id: "diff.previousFile",
+    panel: "diff",
+    key: "{",
+    label: "Previous file",
+    action: { type: "jump-file", direction: -1 },
+  },
+  {
     id: "global.focusWorktrees",
     panel: "global",
     key: "1",
@@ -300,6 +338,34 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "n",
     label: "Toggle Noise",
     action: { type: "toggle-noise" },
+  },
+  {
+    id: "global.search",
+    panel: "global",
+    key: "/",
+    label: "Search Change Set",
+    action: { type: "search-open" },
+  },
+  {
+    id: "search.nextMatch",
+    panel: "search",
+    key: "n",
+    label: "Next match",
+    action: { type: "search-next", direction: 1 },
+  },
+  {
+    id: "search.previousMatch",
+    panel: "search",
+    key: "N",
+    label: "Previous match",
+    action: { type: "search-next", direction: -1 },
+  },
+  {
+    id: "search.clear",
+    panel: "search",
+    key: "Escape",
+    label: "Clear search",
+    action: { type: "search-clear" },
   },
   {
     id: "filters.close",
@@ -370,6 +436,15 @@ export function bindingForFilters(
 ): KeyBinding | undefined {
   return keymap.find(
     (binding) => binding.panel === "filters" && binding.key === key,
+  );
+}
+
+export function bindingForSearch(
+  keymap: readonly KeyBinding[],
+  key: string,
+): KeyBinding | undefined {
+  return keymap.find(
+    (binding) => binding.panel === "search" && binding.key === key,
   );
 }
 

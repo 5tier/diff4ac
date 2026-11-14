@@ -1,20 +1,32 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import type { ChangeFile } from "../src/types";
 import { fileContentUrl, type FileRequestContext } from "./api";
 import {
   buildDiffRows,
-  wordDiffSegments,
+  highlightSegments,
   type DiffRow,
   type DiffViewMode,
+  type HighlightRange,
   type SplitCell,
   type TokenSpan,
 } from "../src/diff/rows";
+import {
+  groupMatchesByRow,
+  type SearchMatch,
+  type RowSearchMatches,
+} from "../src/diff/search";
 import { useHunkHighlights } from "./useHunkHighlights";
 
-const ROW_HEIGHT = 20;
+export const ROW_HEIGHT = 20;
 export const VIRTUAL_ROW_THRESHOLD = 300;
 const OVERSCAN = 8;
+
+export interface DiffJump {
+  readonly fileKey: string;
+  readonly row: number;
+  readonly nonce: number;
+}
 
 export function countDiffRows(files: readonly ChangeFile[]): number {
   return files.reduce(
@@ -113,16 +125,18 @@ function HighlightedContent({
   content,
   tokens,
   word,
+  search,
   tone,
   prefix,
 }: {
   readonly content: string;
   readonly tokens: readonly TokenSpan[] | null;
   readonly word: readonly { readonly start: number; readonly end: number }[] | null;
+  readonly search: readonly HighlightRange[] | null;
   readonly tone: "add" | "delete" | "context";
   readonly prefix?: string;
 }) {
-  const segments = wordDiffSegments(content, tokens, word);
+  const segments = highlightSegments(content, tokens, word, search);
   const wordClass =
     tone === "delete" ? "diff-word diff-word-removed" : tone === "add" ? "diff-word diff-word-added" : "diff-word";
 
@@ -131,26 +145,46 @@ function HighlightedContent({
       {prefix !== undefined ? (
         <span className={`diff-sign diff-sign-${tone}`}>{prefix}</span>
       ) : null}
-      {segments.map((segment, index) =>
-        segment.highlighted ? (
-          <span
-            key={index}
-            className={`${wordClass} diff-token`}
-            style={tokenStyle(segment)}
-          >
+      {segments.map((segment, index) => {
+        const classes = [
+          "diff-token",
+          segment.word ? wordClass : "",
+          segment.search ? "diff-search-match" : "",
+          segment.current ? "diff-search-current" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        return (
+          <span key={index} className={classes} style={tokenStyle(segment)}>
             {segment.text}
           </span>
-        ) : (
-          <span key={index} className="diff-token" style={tokenStyle(segment)}>
-            {segment.text}
-          </span>
-        ),
-      )}
+        );
+      })}
     </>
   );
 }
 
-function SplitCellView({ cell }: { readonly cell: SplitCell }) {
+function searchRanges(
+  matches: readonly SearchMatch[] | undefined,
+  current: SearchMatch | null,
+): HighlightRange[] {
+  return (matches ?? []).map((match) => ({
+    start: match.start,
+    end: match.end,
+    current: match === current,
+  }));
+}
+
+function SplitCellView({
+  cell,
+  matches,
+  currentMatch,
+}: {
+  readonly cell: SplitCell;
+  readonly matches?: readonly SearchMatch[];
+  readonly currentMatch: SearchMatch | null;
+}) {
   const tone =
     cell.type === "delete" ? "delete" : cell.type === "add" ? "add" : "context";
   return (
@@ -161,6 +195,7 @@ function SplitCellView({ cell }: { readonly cell: SplitCell }) {
           content={cell.content}
           tokens={cell.tokens}
           word={cell.word}
+          search={searchRanges(matches, currentMatch)}
           tone={tone}
         />
       </span>
@@ -168,7 +203,15 @@ function SplitCellView({ cell }: { readonly cell: SplitCell }) {
   );
 }
 
-function RowView({ row }: { readonly row: DiffRow }) {
+function RowView({
+  row,
+  matches,
+  currentMatch,
+}: {
+  readonly row: DiffRow;
+  readonly matches?: RowSearchMatches;
+  readonly currentMatch: SearchMatch | null;
+}) {
   if (row.kind === "hunk") {
     return <div className="diff-line diff-hunk">{row.header}</div>;
   }
@@ -183,6 +226,7 @@ function RowView({ row }: { readonly row: DiffRow }) {
           content={row.content}
           tokens={row.tokens}
           word={row.word}
+          search={searchRanges(matches?.line, currentMatch)}
           tone={tone}
           prefix={prefix}
         />
@@ -193,12 +237,20 @@ function RowView({ row }: { readonly row: DiffRow }) {
   return (
     <div className="diff-line diff-split-row">
       {row.left ? (
-        <SplitCellView cell={row.left} />
+        <SplitCellView
+          cell={row.left}
+          matches={matches?.left}
+          currentMatch={currentMatch}
+        />
       ) : (
         <div className="diff-split-cell diff-split-empty" />
       )}
       {row.right ? (
-        <SplitCellView cell={row.right} />
+        <SplitCellView
+          cell={row.right}
+          matches={matches?.right}
+          currentMatch={currentMatch}
+        />
       ) : (
         <div className="diff-split-cell diff-split-empty" />
       )}
@@ -273,16 +325,24 @@ function ImagePreview({
 
 export function DiffView({
   file,
+  fileKey,
   id,
   context,
   viewMode,
   forceVirtual = false,
+  searchMatches = [],
+  currentMatch = null,
+  jump = null,
 }: {
   readonly file: ChangeFile;
+  readonly fileKey: string;
   readonly id?: string;
   readonly context: FileRequestContext;
   readonly viewMode: DiffViewMode;
   readonly forceVirtual?: boolean;
+  readonly searchMatches?: readonly SearchMatch[];
+  readonly currentMatch?: SearchMatch | null;
+  readonly jump?: DiffJump | null;
 }) {
   const highlights = useHunkHighlights(file);
   const rows = useMemo(
@@ -295,9 +355,34 @@ export function DiffView({
   const virtualized = forceVirtual || rows.length > VIRTUAL_ROW_THRESHOLD;
   const { ref, range } = useVirtualRows(virtualized, rows.length);
   const visibleRows = virtualized ? rows.slice(range.start, range.end) : rows;
+  const rowMatches = useMemo(
+    () => groupMatchesByRow(searchMatches),
+    [searchMatches],
+  );
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!jump || jump.fileKey !== fileKey) {
+      return;
+    }
+
+    const root = rootRef.current;
+    const pane = root?.closest(".diff-pane") as HTMLElement | null;
+    const target = ref.current ?? root;
+    if (!pane || !target) {
+      return;
+    }
+
+    const paneRect = pane.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    const offset = targetRect.top - paneRect.top + pane.scrollTop;
+    const row = Math.max(0, jump.row);
+    const top = offset + row * ROW_HEIGHT - (row > 0 ? ROW_HEIGHT * 2 : 0);
+    pane.scrollTo({ top: Math.max(0, top) });
+  }, [fileKey, jump, ref]);
 
   return (
-    <div className="diff-view" id={id}>
+    <div className="diff-view" id={id} ref={rootRef} data-file-key={fileKey}>
       <div className="diff-heading">
         <span className="diff-heading-path">
           {file.oldPath ? (
@@ -347,12 +432,24 @@ export function DiffView({
                 transform: `translateY(${range.start * ROW_HEIGHT}px)`,
               }}
             >
-              {visibleRows.map((row) => (
-                <RowView key={row.key} row={row} />
+              {visibleRows.map((row, index) => (
+                <RowView
+                  key={row.key}
+                  row={row}
+                  matches={rowMatches.get(range.start + index)}
+                  currentMatch={currentMatch}
+                />
               ))}
             </div>
           ) : (
-            visibleRows.map((row) => <RowView key={row.key} row={row} />)
+            visibleRows.map((row, index) => (
+              <RowView
+                key={row.key}
+                row={row}
+                matches={rowMatches.get(index)}
+                currentMatch={currentMatch}
+              />
+            ))
           )}
         </div>
       )}
