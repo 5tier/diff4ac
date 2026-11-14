@@ -1158,3 +1158,139 @@ test(
   },
   30_000,
 );
+
+test(
+  "keeps the command toolbar on a single row with labels when they fit",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".file-row");
+
+    const toolbar = page.locator('[data-testid="command-toolbar"]');
+    const label = page.locator(
+      '.toolbar-button[data-binding-id="global.toggleDiffView"] .toolbar-label',
+    );
+
+    try {
+      await page.setViewportSize({ width: 1400, height: 800 });
+      await page.waitForFunction(
+        () => {
+          const element = document.querySelector(
+            '[data-testid="command-toolbar"]',
+          );
+          return (
+            element !== null && element.scrollWidth <= element.clientWidth
+          );
+        },
+        undefined,
+        { timeout: 5000 },
+      );
+
+      const height = await toolbar.evaluate(
+        (element) => element.getBoundingClientRect().height,
+      );
+      expect(height).toBeLessThanOrEqual(32);
+
+      const tops = await page
+        .locator(".toolbar-button")
+        .evaluateAll((buttons) =>
+          buttons.map((button) =>
+            Math.round(button.getBoundingClientRect().top),
+          ),
+        );
+      expect(new Set(tops).size).toBe(1);
+
+      const everyButtonVisible = await page.evaluate(() => {
+        const container = document
+          .querySelector('[data-testid="command-toolbar"]')
+          ?.getBoundingClientRect();
+        if (!container) {
+          return false;
+        }
+        return Array.from(document.querySelectorAll(".toolbar-button")).every(
+          (button) => {
+            const box = button.getBoundingClientRect();
+            return (
+              box.left >= container.left - 0.5 &&
+              box.right <= container.right + 0.5
+            );
+          },
+        );
+      });
+      expect(everyButtonVisible).toBe(true);
+
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+
+      await page.setViewportSize({ width: 700, height: 800 });
+      await page.waitForFunction(
+        () =>
+          document
+            .querySelector(".command-toolbar-wrap")
+            ?.getAttribute("data-compact") === "true",
+      );
+
+      expect(
+        await toolbar.evaluate(
+          (element) => element.getBoundingClientRect().height,
+        ),
+      ).toBeLessThanOrEqual(32);
+      expect(
+        await label.evaluate((element) => getComputedStyle(element).display),
+      ).toBe("none");
+      expect(
+        await toolbar.evaluate(
+          (element) => element.scrollWidth > element.clientWidth,
+        ),
+      ).toBe(true);
+
+      await toolbar.evaluate((element) => element.scrollTo({ left: 0 }));
+      await toolbar.hover();
+      await page.mouse.wheel(0, 240);
+      await page.waitForFunction(
+        () =>
+          (document.querySelector('[data-testid="command-toolbar"]')
+            ?.scrollLeft ?? 0) > 0,
+      );
+
+      const toggleView = page.locator(
+        '[data-binding-id="global.toggleDiffView"]',
+      );
+      await toggleView.scrollIntoViewIfNeeded();
+      await toggleView.click();
+      await page.waitForFunction(
+        () =>
+          document
+            .querySelector('[data-testid="status-view"]')
+            ?.textContent?.includes("unified") ?? false,
+      );
+
+      await page.setViewportSize({ width: 2600, height: 800 });
+      await page.waitForFunction(() => {
+        const element = document.querySelector(
+          '.toolbar-button[data-binding-id="global.toggleDiffView"] .toolbar-label',
+        );
+        return (
+          element !== null && getComputedStyle(element).display !== "none"
+        );
+      });
+      expect(
+        await page
+          .locator(".command-toolbar-wrap")
+          .getAttribute("data-compact"),
+      ).toBeNull();
+      expect(
+        await toolbar.evaluate(
+          (element) => element.scrollWidth <= element.clientWidth,
+        ),
+      ).toBe(true);
+    } finally {
+      await page.setViewportSize({ width: 1200, height: 800 });
+    }
+  },
+  30_000,
+);
