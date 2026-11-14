@@ -261,4 +261,76 @@ describe("Mode changes", () => {
       }),
     ).toBe("Mode changed: 100755 → 100644 (no longer executable)");
   });
+  test("reports a mode change across an unstaged rename", async () => {
+    const repo = fixture();
+    repo.write("bin/run.sh", "echo one\necho two\necho three\n");
+    repo.commit("base");
+    repo.rename("bin/run.sh", "bin/start.sh");
+    executable(repo, "bin/start.sh");
+
+    const changeSet = await buildPendingChangeSet(
+      await GitGateway.open(repo.root),
+    );
+    const file = changeSet.files.find(
+      (candidate) => candidate.path === "bin/start.sh",
+    );
+
+    expect(changeSet.files).toHaveLength(1);
+    expect(file).toMatchObject({
+      path: "bin/start.sh",
+      oldPath: "bin/run.sh",
+      status: "renamed",
+      oldMode: "100644",
+      newMode: "100755",
+      additions: 0,
+      deletions: 0,
+    });
+    expect(file?.diff).toContain("old mode 100644\nnew mode 100755");
+  });
+
+  test("reports a mode change and an edit across an unstaged rename", async () => {
+    const repo = fixture();
+    repo.write("bin/run.sh", "echo one\necho two\necho three\n");
+    executable(repo, "bin/run.sh");
+    repo.commit("base");
+    repo.rename("bin/run.sh", "bin/start.sh");
+    repo.write("bin/start.sh", "echo one\necho two\necho THREE\n");
+    nonExecutable(repo, "bin/start.sh");
+
+    const changeSet = await buildPendingChangeSet(
+      await GitGateway.open(repo.root),
+    );
+    const file = changeSet.files.find(
+      (candidate) => candidate.path === "bin/start.sh",
+    );
+
+    expect(file).toMatchObject({
+      oldPath: "bin/run.sh",
+      status: "renamed",
+      oldMode: "100755",
+      newMode: "100644",
+      additions: 1,
+      deletions: 1,
+    });
+  });
+
+  test("ignores the executable bit on an unstaged rename when core.fileMode is false", async () => {
+    const repo = fixture();
+    repo.write("bin/run.sh", "echo one\necho two\necho three\n");
+    repo.commit("base");
+    repo.git(["config", "core.fileMode", "false"]);
+    repo.rename("bin/run.sh", "bin/start.sh");
+    executable(repo, "bin/start.sh");
+
+    const changeSet = await buildPendingChangeSet(
+      await GitGateway.open(repo.root),
+    );
+    const file = changeSet.files.find(
+      (candidate) => candidate.path === "bin/start.sh",
+    );
+
+    expect(file?.status).toBe("renamed");
+    expect(file?.oldMode).toBeUndefined();
+    expect(file?.diff).not.toContain("old mode");
+  });
 });

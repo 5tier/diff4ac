@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
+  lstatSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -395,6 +396,74 @@ async function indexBlobHash(
   return null;
 }
 
+async function indexEntryMode(
+  git: GitGateway,
+  path: string,
+): Promise<string | null> {
+  if (!isSafeRelativePath(path)) {
+    return null;
+  }
+
+  const { stdout } = await git.run(["ls-files", "--stage", "-z", "--", path]);
+  for (const token of nulTokens(stdout.toString("utf8"))) {
+    const tab = token.indexOf("\t");
+    if (tab === -1 || token.slice(tab + 1) !== path) {
+      continue;
+    }
+    const [mode, , stage] = token.slice(0, tab).split(" ");
+    if (mode && stage === "0") {
+      return mode;
+    }
+  }
+  return null;
+}
+
+async function honoursFileMode(git: GitGateway): Promise<boolean> {
+  const result = await git.run(["config", "--bool", "--get", "core.fileMode"], {
+    allowExitCodes: [0, 1],
+  });
+  return result.stdout.toString("utf8").trim() !== "false";
+}
+
+function worktreeEntryMode(git: GitGateway, path: string): string | null {
+  const filePath = worktreeFilePath(git, path);
+  if (!filePath) {
+    return null;
+  }
+  try {
+    const stats = lstatSync(join(git.worktreeRoot, path));
+    if (stats.isSymbolicLink()) {
+      return "120000";
+    }
+    return (stats.mode & 0o111) !== 0 ? "100755" : "100644";
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Mode change across a paired unstaged rename, worked out the way git would:
+ * the old mode is the index entry's, the new one comes from the file on disk,
+ * and the executable bit is ignored when core.fileMode is false.
+ */
+async function pairedRenameModeChange(
+  git: GitGateway,
+  oldPath: string,
+  newPath: string,
+): Promise<{ oldMode: string; newMode: string } | null> {
+  const oldMode = await indexEntryMode(git, oldPath);
+  const diskMode = worktreeEntryMode(git, newPath);
+  if (!oldMode || !diskMode || oldMode === diskMode) {
+    return null;
+  }
+
+  const regular = (mode: string) => mode === "100644" || mode === "100755";
+  if (regular(oldMode) && regular(diskMode) && !(await honoursFileMode(git))) {
+    return null;
+  }
+  return { oldMode, newMode: diskMode };
+}
+
 async function gitBlobContent(
   git: GitGateway,
   hash: string,
@@ -645,8 +714,12 @@ async function pairedRenameDiff(
     100,
     Math.max(0, Math.round((record.similarity ?? 1) * 100)),
   );
+  const modeChange = await pairedRenameModeChange(git, oldPath, newPath);
   const header = [
     `diff --git a/${oldPath} b/${newPath}`,
+    ...(modeChange
+      ? [`old mode ${modeChange.oldMode}`, `new mode ${modeChange.newMode}`]
+      : []),
     `similarity index ${percentage}%`,
     `rename from ${oldPath}`,
     `rename to ${newPath}`,

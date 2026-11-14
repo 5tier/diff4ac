@@ -34,6 +34,7 @@ export class NotAGitRepositoryError extends Error {
 const READ_ONLY_SUBCOMMANDS = new Set([
   "cat-file",
   "check-ignore",
+  "config",
   "diff",
   "for-each-ref",
   "log",
@@ -51,6 +52,17 @@ function assertReadOnly(args: readonly string[]): void {
   const [subcommand, ...rest] = args;
   if (!subcommand || !READ_ONLY_SUBCOMMANDS.has(subcommand)) {
     throw new Error(`diff4ac refuses to run non-read-only git command: ${args.join(" ")}`);
+  }
+
+  if (subcommand === "config") {
+    const readsFileMode =
+      rest.length === 3 &&
+      rest[0] === "--bool" &&
+      rest[1] === "--get" &&
+      rest[2] === "core.fileMode";
+    if (!readsFileMode) {
+      throw new Error(`diff4ac only reads core.fileMode from git config`);
+    }
   }
 
   if (subcommand === "worktree" && rest[0] !== "list") {

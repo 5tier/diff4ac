@@ -37,6 +37,35 @@ describe("Git Gateway", () => {
     expect(repo.git(["log", "--format=%s"]).trim()).toBe("initial");
   });
 
+  test("only allows reading core.fileMode from git config", async () => {
+    const repo = fixture();
+    repo.write("a.txt", "a\n");
+    repo.commit("initial");
+    const git = await GitGateway.open(repo.root);
+
+    const attempts: readonly (readonly string[])[] = [
+      ["config", "core.fileMode", "false"],
+      ["config", "--bool", "--get", "user.name"],
+      ["config", "--bool", "--get", "core.fileMode", "false"],
+      ["config", "--unset", "core.fileMode"],
+    ];
+    for (const args of attempts) {
+      let message = "";
+      try {
+        await git.run(args);
+      } catch (error) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      expect(message).toContain("only reads core.fileMode");
+    }
+
+    const result = await git.run(
+      ["config", "--bool", "--get", "core.fileMode"],
+      { allowExitCodes: [0, 1] },
+    );
+    expect([0, 1]).toContain(result.exitCode);
+  });
+
   test("reports when a path is not inside a Repository", async () => {
     const outside = mkdtempSync(join(tmpdir(), "diff4ac-outside-"));
 
