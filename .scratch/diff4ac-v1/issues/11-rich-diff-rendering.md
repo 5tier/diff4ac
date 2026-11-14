@@ -4,11 +4,11 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `s` toggles between unified and side-by-side, and the choice persists for the session
-- [ ] Syntax highlighting based on file language, falling back to plain text
-- [ ] Changed words are highlighted within modified line pairs
-- [ ] Diff rendering is virtualised (a Change Set of several thousand lines scrolls smoothly)
-- [ ] Highlighting works in both light and dark themes
-- [ ] A Playwright smoke test covers the `s` toggle
+- [x] `s` toggles between unified and side-by-side, and the choice persists for the session
+- [x] Syntax highlighting based on file language, falling back to plain text
+- [x] Changed words are highlighted within modified line pairs
+- [x] Diff rendering is virtualised (a Change Set of several thousand lines scrolls smoothly)
+- [x] Highlighting works in both light and dark themes
+- [x] A Playwright smoke test covers the `s` toggle

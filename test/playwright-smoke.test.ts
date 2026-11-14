@@ -788,3 +788,56 @@ test(
   },
   30_000,
 );
+
+test(
+  "toggles unified and side-by-side diff rendering with s",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".file-row");
+    await page.locator(".file-row", { hasText: "src/alpha.ts" }).click();
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".diff-heading-path")
+        ?.textContent?.includes("src/alpha.ts"),
+    );
+
+    await page.keyboard.press("0");
+    expect(await focusedPanel()).toBe("diff");
+
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-line").length > 0,
+    );
+    expect(await page.locator(".diff-split-row").count()).toBe(0);
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-token").length > 0,
+    );
+    await page.waitForFunction(
+      () =>
+        document.querySelectorAll(".diff-word-added, .diff-word-removed")
+          .length > 0,
+    );
+
+    await page.keyboard.press("s");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-split-row").length > 0,
+    );
+    expect(await page.locator(".diff-split-cell").count()).toBeGreaterThan(0);
+
+    await page.reload();
+    await page.waitForSelector(".file-row");
+    await page.locator(".file-row", { hasText: "src/alpha.ts" }).click();
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-split-row").length > 0,
+    );
+
+    await page.keyboard.press("0");
+    await page.keyboard.press("s");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-split-row").length === 0,
+    );
+    await page.waitForFunction(
+      () => document.querySelectorAll(".diff-line").length > 0,
+    );
+  },
+  30_000,
+);

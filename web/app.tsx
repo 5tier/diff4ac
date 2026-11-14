@@ -54,6 +54,12 @@ import {
   type PanelId,
 } from "./keymap";
 import { FiltersDialog, type FiltersDraft } from "./FiltersDialog";
+import {
+  countDiffRows,
+  DiffView,
+  VIRTUAL_ROW_THRESHOLD,
+} from "./DiffView";
+import type { DiffViewMode } from "../src/diff/rows";
 
 interface PanelProps {
   readonly id: PanelId;
@@ -295,150 +301,6 @@ function BranchRow({
   );
 }
 
-function diffLineClass(line: string): string {
-  if (
-    line.startsWith("diff --git") ||
-    line.startsWith("index ") ||
-    line.startsWith("--- ") ||
-    line.startsWith("+++ ") ||
-    line.startsWith("new file mode") ||
-    line.startsWith("deleted file mode") ||
-    line.startsWith("similarity index") ||
-    line.startsWith("rename from") ||
-    line.startsWith("rename to") ||
-    line.startsWith("old mode") ||
-    line.startsWith("new mode")
-  ) {
-    return "diff-line diff-meta";
-  }
-  if (line.startsWith("@@")) {
-    return "diff-line diff-hunk";
-  }
-  if (line.startsWith("+")) {
-    return "diff-line diff-add";
-  }
-  if (line.startsWith("-")) {
-    return "diff-line diff-del";
-  }
-  return "diff-line diff-context";
-}
-
-function formatBytes(size: number | undefined): string {
-  if (size === undefined) {
-    return "unknown size";
-  }
-  if (size < 1024) {
-    return `${size} B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(1)} KB`;
-  }
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function binarySummary(file: ChangeFile): string {
-  if (file.status === "added") {
-    return `Binary file added · ${formatBytes(file.newSize)}`;
-  }
-  if (file.status === "deleted") {
-    return `Binary file deleted · ${formatBytes(file.oldSize)}`;
-  }
-  return `Binary file changed · old ${formatBytes(
-    file.oldSize,
-  )} → new ${formatBytes(file.newSize)}`;
-}
-
-function ImagePreview({
-  file,
-  context,
-}: {
-  readonly file: ChangeFile;
-  readonly context: FileRequestContext;
-}) {
-  const before = file.oldRev
-    ? fileContentUrl(context, file.path, file.oldRev)
-    : null;
-  const after = file.newRev
-    ? fileContentUrl(context, file.path, file.newRev)
-    : null;
-
-  if (!before && !after) {
-    return null;
-  }
-
-  return (
-    <div className="image-preview" data-testid="image-preview">
-      {before ? (
-        <figure className="image-preview-side">
-          <figcaption>Before · {file.oldPath ?? file.path}</figcaption>
-          <img
-            src={before}
-            alt={`${file.oldPath ?? file.path} before`}
-            loading="lazy"
-          />
-        </figure>
-      ) : null}
-      {after ? (
-        <figure className="image-preview-side">
-          <figcaption>After · {file.path}</figcaption>
-          <img src={after} alt={`${file.path} after`} loading="lazy" />
-        </figure>
-      ) : null}
-    </div>
-  );
-}
-
-function DiffView({
-  file,
-  id,
-  context,
-}: {
-  readonly file: ChangeFile;
-  readonly id?: string;
-  readonly context: FileRequestContext;
-}) {
-  return (
-    <div className="diff-view" id={id}>
-      <div className="diff-heading">
-        <span className="diff-heading-path">
-          {file.oldPath ? (
-            <>
-              <span className="muted">{file.oldPath}</span>
-              <span className="diff-arrow"> → </span>
-              {file.path}
-            </>
-          ) : (
-            file.path
-          )}
-        </span>
-        <span className="file-counts">
-          <span className="add">+{file.additions}</span>
-          <span className="del">−{file.deletions}</span>
-        </span>
-      </div>
-
-      {file.image ? <ImagePreview file={file} context={context} /> : null}
-
-      {file.binary ? (
-        <div className="diff-empty">{binarySummary(file)}</div>
-      ) : file.collapsed ? (
-        <div className="diff-empty diff-collapsed" data-testid="collapsed-diff">
-          Large diff · {file.additions + file.deletions} changed lines. Press{" "}
-          <kbd>x</kbd> to load it.
-        </div>
-      ) : (
-        <div className="diff-lines">
-          {file.diff.split("\n").map((line, index) => (
-            <div key={index} className={diffLineClass(line)}>
-              {line === "" ? "\u00a0" : line}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function stackFileId(commitHash: string, path: string): string {
   return `stack-${commitHash}-${path.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
@@ -460,13 +322,19 @@ function stackFileIndices(
 function CommitStackView({
   groups,
   context,
+  viewMode,
 }: {
   readonly groups: readonly CommitChangeGroup[];
   readonly context: FileRequestContext;
+  readonly viewMode: DiffViewMode;
 }) {
   if (groups.length === 0) {
     return <div className="diff-empty">No commit changes.</div>;
   }
+
+  const forceVirtual =
+    countDiffRows(groups.flatMap((group) => group.files)) >
+    VIRTUAL_ROW_THRESHOLD;
 
   return (
     <div className="commit-stack">
@@ -490,6 +358,8 @@ function CommitStackView({
                 id={stackFileId(group.commit.hash, file.path)}
                 file={file}
                 context={context}
+                viewMode={viewMode}
+                forceVirtual={forceVirtual}
               />
             ))
           )}
@@ -959,6 +829,15 @@ export function App() {
     [disabledExtensions, excludeGlobs, hideNoise, includeGlobs],
   );
   const [helpOpen, setHelpOpen] = useState(false);
+  const [diffView, setDiffView] = useState<DiffViewMode>(() => {
+    try {
+      return sessionStorage.getItem("diff4ac-diff-view") === "side-by-side"
+        ? "side-by-side"
+        : "unified";
+    } catch {
+      return "unified";
+    }
+  });
   const [timeWindowOpen, setTimeWindowOpen] = useState(false);
   const [timeWindowDialogMode, setTimeWindowDialogMode] = useState<
     "list" | "custom"
@@ -1077,6 +956,14 @@ export function App() {
   }, [selectedWorktreePath, refreshVersion]);
 
   useEffect(() => subscribeRepositoryChanges(() => setRepositoryChanged(true)), []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("diff4ac-diff-view", diffView);
+    } catch {
+      return;
+    }
+  }, [diffView]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1597,6 +1484,11 @@ export function App() {
         case "refresh":
           refreshRepository();
           break;
+        case "toggle-diff-view":
+          setDiffView((current) =>
+            current === "unified" ? "side-by-side" : "unified",
+          );
+          break;
         case "scroll":
           diffRef.current?.scrollBy({ top: action.direction * 96 });
           break;
@@ -1974,10 +1866,10 @@ export function App() {
                   : emptyFilesMessage(selection)}
               </div>
             ) : (
-              <CommitStackView groups={commitGroups} context={fileContext} />
+              <CommitStackView groups={commitGroups} context={fileContext} viewMode={diffView} />
             )
           ) : selected ? (
-            <DiffView file={selected} context={fileContext} />
+            <DiffView file={selected} context={fileContext} viewMode={diffView} />
           ) : !loading && !error && files.length === 0 ? (
             <div className="diff-empty">
               {hiddenFiles > 0
