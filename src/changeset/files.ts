@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import type { GitGateway } from "../git/gateway";
+import { parseModeChange } from "../diff/mode";
 import { extensionOf, isSafeRelativePath } from "../paths";
 import type {
   ChangeFile,
@@ -595,6 +596,7 @@ export async function buildChangeFiles(
     const binary = stats?.binary ?? looksBinary(diff);
     const additions = binary ? 0 : (stats?.additions ?? fallback.additions);
     const deletions = binary ? 0 : (stats?.deletions ?? fallback.deletions);
+    const modeChange = parseModeChange(diff);
     const oldRev = oldRevision(range, record.status);
     const newRev = newRevision(range, record.status);
     const collapsed =
@@ -636,6 +638,9 @@ export async function buildChangeFiles(
       contentHash: await reviewContentHash(git, range, record, diff, format),
       ...(oldSize !== undefined ? { oldSize } : {}),
       ...(newSize !== undefined ? { newSize } : {}),
+      ...(modeChange
+        ? { oldMode: modeChange.oldMode, newMode: modeChange.newMode }
+        : {}),
       ...(oldRev ? { oldRev } : {}),
       ...(newRev ? { newRev } : {}),
       ...(collapsed ? { collapsed: true } : {}),

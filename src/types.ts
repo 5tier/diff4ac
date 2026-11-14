@@ -39,6 +39,8 @@ export interface ChangeFile {
   readonly contentHash: string;
   readonly oldSize?: number;
   readonly newSize?: number;
+  readonly oldMode?: string;
+  readonly newMode?: string;
   readonly oldRev?: string;
   readonly newRev?: string;
   readonly collapsed?: boolean;

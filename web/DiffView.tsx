@@ -16,6 +16,11 @@ import {
   type SearchMatch,
   type RowSearchMatches,
 } from "../src/diff/search";
+import {
+  describeModeChange,
+  isModeOnlyChange,
+  modeChangeFor,
+} from "../src/diff/mode";
 import { useHunkHighlights } from "./useHunkHighlights";
 
 export const ROW_HEIGHT = 20;
@@ -345,6 +350,8 @@ export function DiffView({
   readonly jump?: DiffJump | null;
 }) {
   const highlights = useHunkHighlights(file);
+  const modeChange = modeChangeFor(file);
+  const modeOnly = isModeOnlyChange(file);
   const rows = useMemo(
     () =>
       file.binary || file.collapsed
@@ -401,6 +408,12 @@ export function DiffView({
         </span>
       </div>
 
+      {modeChange ? (
+        <div className="diff-mode" data-testid="mode-change">
+          {describeModeChange(modeChange)}
+        </div>
+      ) : null}
+
       {file.image ? <ImagePreview file={file} context={context} /> : null}
 
       {file.binary ? (
@@ -410,7 +423,7 @@ export function DiffView({
           Large diff · {file.additions + file.deletions} changed lines. Press{" "}
           <kbd>x</kbd> to load it.
         </div>
-      ) : (
+      ) : modeOnly ? null : (
         <div
           ref={ref}
           className={

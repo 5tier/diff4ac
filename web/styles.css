@@ -488,6 +488,10 @@ button {
   color: var(--muted);
 }
 
+.file-mode {
+  color: var(--hunk);
+}
+
 .diff-pane {
   flex: 1;
   min-width: 0;
@@ -661,6 +665,13 @@ button {
 .diff-empty {
   padding: 20px 14px;
   color: var(--muted);
+}
+
+.diff-mode {
+  padding: 7px 12px;
+  color: var(--hunk);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
 }
 
 .diff-collapsed kbd {

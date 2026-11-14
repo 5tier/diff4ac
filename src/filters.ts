@@ -39,19 +39,36 @@ export interface FilterSettings extends FilterRequest {
 
 export { extensionOf };
 
-export function isValidGlob(pattern: string): boolean {
-  return (
-    pattern.trim() !== "" &&
-    !/[\0\r\n]/.test(pattern) &&
-    pattern.length <= 1024
-  );
+function globBody(pattern: string): string {
+  if (pattern.startsWith("\\!")) {
+    return pattern.slice(1);
+  }
+  if (pattern.startsWith("!")) {
+    return pattern.slice(1);
+  }
+  return pattern;
 }
 
-type Matcher = (path: string) => boolean;
+export function isValidGlob(pattern: string): boolean {
+  const trimmed = pattern.trim();
+  if (
+    trimmed === "" ||
+    /[\0\r\n]/.test(trimmed) ||
+    trimmed.length > 1024
+  ) {
+    return false;
+  }
+
+  return globBody(trimmed) !== "";
+}
+
+type MatchResult = "positive" | "negative" | null;
+type Matcher = (path: string) => MatchResult;
 
 interface CompiledGlob {
   readonly glob: Bun.Glob;
   readonly basenameOnly: boolean;
+  readonly negated: boolean;
 }
 
 function basenameOf(path: string): string {
@@ -65,17 +82,23 @@ function compilePattern(rawPattern: string): CompiledGlob | null {
     return null;
   }
 
-  const basenameOnly = !pattern.includes("/");
-  const normalized = pattern.startsWith("/")
-    ? pattern.replace(/^\/+/, "")
-    : pattern;
+  const negated = !pattern.startsWith("\\!") && pattern.startsWith("!");
+  let body = pattern.startsWith("\\!") ? pattern.slice(1) : pattern;
+  if (negated) {
+    body = body.slice(1);
+  }
+
+  const basenameOnly = !body.includes("/");
+  const normalized = body.startsWith("/")
+    ? body.replace(/^\/+/, "")
+    : body;
 
   if (normalized === "") {
     return null;
   }
 
   try {
-    return { glob: new Bun.Glob(normalized), basenameOnly };
+    return { glob: new Bun.Glob(normalized), basenameOnly, negated };
   } catch {
     return null;
   }
@@ -86,15 +109,22 @@ function compileMatchers(patterns: readonly string[]): Matcher {
     .map(compilePattern)
     .filter((compiled): compiled is CompiledGlob => compiled !== null);
 
-  return (path) =>
-    globs.some((compiled) => {
+  return (path) => {
+    let result: MatchResult = null;
+
+    for (const compiled of globs) {
       const target = compiled.basenameOnly ? basenameOf(path) : path;
       try {
-        return compiled.glob.match(target);
+        if (compiled.glob.match(target)) {
+          result = compiled.negated ? "negative" : "positive";
+        }
       } catch {
-        return false;
+        // Ignore a pattern that cannot be matched.
       }
-    });
+    }
+
+    return result;
+  };
 }
 
 
@@ -122,13 +152,13 @@ export function applyFilters(
     if (disabled.has(extensionOf(file.path))) {
       return false;
     }
-    if (hasIncludes && !include(file.path)) {
+    if (hasIncludes && include(file.path) !== "positive") {
       return false;
     }
-    if (exclude(file.path)) {
+    if (exclude(file.path) === "positive") {
       return false;
     }
-    if (settings.hideNoise && noise(file.path)) {
+    if (settings.hideNoise && noise(file.path) === "positive") {
       return false;
     }
     return true;
