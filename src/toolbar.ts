@@ -6,7 +6,7 @@ import {
   type KeyScope,
   type PanelId,
 } from "./keymap";
-import type { ChangeViewMode } from "./types";
+import type { ChangeViewMode, Theme } from "./types";
 
 export type ToolbarGroupId =
   | "panels"
@@ -48,6 +48,7 @@ export const TOOLBAR_GROUPS: readonly ToolbarGroupDefinition[] = [
     bindingIds: [
       "global.toggleDiffView",
       "global.toggleFullFile",
+      "global.cycleTheme",
       "global.noise",
       "global.filters",
     ],
@@ -97,6 +98,7 @@ const SHORT_LABELS: Readonly<Record<string, string>> = {
   "global.focusDiff": "Diff",
   "global.toggleDiffView": "Side-by-side",
   "global.toggleFullFile": "Full file",
+  "global.cycleTheme": "Theme",
   "global.noise": "Noise",
   "global.filters": "Filters",
   "global.search": "Search",
@@ -130,6 +132,7 @@ export interface ToolbarState {
   readonly searchMatchCount: number;
   readonly diffView: DiffViewMode;
   readonly fullFile: boolean;
+  readonly theme: Theme;
   readonly hideNoise: boolean;
   readonly filtersOpen: boolean;
   readonly repositoryChanged: boolean;
@@ -171,6 +174,10 @@ function modeLabel(mode: ChangeViewMode): string {
   return mode === "net" ? "Net Diff" : "Commit Stack";
 }
 
+function themeLabel(theme: Theme): string {
+  return theme === "system" ? "System" : theme === "light" ? "Light" : "Dark";
+}
+
 function isPanelId(scope: KeyScope): scope is PanelId {
   return (PANEL_ORDER as readonly string[]).includes(scope);
 }
@@ -195,6 +202,8 @@ function itemState(binding: KeyBinding, state: ToolbarState): ItemState {
       };
     case "global.toggleFullFile":
       return { enabled: true, toggle: true, pressed: state.fullFile };
+    case "global.cycleTheme":
+      return { enabled: true, value: themeLabel(state.theme) };
     case "global.noise":
       return { enabled: true, toggle: true, pressed: state.hideNoise };
     case "global.filters":

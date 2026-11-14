@@ -35,6 +35,7 @@ export type KeyAction =
   | { readonly type: "refresh" }
   | { readonly type: "toggle-diff-view" }
   | { readonly type: "toggle-full-file" }
+  | { readonly type: "cycle-theme" }
   | { readonly type: "scroll"; readonly direction: 1 | -1 }
   | { readonly type: "jump-hunk"; readonly direction: 1 | -1 }
   | { readonly type: "jump-file"; readonly direction: 1 | -1 }
@@ -395,6 +396,13 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "c",
     label: "Toggle full file / changed hunks only",
     action: { type: "toggle-full-file" },
+  },
+  {
+    id: "global.cycleTheme",
+    panel: "global",
+    key: "D",
+    label: "Cycle theme",
+    action: { type: "cycle-theme" },
   },
   {
     id: "global.closeHelp",

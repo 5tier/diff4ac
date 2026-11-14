@@ -177,6 +177,8 @@ export interface SessionInfo {
   readonly version: string;
 }
 
+export type Theme = "system" | "light" | "dark";
+
 export interface ConfigDiagnostic {
   readonly file: string;
   readonly field: string;
@@ -195,5 +197,6 @@ export interface ConfigInfo {
   readonly keybindings: Readonly<Record<string, string>>;
   readonly agents: readonly AgentPatternConfig[];
   readonly noise: readonly string[];
+  readonly theme: Theme;
   readonly diagnostics: readonly ConfigDiagnostic[];
 }

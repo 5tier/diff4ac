@@ -1294,3 +1294,73 @@ test(
   },
   30_000,
 );
+
+test(
+  "cycles and persists the theme with D and the toolbar button",
+  async () => {
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.evaluate(() => localStorage.removeItem("diff4ac-theme"));
+    await page.reload();
+    await page.waitForSelector(".file-row");
+
+    const theme = () =>
+      page.locator("html").getAttribute("data-theme");
+    const background = () =>
+      page.evaluate(() =>
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--bg")
+          .trim(),
+      );
+    const themeButton = page.locator('[data-binding-id="global.cycleTheme"]');
+    const themeValue = () => themeButton.locator(".toolbar-value").textContent();
+
+    try {
+      expect(await theme()).toBe("system");
+      expect(await background()).toBe("#f7f8fa");
+      expect(await themeValue()).toBe("System");
+
+      await page.keyboard.press("D");
+      await page.waitForFunction(
+        () => document.documentElement.dataset.theme === "light",
+      );
+      expect(await background()).toBe("#f7f8fa");
+      expect(await themeValue()).toBe("Light");
+
+      await page.keyboard.press("D");
+      await page.waitForFunction(
+        () => document.documentElement.dataset.theme === "dark",
+      );
+      expect(await background()).toBe("#101214");
+      expect(await themeValue()).toBe("Dark");
+
+      await page.reload();
+      await page.waitForSelector(".file-row");
+      expect(await theme()).toBe("dark");
+      expect(await background()).toBe("#101214");
+
+      await themeButton.click();
+      await page.waitForFunction(
+        () => document.documentElement.dataset.theme === "system",
+      );
+      expect(await themeValue()).toBe("System");
+      expect(await background()).toBe("#f7f8fa");
+
+      await themeButton.click();
+      await page.waitForFunction(
+        () => document.documentElement.dataset.theme === "light",
+      );
+      await page.reload();
+      await page.waitForSelector(".file-row");
+      expect(await theme()).toBe("light");
+      expect(await background()).toBe("#f7f8fa");
+      expect(await themeValue()).toBe("Light");
+    } finally {
+      await page
+        .evaluate(() => localStorage.removeItem("diff4ac-theme"))
+        .catch(() => {});
+      await page.emulateMedia({ colorScheme: null });
+      await page.reload().catch(() => {});
+    }
+  },
+  30_000,
+);

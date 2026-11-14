@@ -11,6 +11,7 @@ import type {
   CommitSummary,
   FileStatus,
   Selection,
+  Theme,
   TimeWindow,
   WorktreeInfo,
   WorktreeSummary,
@@ -54,6 +55,14 @@ import {
   type KeybindingOverrides,
   type PanelId,
 } from "./keymap";
+import {
+  applyTheme,
+  nextTheme,
+  readStoredTheme,
+  readThemePreference,
+  storeTheme,
+  watchSystemTheme,
+} from "./theme";
 import { FiltersDialog, type FiltersDraft } from "./FiltersDialog";
 import { CommandToolbar } from "./CommandToolbar";
 import { buildToolbar, type ToolbarItem } from "../src/toolbar";
@@ -913,6 +922,7 @@ export function App() {
       return "side-by-side";
     }
   });
+  const [theme, setTheme] = useState<Theme>(() => readStoredTheme());
   const [timeWindowOpen, setTimeWindowOpen] = useState(false);
   const [timeWindowDialogMode, setTimeWindowDialogMode] = useState<
     "list" | "custom"
@@ -960,6 +970,9 @@ export function App() {
       .then((config) => {
         setKeybindingOverrides(config.keybindings);
         setNoisePatterns(config.noise);
+        if (readThemePreference() === null) {
+          setTheme(config.theme);
+        }
       })
       .catch(() => {
         // Config is optional; defaults remain in force.
@@ -967,6 +980,17 @@ export function App() {
 
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (theme !== "system") {
+      return;
+    }
+    return watchSystemTheme(() => applyTheme("system"));
+  }, [theme]);
 
   useEffect(() => {
     if (agentFilter && !allCommits.some((commit) => commit.agent === agentFilter)) {
@@ -1311,6 +1335,7 @@ export function App() {
       searchMatchCount: searchMatches.length,
       diffView,
       fullFile,
+      theme,
       hideNoise,
       filtersOpen,
       repositoryChanged,
@@ -1327,6 +1352,7 @@ export function App() {
     hideNoise,
     keymap,
     repositoryChanged,
+    theme,
     searchActive,
     searchMatches.length,
     selectedPath,
@@ -1822,6 +1848,13 @@ export function App() {
           break;
         case "toggle-full-file":
           setFullFile((current) => !current);
+          break;
+        case "cycle-theme":
+          setTheme((current) => {
+            const next = nextTheme(current);
+            storeTheme(next);
+            return next;
+          });
           break;
         case "jump-hunk": {
           const target = nextHunkTarget(

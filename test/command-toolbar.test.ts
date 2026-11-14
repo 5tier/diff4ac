@@ -20,6 +20,7 @@ function state(overrides: Partial<ToolbarState> = {}): ToolbarState {
     searchMatchCount: 0,
     diffView: "side-by-side",
     fullFile: true,
+    theme: "system",
     hideNoise: true,
     filtersOpen: false,
     repositoryChanged: false,
@@ -72,6 +73,7 @@ describe("command toolbar model", () => {
       [
         "global.toggleDiffView",
         "global.toggleFullFile",
+        "global.cycleTheme",
         "global.noise",
         "global.filters",
       ],
@@ -100,6 +102,7 @@ describe("command toolbar model", () => {
 
   test("shows the effective key from the merged keymap", () => {
     expect(item(state(), "global.toggleDiffView")?.key).toBe("s");
+    expect(item(state(), "global.cycleTheme")?.key).toBe("D");
     expect(item(state(), "commits.toggleMode")?.key).toBe("t");
     expect(item(state(), "commits.togglePick")?.displayKey).toBe("Space");
 
@@ -198,6 +201,20 @@ describe("command toolbar model", () => {
       disabledReason: "No Agent commits",
       value: "All",
     });
+  });
+
+  test("shows the current theme value", () => {
+    expect(item(state(), "global.cycleTheme")).toMatchObject({
+      enabled: true,
+      value: "System",
+      toggle: false,
+    });
+    expect(
+      item(state({ theme: "light" }), "global.cycleTheme")?.value,
+    ).toBe("Light");
+    expect(
+      item(state({ theme: "dark" }), "global.cycleTheme")?.value,
+    ).toBe("Dark");
   });
 
   test("shows the current mode, Agent and refresh highlight", () => {

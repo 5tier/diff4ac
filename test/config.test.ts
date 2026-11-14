@@ -63,6 +63,7 @@ describe("Config Loader", () => {
       keybindings: {},
       agents: [],
       noise: DEFAULT_NOISE_PATTERNS,
+      theme: "system",
       diagnostics: [],
     });
     expect(keyFor(config.keybindings, "commits.moveUp")).toBe("k");
@@ -110,6 +111,45 @@ describe("Config Loader", () => {
     expect(keyFor(config.keybindings, "commits.select")).toBe("l");
     expect(keyFor(config.keybindings, "global.focusFiles")).toBe("g");
     expect(keyFor(config.keybindings, "commits.moveUp")).toBe("k");
+  });
+
+  test("reads a valid theme from config with Repository precedence", () => {
+    const home = tempHome();
+    const repo = fixture();
+
+    home.writeGlobalConfig({ theme: "light" });
+    repo.write(".diff4ac.json", `${JSON.stringify({ theme: "dark" })}\n`);
+
+    const config = loadConfig({
+      homeDir: home.path,
+      repositoryRoot: repo.root,
+    });
+
+    expect(config.theme).toBe("dark");
+    expect(config.diagnostics).toEqual([]);
+  });
+
+  test("falls back to system for an invalid theme and reports it", () => {
+    const home = tempHome();
+    const repo = fixture();
+
+    repo.write(
+      ".diff4ac.json",
+      `${JSON.stringify({ theme: "sepia" })}\n`,
+    );
+
+    const config = loadConfig({
+      homeDir: home.path,
+      repositoryRoot: repo.root,
+    });
+
+    expect(config.theme).toBe("system");
+    expect(config.diagnostics).toEqual([
+      expect.objectContaining({
+        file: join(repo.root, ".diff4ac.json"),
+        field: "theme",
+      }),
+    ]);
   });
 
   test("merges Noise patterns with Repository precedence", () => {

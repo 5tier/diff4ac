@@ -7,6 +7,7 @@ import type {
   AgentPatternConfig,
   ConfigDiagnostic,
   ConfigInfo,
+  Theme,
 } from "../types";
 
 export interface LoadConfigOptions {
@@ -19,7 +20,14 @@ interface ParsedSource {
   readonly keybindings: KeybindingOverrides;
   readonly agents: readonly AgentPatternConfig[];
   readonly noise?: readonly string[];
+  readonly theme?: Theme;
   readonly diagnostics: readonly ConfigDiagnostic[];
+}
+
+const THEMES: readonly Theme[] = ["system", "light", "dark"];
+
+function isTheme(value: unknown): value is Theme {
+  return typeof value === "string" && THEMES.includes(value as Theme);
 }
 
 const NAMED_KEYS = new Set(["Enter", "Tab", "Escape"]);
@@ -192,6 +200,20 @@ function readSource(file: string): ParsedSource {
   const keybindings: Record<string, string> = {};
   let baseBranch: string | undefined;
   let noise: string[] | undefined;
+  let theme: Theme | undefined;
+
+  if ("theme" in record) {
+    const value = record.theme;
+    if (!isTheme(value)) {
+      diagnostics.push({
+        file,
+        field: "theme",
+        message: 'must be "system", "light" or "dark"',
+      });
+    } else {
+      theme = value;
+    }
+  }
 
   if ("baseBranch" in record) {
     const value = record.baseBranch;
@@ -328,7 +350,7 @@ function readSource(file: string): ParsedSource {
     }
   }
 
-  return { baseBranch, keybindings, agents, noise, diagnostics };
+  return { baseBranch, keybindings, agents, noise, theme, diagnostics };
 }
 
 function scopesConflict(
@@ -479,6 +501,7 @@ export function loadConfig(options: LoadConfigOptions): ConfigInfo {
       repositorySource.noise ??
       globalSource.noise ??
       DEFAULT_NOISE_PATTERNS,
+    theme: repositorySource.theme ?? globalSource.theme ?? "system",
     diagnostics: [
       ...globalSource.diagnostics,
       ...repositorySource.diagnostics,

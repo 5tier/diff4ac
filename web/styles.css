@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --bg: #101214;
   --bg-alt: #16191c;
   --bg-panel: #1a1e22;
@@ -15,8 +16,25 @@
   font-size: 13px;
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f8fa;
+  --bg-alt: #eef1f5;
+  --bg-panel: #e8edf3;
+  --bg-selected: #d9e6f2;
+  --border: #c8d1db;
+  --text: #1f2933;
+  --muted: #5d6875;
+  --accent: #1668a8;
+  --add: #1a7f37;
+  --del: #b42318;
+  --modified: #0969da;
+  --hunk: #6f42c1;
+}
+
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
     --bg: #f7f8fa;
     --bg-alt: #eef1f5;
     --bg-panel: #e8edf3;
@@ -817,12 +835,16 @@ button {
 }
 
 .diff-token {
+  color: var(--shiki-dark, inherit);
+}
+
+:root[data-theme="light"] .diff-token {
   color: var(--shiki-light, inherit);
 }
 
-@media (prefers-color-scheme: dark) {
-  .diff-token {
-    color: var(--shiki-dark, inherit);
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .diff-token {
+    color: var(--shiki-light, inherit);
   }
 }
 

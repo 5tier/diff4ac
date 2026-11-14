@@ -28,6 +28,23 @@ if (!result.success) {
   process.exit(1);
 }
 
+const themeResult = await Bun.build({
+  entrypoints: [join(root, "web", "theme-init.ts")],
+  outdir: assetsDir,
+  target: "browser",
+  format: "iife",
+  minify: true,
+  sourcemap: "none",
+  naming: "[name].[ext]",
+});
+
+if (!themeResult.success) {
+  for (const log of themeResult.logs) {
+    console.error(log);
+  }
+  process.exit(1);
+}
+
 copyFileSync(join(root, "web", "index.html"), join(outDir, "index.html"));
 copyFileSync(join(root, "web", "styles.css"), join(assetsDir, "main.css"));
 
