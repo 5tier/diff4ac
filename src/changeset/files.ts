@@ -1,8 +1,18 @@
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync, statSync } from "node:fs";
-import { resolve, sep } from "node:path";
-import type { GitGateway } from "../git/gateway";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve, sep } from "node:path";
+import { runGit, type GitGateway } from "../git/gateway";
 import { extensionOf, isSafeRelativePath } from "../paths";
+import { isBinaryContent } from "./rename-pairing";
 import type {
   ChangeFile,
   ChangeTotals,
@@ -43,6 +53,8 @@ export interface FileStatusRecord {
   readonly path: string;
   readonly oldPath?: string;
   readonly status: FileStatus;
+  readonly pairedRename?: boolean;
+  readonly similarity?: number;
 }
 
 export interface DiffRange {
@@ -182,6 +194,12 @@ export function parseUntracked(statusOutput: string): string[] {
     .map((entry) => entry.path);
 }
 
+export function parseUnstagedDeletions(statusOutput: string): string[] {
+  return parseStatusEntries(statusOutput)
+    .filter((entry) => entry.code[1] === "D")
+    .map((entry) => entry.path);
+}
+
 export function countPendingFiles(statusOutput: string): number {
   return parseStatusEntries(statusOutput).length;
 }
@@ -292,7 +310,7 @@ export async function emptyTreeRef(git: GitGateway): Promise<string> {
     : SHA1_EMPTY_TREE;
 }
 
-function gitBlobHash(content: Buffer, format: ObjectFormat): string {
+export function gitBlobHash(content: Buffer, format: ObjectFormat): string {
   return createHash(format)
     .update(`blob ${content.byteLength}\0`)
     .update(content)
@@ -466,8 +484,14 @@ function hasNewSide(status: FileStatus): boolean {
   return status !== "deleted";
 }
 
-function oldRevision(range: DiffRange, status: FileStatus): string | undefined {
-  if (!hasOldSide(status)) {
+function oldRevision(
+  range: DiffRange,
+  record: FileStatusRecord,
+): string | undefined {
+  if (record.pairedRename) {
+    return "index";
+  }
+  if (!hasOldSide(record.status)) {
     return undefined;
   }
   if (range.oldRev !== undefined) {
@@ -476,8 +500,14 @@ function oldRevision(range: DiffRange, status: FileStatus): string | undefined {
   return range.baseRef;
 }
 
-function newRevision(range: DiffRange, status: FileStatus): string | undefined {
-  if (!hasNewSide(status)) {
+function newRevision(
+  range: DiffRange,
+  record: FileStatusRecord,
+): string | undefined {
+  if (record.pairedRename) {
+    return "worktree";
+  }
+  if (!hasNewSide(record.status)) {
     return undefined;
   }
   if (range.newRev !== undefined) {
@@ -544,6 +574,92 @@ async function diffFor(
   ]);
 }
 
+interface PairedRenameDiff {
+  readonly diff: string;
+  readonly binary: boolean;
+}
+
+function bodyFromNoIndexDiff(output: string): string {
+  const lines = output.split("\n");
+  const hunkStart = lines.findIndex((line) => line.startsWith("@@"));
+  return hunkStart === -1 ? "" : lines.slice(hunkStart).join("\n");
+}
+
+async function pairedRenameDiff(
+  git: GitGateway,
+  record: FileStatusRecord,
+): Promise<PairedRenameDiff> {
+  const oldPath = record.oldPath;
+  if (
+    !oldPath ||
+    !isSafeRelativePath(oldPath) ||
+    !isSafeRelativePath(record.path)
+  ) {
+    return { diff: "", binary: false };
+  }
+
+  const [oldContent, newContent] = await Promise.all([
+    readContentAtRev(git, "index", oldPath),
+    readContentAtRev(git, "worktree", record.path),
+  ]);
+  if (!oldContent || !newContent) {
+    return { diff: "", binary: false };
+  }
+
+  const binary = isBinaryContent(oldContent) || isBinaryContent(newContent);
+  const newPath = record.path;
+  let body = "";
+
+  if (binary && !oldContent.equals(newContent)) {
+    body = `Binary files a/${oldPath} and b/${newPath} differ`;
+  } else if (!binary && !oldContent.equals(newContent)) {
+    const directory = mkdtempSync(join(tmpdir(), "diff4ac-rename-"));
+    try {
+      const oldFile = join(directory, "old", oldPath);
+      const newFile = join(directory, "new", record.path);
+      mkdirSync(dirname(oldFile), { recursive: true });
+      mkdirSync(dirname(newFile), { recursive: true });
+      writeFileSync(oldFile, oldContent);
+      writeFileSync(newFile, newContent);
+
+      const result = await runGit(
+        [
+          "diff",
+          "--no-index",
+          "--no-color",
+          "--no-ext-diff",
+          "--",
+          join("old", oldPath),
+          join("new", record.path),
+        ],
+        { cwd: directory, allowExitCodes: [0, 1] },
+      );
+      body = bodyFromNoIndexDiff(result.stdout.toString("utf8"));
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }
+
+  const percentage = Math.min(
+    100,
+    Math.max(0, Math.round((record.similarity ?? 1) * 100)),
+  );
+  const header = [
+    `diff --git a/${oldPath} b/${newPath}`,
+    `similarity index ${percentage}%`,
+    `rename from ${oldPath}`,
+    `rename to ${newPath}`,
+  ];
+  if (body) {
+    header.push(`--- a/${oldPath}`, `+++ b/${newPath}`);
+  }
+
+  return {
+    diff: `${header.join("\n")}\n${body}`,
+    binary,
+  };
+}
+
 export function countDiffLines(diff: string): {
   additions: number;
   deletions: number;
@@ -589,14 +705,19 @@ export async function buildChangeFiles(
 
   const files: ChangeFile[] = [];
   for (const record of records) {
-    const diff = await diffFor(git, range, record);
+    const paired = record.pairedRename
+      ? await pairedRenameDiff(git, record)
+      : null;
+    const diff = paired ? paired.diff : await diffFor(git, range, record);
     const stats = numstat.get(record.path);
     const fallback = countDiffLines(diff);
-    const binary = stats?.binary ?? looksBinary(diff);
+    const binary = paired
+      ? paired.binary
+      : (stats?.binary ?? looksBinary(diff));
     const additions = binary ? 0 : (stats?.additions ?? fallback.additions);
     const deletions = binary ? 0 : (stats?.deletions ?? fallback.deletions);
-    const oldRev = oldRevision(range, record.status);
-    const newRev = newRevision(range, record.status);
+    const oldRev = oldRevision(range, record);
+    const newRev = newRevision(range, record);
     const collapsed =
       !binary &&
       !options.includeLargeDiffs &&
