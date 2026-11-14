@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFixtureRepo } from "./helpers/fixture";
+import { createTempHome } from "./helpers/home";
 
 const PROJECT_ROOT = join(import.meta.dir, "..");
 const CLI = join(PROJECT_ROOT, "src", "cli.ts");
@@ -65,6 +66,7 @@ function waitForOutput(
 describe("diff4ac CLI", () => {
   test("exits non-zero with a clear error outside a Repository", async () => {
     const outside = mkdtempSync(join(tmpdir(), "diff4ac-not-a-repo-"));
+    const home = createTempHome();
     try {
       const proc = Bun.spawn({
         cmd: [process.execPath, CLI, outside, "--no-open"],
@@ -72,6 +74,7 @@ describe("diff4ac CLI", () => {
         stdin: "ignore",
         stdout: "pipe",
         stderr: "pipe",
+        env: { ...process.env, HOME: home.path },
       });
 
       const exitCode = await proc.exited;
@@ -81,6 +84,7 @@ describe("diff4ac CLI", () => {
       expect(stderr).toContain("is not inside a git Repository");
     } finally {
       rmSync(outside, { recursive: true, force: true });
+      home.dispose();
     }
   });
 
@@ -90,6 +94,7 @@ describe("diff4ac CLI", () => {
     repo.commit("initial");
     repo.write("src/app.ts", "one\ntwo\n");
 
+    const home = createTempHome();
     const proc = Bun.spawn({
       cmd: [
         process.execPath,
@@ -103,6 +108,7 @@ describe("diff4ac CLI", () => {
       stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
+      env: { ...process.env, HOME: home.path },
     });
 
     try {
@@ -143,6 +149,78 @@ describe("diff4ac CLI", () => {
       }
       await proc.exited;
       repo.dispose();
+      home.dispose();
+    }
+  });
+
+  test("reports invalid config and still starts with defaults", async () => {
+    const repo = createFixtureRepo();
+    repo.write("src/app.ts", "one\n");
+    repo.commit("initial");
+
+    const home = createTempHome();
+    home.writeGlobalConfig({ baseBranch: 42 });
+
+    const proc = Bun.spawn({
+      cmd: [process.execPath, CLI, repo.root, "--no-open", "--port", "0"],
+      cwd: PROJECT_ROOT,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, HOME: home.path },
+    });
+
+    try {
+      const diagnostic = await waitForOutput(
+        proc.stderr,
+        /config .*baseBranch.*using defaults/,
+      );
+      expect(diagnostic[0]).toContain(home.globalConfigPath);
+
+      await waitForOutput(proc.stdout, /Listening:\s+http:\/\//);
+    } finally {
+      if (proc.exitCode === null) {
+        proc.kill("SIGTERM");
+      }
+      await proc.exited;
+      repo.dispose();
+      home.dispose();
+    }
+  });
+
+  test("warns when the configured Base Branch does not exist", async () => {
+    const repo = createFixtureRepo();
+    repo.write("src/app.ts", "one\n");
+    repo.commit("initial");
+    repo.write(
+      ".diff4ac.json",
+      `${JSON.stringify({ baseBranch: "missing" })}\n`,
+    );
+
+    const home = createTempHome();
+    const proc = Bun.spawn({
+      cmd: [process.execPath, CLI, repo.root, "--no-open", "--port", "0"],
+      cwd: PROJECT_ROOT,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, HOME: home.path },
+    });
+
+    try {
+      const diagnostic = await waitForOutput(
+        proc.stderr,
+        /config .*baseBranch.*branch "missing" not found; using auto-detection/,
+      );
+      expect(diagnostic[0]).toContain("config");
+      await waitForOutput(proc.stdout, /Listening:\s+http:\/\//);
+    } finally {
+      if (proc.exitCode === null) {
+        proc.kill("SIGTERM");
+      }
+      await proc.exited;
+      repo.dispose();
+      home.dispose();
     }
   });
 });

@@ -7,9 +7,11 @@ import type {
   WorktreeList,
 } from "../src/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
+import { createTempHome, type TempHome } from "./helpers/home";
 
 const repos: FixtureRepo[] = [];
 const servers: RunningServer[] = [];
+const homes: TempHome[] = [];
 
 afterEach(() => {
   for (const server of servers.splice(0)) {
@@ -18,7 +20,18 @@ afterEach(() => {
   for (const repo of repos.splice(0)) {
     repo.dispose();
   }
+  for (const home of homes.splice(0)) {
+    home.dispose();
+  }
 });
+
+async function startFixtureServer(repo: FixtureRepo): Promise<RunningServer> {
+  const home = createTempHome();
+  homes.push(home);
+  const running = await startServer({ repoPath: repo.root, homeDir: home.path });
+  servers.push(running);
+  return running;
+}
 
 async function getJson<T>(
   running: RunningServer,
@@ -51,8 +64,7 @@ describe("Worktree HTTP API", () => {
     repo.write("main-pending.txt", "main\n");
     linked.write("linked-pending.ts", "linked\n");
 
-    const running = await startServer({ repoPath: repo.root });
-    servers.push(running);
+    const running = await startFixtureServer(repo);
 
     const list = await getJson<WorktreeList>(running, "/api/worktrees");
     expect(list.status).toBe(200);
@@ -100,8 +112,7 @@ describe("Worktree HTTP API", () => {
     repo.write("main.ts", "main\n");
     repo.commit("main only");
 
-    const running = await startServer({ repoPath: repo.root });
-    servers.push(running);
+    const running = await startFixtureServer(repo);
     const linkedQuery = `worktree=${encodeURIComponent(linked.root)}`;
 
     const mainCommits = await getJson<CommitList>(running, "/api/commits");
@@ -207,8 +218,7 @@ describe("Worktree HTTP API", () => {
     repo.write("base.txt", "base\n");
     repo.commit("base");
 
-    const running = await startServer({ repoPath: repo.root });
-    servers.push(running);
+    const running = await startFixtureServer(repo);
 
     const missing = await getJson<{ error: string }>(
       running,

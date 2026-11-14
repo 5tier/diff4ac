@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { request } from "node:http";
 import { startServer, type RunningServer } from "../src/server/server";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
+import { createTempHome, type TempHome } from "./helpers/home";
 
 interface HttpResponse {
   readonly status: number;
@@ -41,6 +42,7 @@ function httpGet(
 
 const repos: FixtureRepo[] = [];
 const servers: RunningServer[] = [];
+const homes: TempHome[] = [];
 
 function fixture(): FixtureRepo {
   const repo = createFixtureRepo();
@@ -52,7 +54,9 @@ function fixture(): FixtureRepo {
 }
 
 async function serverFor(repo: FixtureRepo): Promise<RunningServer> {
-  const running = await startServer({ repoPath: repo.root });
+  const home = createTempHome();
+  homes.push(home);
+  const running = await startServer({ repoPath: repo.root, homeDir: home.path });
   servers.push(running);
   return running;
 }
@@ -63,6 +67,9 @@ afterEach(() => {
   }
   for (const repo of repos.splice(0)) {
     repo.dispose();
+  }
+  for (const home of homes.splice(0)) {
+    home.dispose();
   }
 });
 

@@ -4,11 +4,11 @@
 
 **Blocked by:** 03, 04
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Built-in defaults, then global config, then Repository config are merged, in that order of precedence
-- [ ] Invalid config produces a clear message naming the file and the field; the tool still starts with defaults for that field
-- [ ] Keymap overrides from config take effect and are reflected in the `?` help overlay
-- [ ] A Base Branch override replaces auto-detection
-- [ ] diff4ac never writes the Repository config file (ADR 0002)
-- [ ] Tests cover merge precedence and invalid config
+- [x] Built-in defaults, then global config, then Repository config are merged, in that order of precedence
+- [x] Invalid config produces a clear message naming the file and the field; the tool still starts with defaults for that field
+- [x] Keymap overrides from config take effect and are reflected in the `?` help overlay
+- [x] A Base Branch override replaces auto-detection
+- [x] diff4ac never writes the Repository config file (ADR 0002)
+- [x] Tests cover merge precedence and invalid config

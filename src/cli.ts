@@ -119,6 +119,12 @@ async function main(): Promise<number> {
     return 1;
   }
 
+  for (const diagnostic of running.config.diagnostics) {
+    console.error(
+      `diff4ac: config ${diagnostic.file}: ${diagnostic.field}: ${diagnostic.message} (using defaults)`,
+    );
+  }
+
   const branch = await git.currentBranch();
   console.log(`diff4ac ${VERSION}`);
   console.log(`Repository: ${git.worktreeRoot}`);

@@ -3,6 +3,7 @@ import type {
   ChangeSet,
   ChangeViewMode,
   CommitList,
+  ConfigInfo,
   TimeWindow,
   WorktreeList,
 } from "../src/types";
@@ -35,6 +36,10 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+export function fetchConfig(signal?: AbortSignal): Promise<ConfigInfo> {
+  return getJson<ConfigInfo>("/api/config", signal);
 }
 
 export function fetchPending(signal?: AbortSignal): Promise<ChangeSet> {

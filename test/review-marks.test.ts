@@ -176,6 +176,7 @@ describe("Review Marks HTTP API", () => {
     const firstSession = await startServer({
       repoPath: repo.root,
       stateDir: directory,
+      homeDir: directory,
     });
     servers.push(firstSession);
 
@@ -202,6 +203,7 @@ describe("Review Marks HTTP API", () => {
     const secondSession = await startServer({
       repoPath: repo.root,
       stateDir: directory,
+      homeDir: directory,
     });
     servers.push(secondSession);
     expect(await pendingFile(secondSession)).toMatchObject({ reviewed: true });
@@ -225,9 +227,11 @@ describe("Review Marks HTTP API", () => {
     repo.commit("initial");
     repo.write("src/app.ts", "two\n");
 
+    const directory = stateDir();
     const running = await startServer({
       repoPath: repo.root,
-      stateDir: stateDir(),
+      stateDir: directory,
+      homeDir: directory,
     });
     servers.push(running);
     const file = await pendingFile(running);

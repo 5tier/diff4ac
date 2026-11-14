@@ -13,13 +13,14 @@ import {
 export async function buildBranchChangeSet(
   git: GitGateway,
   branchName: string,
+  baseBranchOverride: string | null = null,
 ): Promise<ChangeSet> {
   const branch = await readBranch(git, branchName);
   if (!branch) {
     throw new UnknownBranchError(branchName);
   }
 
-  const baseBranch = await detectBaseBranch(git);
+  const baseBranch = await detectBaseBranch(git, baseBranchOverride);
   if (!baseBranch) {
     throw new Error(
       "could not detect a Base Branch (origin/HEAD, main or master)",
