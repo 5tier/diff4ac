@@ -62,6 +62,9 @@ function appendFilters(
     params.append("exclude", pattern);
   }
   params.set("noise", filters.hideNoise ? "1" : "0");
+  if (filters.fullContext) {
+    params.set("context", "full");
+  }
   return params;
 }
 

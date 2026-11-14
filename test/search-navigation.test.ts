@@ -221,4 +221,30 @@ describe("diff navigation", () => {
     ).toEqual({ fileKey: "src/a.ts", hunkIndex: 1 });
     expect(hunkAtRow(files, "unified", "logo.bin", 0)).toBeNull();
   });
+
+  test("anchors each block of changes inside one whole-file hunk", () => {
+    const whole = [
+      file("src/whole.ts", [
+        hunk(0, [
+          line("context", "one", 1, 1),
+          line("add", "two", null, 2),
+          line("context", "three", 2, 3),
+          line("context", "four", 3, 4),
+          line("delete", "five", 4, null),
+          line("add", "five!", null, 5),
+          line("context", "six", 5, 6),
+          line("add", "seven", null, 7),
+        ]),
+      ]),
+    ];
+    for (const mode of ["unified", "side-by-side"] as const) {
+      const anchors = buildHunkAnchors(whole, mode);
+      expect(anchors).toHaveLength(3);
+      const rows = buildDiffRows(whole[0]?.hunks ?? [], mode);
+      expect(rows[anchors[0]?.row ?? -1]?.kind).toBe("hunk");
+      expect(nextHunkTarget(whole, mode, anchors[0] ?? null, 1)).toMatchObject({
+        hunkIndex: 1,
+      });
+    }
+  });
 });

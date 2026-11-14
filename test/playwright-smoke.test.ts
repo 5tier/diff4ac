@@ -790,8 +790,9 @@ test(
 );
 
 test(
-  "toggles unified and side-by-side diff rendering with s",
+  "defaults to side-by-side and toggles to unified with s",
   async () => {
+    await page.evaluate(() => sessionStorage.removeItem("diff4ac-diff-view"));
     await page.reload();
     await page.waitForSelector(".file-row");
     await page.locator(".file-row", { hasText: "src/alpha.ts" }).click();
@@ -805,9 +806,9 @@ test(
     expect(await focusedPanel()).toBe("diff");
 
     await page.waitForFunction(
-      () => document.querySelectorAll(".diff-line").length > 0,
+      () => document.querySelectorAll(".diff-split-row").length > 0,
     );
-    expect(await page.locator(".diff-split-row").count()).toBe(0);
+    expect(await page.locator(".diff-split-cell").count()).toBeGreaterThan(0);
     await page.waitForFunction(
       () => document.querySelectorAll(".diff-token").length > 0,
     );
@@ -819,24 +820,48 @@ test(
 
     await page.keyboard.press("s");
     await page.waitForFunction(
-      () => document.querySelectorAll(".diff-split-row").length > 0,
+      () =>
+        document.querySelectorAll(".diff-split-row").length === 0 &&
+        document.querySelectorAll(".diff-line").length > 0,
     );
-    expect(await page.locator(".diff-split-cell").count()).toBeGreaterThan(0);
 
     await page.reload();
     await page.waitForSelector(".file-row");
     await page.locator(".file-row", { hasText: "src/alpha.ts" }).click();
     await page.waitForFunction(
-      () => document.querySelectorAll(".diff-split-row").length > 0,
+      () => document.querySelectorAll(".diff-line").length > 0,
     );
+    expect(await page.locator(".diff-split-row").count()).toBe(0);
 
     await page.keyboard.press("0");
     await page.keyboard.press("s");
     await page.waitForFunction(
-      () => document.querySelectorAll(".diff-split-row").length === 0,
+      () => document.querySelectorAll(".diff-split-row").length > 0,
+    );
+
+    const status = page.locator('[data-testid="status-view"]');
+    expect(await status.textContent()).toContain("side-by-side · full file");
+    const fullRows = await page.locator(".diff-split-row").count();
+
+    await page.keyboard.press("c");
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-testid="status-view"]')
+          ?.textContent?.includes("hunks only"),
     );
     await page.waitForFunction(
-      () => document.querySelectorAll(".diff-line").length > 0,
+      (previous) =>
+        document.querySelectorAll(".diff-split-row").length < previous,
+      fullRows,
+    );
+
+    const hunkRows = await page.locator(".diff-split-row").count();
+    await page.keyboard.press("c");
+    await page.waitForFunction(
+      (previous) =>
+        document.querySelectorAll(".diff-split-row").length > previous,
+      hunkRows,
     );
   },
   30_000,
@@ -965,14 +990,16 @@ test(
 
     await page.keyboard.press("s");
     await page.waitForFunction(
+      () =>
+        document.querySelectorAll(".diff-split-row").length === 0 &&
+        document.querySelectorAll(".diff-search-match").length > 0,
+    );
+    await page.keyboard.press("s");
+    await page.waitForFunction(
       () => document.querySelectorAll(".diff-split-row").length > 0,
     );
     await page.waitForFunction(
       () => document.querySelectorAll(".diff-search-match").length > 0,
-    );
-    await page.keyboard.press("s");
-    await page.waitForFunction(
-      () => document.querySelectorAll(".diff-split-row").length === 0,
     );
 
     await page.keyboard.press("Escape");

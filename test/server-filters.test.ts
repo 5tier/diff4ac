@@ -268,4 +268,41 @@ describe("HTTP Filters", () => {
     ]);
     expect(included.body.filter?.hiddenFiles).toBe(1);
   });
+
+  test("context=full returns whole files; the default returns hunks only", async () => {
+    const repo = fixture();
+    const lines = Array.from({ length: 60 }, (_, index) => `line ${index + 1}`);
+    repo.write("src/long.ts", `${lines.join("\n")}\n`);
+    repo.commit("base");
+    const edited = [...lines];
+    edited[29] = "line 30 edited";
+    repo.write("src/long.ts", `${edited.join("\n")}\n`);
+    const commit = repo.commit("edit");
+    edited[49] = "line 50 pending";
+    repo.write("src/long.ts", `${edited.join("\n")}\n`);
+    const running = await start(repo);
+
+    const contextLines = (changeSet: ChangeSet) =>
+      (changeSet.files[0]?.hunks ?? []).flatMap((hunk) => hunk.lines).length;
+
+    const hunksOnly = await getJson<ChangeSet>(running, "/api/pending");
+    expect(hunksOnly.body.files[0]?.diff).not.toContain(" line 1\n");
+    expect(contextLines(hunksOnly.body)).toBeLessThan(10);
+
+    const full = await getJson<ChangeSet>(running, "/api/pending?context=full");
+    expect(full.body.files[0]?.diff).toContain(" line 1\n");
+    expect(full.body.files[0]?.hunks).toHaveLength(1);
+    expect(contextLines(full.body)).toBe(61);
+    expect(full.body.files[0]?.additions).toBe(1);
+    expect(full.body.files[0]?.contentHash).toBe(
+      hunksOnly.body.files[0]?.contentHash,
+    );
+
+    const fullCommit = await getJson<ChangeSet>(
+      running,
+      `/api/commit?hash=${commit}&context=full`,
+    );
+    expect(fullCommit.body.files[0]?.diff).toContain(" line 60");
+    expect(contextLines(fullCommit.body)).toBe(61);
+  });
 });

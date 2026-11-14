@@ -391,6 +391,11 @@ interface RequestContext {
   readonly events: EventHub;
 }
 
+/** `context=full` asks for whole files instead of changed hunks only. */
+function wantsFullContext(url: URL): boolean {
+  return url.searchParams.get("context") === "full";
+}
+
 function createEventHub(): EventHub {
   const listeners = new Set<() => void>();
   return {
@@ -649,6 +654,7 @@ async function handleRequest(
             agentPatterns: context.agentPatterns,
             baseBranch: context.config.baseBranch,
             includeLargeDiffs: url.pathname === "/api/file-diff",
+            fullContext: wantsFullContext(url),
           }),
           filters,
         ),
@@ -720,7 +726,13 @@ async function handleRequest(
   if (url.pathname === "/api/pending") {
     try {
       const git = await gitForRequest(context, url);
-      return reviewJson(await buildPendingChangeSet(git), context, url);
+      return reviewJson(
+        await buildPendingChangeSet(git, {
+          fullContext: wantsFullContext(url),
+        }),
+        context,
+        url,
+      );
     } catch (error) {
       return gitApiFailure(error);
     }
@@ -744,7 +756,9 @@ async function handleRequest(
     try {
       const git = await gitForRequest(context, url);
       return reviewJson(
-        await buildBranchChangeSet(git, name, context.config.baseBranch),
+        await buildBranchChangeSet(git, name, context.config.baseBranch, {
+          fullContext: wantsFullContext(url),
+        }),
         context,
         url,
       );
@@ -782,6 +796,7 @@ async function handleRequest(
       return reviewJson(
         await buildCommitChangeSet(git, hash, {
           agentPatterns: context.agentPatterns,
+          fullContext: wantsFullContext(url),
         }),
         context,
         url,
@@ -813,6 +828,7 @@ async function handleRequest(
       return reviewJson(
         await buildCommitsChangeSet(git, hashes, mode, {
           agentPatterns: context.agentPatterns,
+          fullContext: wantsFullContext(url),
         }),
         context,
         url,
@@ -849,6 +865,7 @@ async function handleRequest(
           {
             agentPatterns: context.agentPatterns,
             agent: agent || undefined,
+            fullContext: wantsFullContext(url),
           },
         ),
         context,

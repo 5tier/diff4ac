@@ -34,6 +34,7 @@ export type KeyAction =
   | { readonly type: "toggle-noise" }
   | { readonly type: "refresh" }
   | { readonly type: "toggle-diff-view" }
+  | { readonly type: "toggle-full-file" }
   | { readonly type: "scroll"; readonly direction: 1 | -1 }
   | { readonly type: "jump-hunk"; readonly direction: 1 | -1 }
   | { readonly type: "jump-file"; readonly direction: 1 | -1 }
@@ -387,6 +388,13 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "s",
     label: "Toggle side-by-side diff",
     action: { type: "toggle-diff-view" },
+  },
+  {
+    id: "global.toggleFullFile",
+    panel: "global",
+    key: "c",
+    label: "Toggle full file / changed hunks only",
+    action: { type: "toggle-full-file" },
   },
   {
     id: "global.closeHelp",

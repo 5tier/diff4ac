@@ -879,23 +879,31 @@ export function App() {
   const [excludeGlobs, setExcludeGlobs] = useState("");
   const [hideNoise, setHideNoise] = useState(true);
   const [noisePatterns, setNoisePatterns] = useState<readonly string[]>([]);
+  const [fullFile, setFullFile] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem("diff4ac-full-file") !== "0";
+    } catch {
+      return true;
+    }
+  });
   const filterRequest = useMemo<FilterRequest>(
     () => ({
       disabledExtensions,
       includeGlobs: splitGlobLines(includeGlobs),
       excludeGlobs: splitGlobLines(excludeGlobs),
       hideNoise,
+      fullContext: fullFile,
     }),
-    [disabledExtensions, excludeGlobs, hideNoise, includeGlobs],
+    [disabledExtensions, excludeGlobs, fullFile, hideNoise, includeGlobs],
   );
   const [helpOpen, setHelpOpen] = useState(false);
   const [diffView, setDiffView] = useState<DiffViewMode>(() => {
     try {
-      return sessionStorage.getItem("diff4ac-diff-view") === "side-by-side"
-        ? "side-by-side"
-        : "unified";
+      return sessionStorage.getItem("diff4ac-diff-view") === "unified"
+        ? "unified"
+        : "side-by-side";
     } catch {
-      return "unified";
+      return "side-by-side";
     }
   });
   const [timeWindowOpen, setTimeWindowOpen] = useState(false);
@@ -1029,6 +1037,14 @@ export function App() {
       return;
     }
   }, [diffView]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("diff4ac-full-file", fullFile ? "1" : "0");
+    } catch {
+      return;
+    }
+  }, [fullFile]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1726,6 +1742,9 @@ export function App() {
             current === "unified" ? "side-by-side" : "unified",
           );
           break;
+        case "toggle-full-file":
+          setFullFile((current) => !current);
+          break;
         case "jump-hunk": {
           const target = nextHunkTarget(
             searchFiles,
@@ -2252,6 +2271,10 @@ export function App() {
         <span className="review-progress">
           {files.filter((file) => file.reviewed === true).length}/
           {files.length} reviewed
+        </span>
+        <span className="status-view" data-testid="status-view">
+          {diffView === "side-by-side" ? "side-by-side" : "unified"} ·{" "}
+          {fullFile ? "full file" : "hunks only"}
         </span>
         <span
           className="status-filters"

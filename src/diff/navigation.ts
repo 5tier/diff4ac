@@ -1,4 +1,4 @@
-import { buildDiffRows, type DiffViewMode } from "./rows";
+import { buildDiffRows, type DiffRow, type DiffViewMode } from "./rows";
 import type { SearchFile } from "./search";
 
 export interface HunkLocation {
@@ -18,6 +18,24 @@ export interface FileTarget {
   readonly row: number;
 }
 
+function isChangeRow(row: DiffRow): boolean {
+  if (row.kind === "line") {
+    return row.type !== "context";
+  }
+  if (row.kind === "split") {
+    return (
+      (row.left !== null && row.left.type !== "context") ||
+      (row.right !== null && row.right.type !== "context")
+    );
+  }
+  return false;
+}
+
+/**
+ * One anchor per hunk header plus one for each further block of changed
+ * lines inside a hunk, so `]`/`[` still step through changes when a file is
+ * shown whole (a single git hunk).
+ */
 export function buildHunkAnchors(
   files: readonly SearchFile[],
   mode: DiffViewMode,
@@ -27,16 +45,27 @@ export function buildHunkAnchors(
   files.forEach((file, fileIndex) => {
     const rows = buildDiffRows(file.hunks, mode);
     let hunkIndex = 0;
+    let firstBlockInHunk = true;
+    let inChange = false;
+    const push = (row: number) => {
+      anchors.push({ fileKey: file.key, fileIndex, hunkIndex, row });
+      hunkIndex++;
+    };
     rows.forEach((row, rowIndex) => {
       if (row.kind === "hunk") {
-        anchors.push({
-          fileKey: file.key,
-          fileIndex,
-          hunkIndex,
-          row: rowIndex,
-        });
-        hunkIndex++;
+        push(rowIndex);
+        firstBlockInHunk = true;
+        inChange = false;
+        return;
       }
+      const changed = isChangeRow(row);
+      if (changed && !inChange) {
+        if (!firstBlockInHunk) {
+          push(rowIndex);
+        }
+        firstBlockInHunk = false;
+      }
+      inChange = changed;
     });
   });
 

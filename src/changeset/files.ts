@@ -49,6 +49,15 @@ export function isImagePath(path: string): boolean {
 export interface ChangeFileOptions {
   readonly largeDiffThreshold?: number;
   readonly includeLargeDiffs?: boolean;
+  /** Show every unchanged line of each file around its changes. */
+  readonly fullContext?: boolean;
+}
+
+/** git has no "whole file" flag; a context this large covers any real file. */
+const FULL_CONTEXT_LINES = 100_000_000;
+
+function contextArgs(options: ChangeFileOptions): string[] {
+  return options.fullContext ? [`--unified=${FULL_CONTEXT_LINES}`] : [];
 }
 
 export interface FileStatusRecord {
@@ -623,6 +632,7 @@ async function diffFor(
   git: GitGateway,
   range: DiffRange,
   record: FileStatusRecord,
+  options: ChangeFileOptions,
 ): Promise<string> {
   if (record.status === "untracked") {
     const { stdout } = await git.run(
@@ -639,6 +649,7 @@ async function diffFor(
     "--no-color",
     "--no-ext-diff",
     "--find-renames",
+    ...contextArgs(options),
     "--",
     ...paths,
   ]);
@@ -658,6 +669,7 @@ function bodyFromNoIndexDiff(output: string): string {
 async function pairedRenameDiff(
   git: GitGateway,
   record: FileStatusRecord,
+  options: ChangeFileOptions,
 ): Promise<PairedRenameDiff> {
   const oldPath = record.oldPath;
   if (
@@ -698,6 +710,7 @@ async function pairedRenameDiff(
           "--no-index",
           "--no-color",
           "--no-ext-diff",
+          ...contextArgs(options),
           "--",
           join("old", oldPath),
           join("new", record.path),
@@ -780,9 +793,9 @@ export async function buildChangeFiles(
   const files: ChangeFile[] = [];
   for (const record of records) {
     const paired = record.pairedRename
-      ? await pairedRenameDiff(git, record)
+      ? await pairedRenameDiff(git, record, options)
       : null;
-    const diff = paired ? paired.diff : await diffFor(git, range, record);
+    const diff = paired ? paired.diff : await diffFor(git, range, record, options);
     const stats = numstat.get(record.path);
     const fallback = countDiffLines(diff);
     const binary = paired

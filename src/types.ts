@@ -154,6 +154,8 @@ export interface FilterRequest {
   readonly includeGlobs: readonly string[];
   readonly excludeGlobs: readonly string[];
   readonly hideNoise: boolean;
+  /** Not a filter: asks for whole files (`context=full`) on the same request. */
+  readonly fullContext?: boolean;
 }
 
 export interface FilterInfo extends FilterRequest {
