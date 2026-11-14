@@ -4,10 +4,10 @@
 
 **Blocked by:** 12
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Change Files carry old and new mode when git reports a mode change (parsed from `old mode` / `new mode` in the diff header)
-- [ ] A mode-only change shows "Mode changed: 100644 → 100755 (now executable)" (or "no longer executable") instead of an empty diff
-- [ ] A mode change together with content changes shows the mode line above the hunks
-- [ ] Works for Pending, a single commit, Commit Stack and Net Diff; the Files panel marks mode-only files
-- [ ] Fixture tests cover a mode-only change and a mode-plus-content change
+- [x] Change Files carry old and new mode when git reports a mode change (parsed from `old mode` / `new mode` in the diff header)
+- [x] A mode-only change shows "Mode changed: 100644 → 100755 (now executable)" (or "no longer executable") instead of an empty diff
+- [x] A mode change together with content changes shows the mode line above the hunks
+- [x] Works for Pending, a single commit, Commit Stack and Net Diff; the Files panel marks mode-only files
+- [x] Fixture tests cover a mode-only change and a mode-plus-content change

@@ -11,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { runGit, type GitGateway } from "../git/gateway";
+import { parseModeChange } from "../diff/mode";
 import { extensionOf, isSafeRelativePath } from "../paths";
 import { isBinaryContent } from "./rename-pairing";
 import type {
@@ -716,6 +717,7 @@ export async function buildChangeFiles(
       : (stats?.binary ?? looksBinary(diff));
     const additions = binary ? 0 : (stats?.additions ?? fallback.additions);
     const deletions = binary ? 0 : (stats?.deletions ?? fallback.deletions);
+    const modeChange = parseModeChange(diff);
     const oldRev = oldRevision(range, record);
     const newRev = newRevision(range, record);
     const collapsed =
@@ -757,6 +759,9 @@ export async function buildChangeFiles(
       contentHash: await reviewContentHash(git, range, record, diff, format),
       ...(oldSize !== undefined ? { oldSize } : {}),
       ...(newSize !== undefined ? { newSize } : {}),
+      ...(modeChange
+        ? { oldMode: modeChange.oldMode, newMode: modeChange.newMode }
+        : {}),
       ...(oldRev ? { oldRev } : {}),
       ...(newRev ? { newRev } : {}),
       ...(collapsed ? { collapsed: true } : {}),

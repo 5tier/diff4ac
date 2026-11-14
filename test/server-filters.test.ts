@@ -225,4 +225,47 @@ describe("HTTP Filters", () => {
     ]);
     expect(result.body.filter?.hiddenFiles).toBe(1);
   });
+
+  test("supports negated globs from URL parameters and config Noise", async () => {
+    const repo = fixture();
+    repo.write("base.txt", "base\n");
+    repo.commit("base");
+    repo.write(".git/info/exclude", ".diff4ac.json\n");
+    repo.write(
+      ".diff4ac.json",
+      `${JSON.stringify({ noise: ["dist/**", "!dist/keep.js"] })}\n`,
+    );
+    repo.write("dist/keep.js", "keep\n");
+    repo.write("dist/drop.js", "drop\n");
+    repo.write("src/app.ts", "app\n");
+
+    const running = await start(repo);
+
+    const configNoise = await getJson<ChangeSet>(running, "/api/pending");
+    expect(configNoise.body.files.map((file) => file.path)).toEqual([
+      "dist/keep.js",
+      "src/app.ts",
+    ]);
+    expect(configNoise.body.filter?.hiddenFiles).toBe(1);
+
+    const excluded = await getJson<ChangeSet>(
+      running,
+      "/api/pending?noise=0&exclude=dist%2F**&exclude=!dist%2Fkeep.js",
+    );
+    expect(excluded.body.files.map((file) => file.path)).toEqual([
+      "dist/keep.js",
+      "src/app.ts",
+    ]);
+    expect(excluded.body.filter?.hiddenFiles).toBe(1);
+
+    const included = await getJson<ChangeSet>(
+      running,
+      "/api/pending?noise=0&include=**&include=!dist%2Fdrop.js",
+    );
+    expect(included.body.files.map((file) => file.path)).toEqual([
+      "dist/keep.js",
+      "src/app.ts",
+    ]);
+    expect(included.body.filter?.hiddenFiles).toBe(1);
+  });
 });

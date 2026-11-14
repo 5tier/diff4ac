@@ -96,7 +96,8 @@ export function FiltersDialog({
         <section className="filters-section">
           <p className="filters-hint">
             Globs without / match basenames at any depth; with / match repo
-            paths (/ anchors at root).
+            paths (/ anchors at root). Prefix a pattern with ! to negate it:
+            the last matching pattern wins, and \! matches a literal !.
           </p>
           <label className="filters-field">
             <span>Include globs (one per line)</span>

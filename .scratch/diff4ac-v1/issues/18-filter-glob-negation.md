@@ -4,10 +4,10 @@
 
 **Blocked by:** 09
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] In each pattern list, patterns apply in order and the last matching pattern decides; `!pattern` negates; a list with only negations matches nothing
-- [ ] `\!` matches a literal leading `!`
-- [ ] Same basename/full-path rules as today (no `/` means basename at any depth; a leading `/` anchors at the root)
-- [ ] Works in the `f` dialog, the URL parameters and config Noise; the dialog hint mentions `!`
-- [ ] Unit tests on the pure Filter module and a fixture server test
+- [x] In each pattern list, patterns apply in order and the last matching pattern decides; `!pattern` negates; a list with only negations matches nothing
+- [x] `\!` matches a literal leading `!`
+- [x] Same basename/full-path rules as today (no `/` means basename at any depth; a leading `/` anchors at the root)
+- [x] Works in the `f` dialog, the URL parameters and config Noise; the dialog hint mentions `!`
+- [x] Unit tests on the pure Filter module and a fixture server test

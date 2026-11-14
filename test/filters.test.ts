@@ -351,4 +351,143 @@ describe("Filter module", () => {
     expect(filtered.files.map((entry) => entry.path)).toEqual(["src/app.ts"]);
     expect(filtered.filter?.hiddenFiles).toBe(1);
   });
+
+  test("applies negated include, exclude and Noise patterns in order", () => {
+    const changeSetValue = changeSet([
+      file("src/app.ts"),
+      file("src/app.test.ts"),
+      file("src/generated/types.ts"),
+      file("docs/x.md"),
+    ]);
+
+    const included = applyFilters(
+      changeSetValue,
+      settings({
+        includeGlobs: [
+          "src/**",
+          "!src/**/*.test.ts",
+          "!src/generated/**",
+        ],
+      }),
+    );
+    expect(included.files.map((entry) => entry.path)).toEqual([
+      "src/app.ts",
+    ]);
+
+    const excluded = applyFilters(
+      changeSetValue,
+      settings({ excludeGlobs: ["src/**", "!src/app.ts"] }),
+    );
+    expect(excluded.files.map((entry) => entry.path)).toEqual([
+      "src/app.ts",
+      "docs/x.md",
+    ]);
+
+    const noise = applyFilters(
+      changeSetValue,
+      settings({ noisePatterns: ["src/**", "!src/app.ts"] }),
+    );
+    expect(noise.files.map((entry) => entry.path)).toEqual([
+      "src/app.ts",
+      "docs/x.md",
+    ]);
+    expect(noise.filter?.hiddenFiles).toBe(2);
+  });
+
+  test("lets the last matching pattern win in either direction", () => {
+    const changeSetValue = changeSet([
+      file("src/app.ts"),
+      file("docs/x.md"),
+    ]);
+
+    const reExcluded = applyFilters(
+      changeSetValue,
+      settings({ includeGlobs: ["src/**", "!src/**"] }),
+    );
+    expect(reExcluded.files).toEqual([]);
+
+    const reIncluded = applyFilters(
+      changeSetValue,
+      settings({ includeGlobs: ["!src/**", "src/**"] }),
+    );
+    expect(reIncluded.files.map((entry) => entry.path)).toEqual([
+      "src/app.ts",
+    ]);
+  });
+
+  test("treats a list of only negations as matching nothing", () => {
+    const changeSetValue = changeSet([
+      file("src/app.ts"),
+      file("docs/x.md"),
+    ]);
+
+    const included = applyFilters(
+      changeSetValue,
+      settings({ includeGlobs: ["!docs/**"] }),
+    );
+    expect(included.files).toEqual([]);
+
+    const excluded = applyFilters(
+      changeSetValue,
+      settings({ excludeGlobs: ["!src/**"] }),
+    );
+    expect(excluded.files.map((entry) => entry.path)).toEqual([
+      "src/app.ts",
+      "docs/x.md",
+    ]);
+
+    const noise = applyFilters(
+      changeSetValue,
+      settings({ noisePatterns: ["!docs/**"] }),
+    );
+    expect(noise.files.map((entry) => entry.path)).toEqual([
+      "src/app.ts",
+      "docs/x.md",
+    ]);
+    expect(noise.filter?.hiddenFiles).toBe(0);
+  });
+
+  test("matches a literal leading ! with an escaped \\!", () => {
+    const changeSetValue = changeSet([
+      file("!important.txt"),
+      file("important.txt"),
+      file("src/!important.txt"),
+    ]);
+
+    const filtered = applyFilters(
+      changeSetValue,
+      settings({ noisePatterns: ["\\!important.txt"] }),
+    );
+
+    expect(filtered.files.map((entry) => entry.path)).toEqual([
+      "important.txt",
+    ]);
+    expect(filtered.filter?.hiddenFiles).toBe(2);
+  });
+
+  test("applies basename and anchored path rules to negated patterns", () => {
+    const changeSetValue = changeSet([
+      file("src/app.ts"),
+      file("src/app.test.ts"),
+      file("packages/lib/app.ts"),
+      file("packages/lib/app.test.ts"),
+    ]);
+
+    const basename = applyFilters(
+      changeSetValue,
+      settings({ includeGlobs: ["*.ts", "!*.test.ts"] }),
+    );
+    expect(basename.files.map((entry) => entry.path)).toEqual([
+      "src/app.ts",
+      "packages/lib/app.ts",
+    ]);
+
+    const anchored = applyFilters(
+      changeSetValue,
+      settings({ includeGlobs: ["/src/**", "!/src/app.test.ts"] }),
+    );
+    expect(anchored.files.map((entry) => entry.path)).toEqual([
+      "src/app.ts",
+    ]);
+  });
 });

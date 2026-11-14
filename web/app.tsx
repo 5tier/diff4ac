@@ -64,6 +64,11 @@ import {
 } from "./DiffView";
 import type { DiffViewMode } from "../src/diff/rows";
 import {
+  describeModeChange,
+  isModeOnlyChange,
+  modeChangeFor,
+} from "../src/diff/mode";
+import {
   findSearchMatches,
   stepMatchIndex,
   type SearchFile,
@@ -145,6 +150,9 @@ function FileRow({
   readonly onSelect: () => void;
 }) {
   const reviewed = file.reviewed === true;
+  const modeOnly = isModeOnlyChange(file);
+  const modeChange = modeChangeFor(file);
+  const title = reviewed ? `${file.path} (reviewed)` : file.path;
   const classes = [
     "file-row",
     selected ? "file-row-selected" : "",
@@ -160,7 +168,10 @@ function FileRow({
         type="button"
         className={classes}
         onClick={onSelect}
-        title={reviewed ? `${file.path} (reviewed)` : file.path}
+        title={
+          modeChange ? `${title}\n${describeModeChange(modeChange)}` : title
+        }
+        data-mode-only={modeOnly ? "true" : undefined}
       >
         <span className={`file-status file-status-${file.status}`}>
           {STATUS_LABEL[file.status]}
@@ -172,7 +183,9 @@ function FileRow({
           {file.oldPath ? `${file.oldPath} → ${file.path}` : file.path}
         </span>
         <span className="file-counts">
-          {file.binary ? (
+          {modeOnly ? (
+            <span className="file-mode">mode</span>
+          ) : file.binary ? (
             <span className="binary">bin</span>
           ) : (
             <>
