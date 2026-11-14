@@ -107,6 +107,12 @@ async function readWorktreeRecords(git: GitGateway): Promise<WorktreeRecord[]> {
   return parseWorktreeList(output);
 }
 
+export async function primaryWorktreeRoot(git: GitGateway): Promise<string> {
+  const records = await readWorktreeRecords(git);
+  const primary = records.find((record) => !record.bare && !record.prunable);
+  return canonicalPath(primary?.path ?? git.worktreeRoot);
+}
+
 async function pendingCount(path: string): Promise<number> {
   const worktreeGit = await GitGateway.open(path);
   const status = await worktreeGit.text([

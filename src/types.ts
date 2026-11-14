@@ -152,3 +152,16 @@ export interface SessionInfo {
   readonly worktree: WorktreeInfo;
   readonly version: string;
 }
+
+export interface ConfigDiagnostic {
+  readonly file: string;
+  readonly field: string;
+  readonly message: string;
+}
+
+export interface ConfigInfo {
+  readonly baseBranch: string | null;
+  readonly baseBranchFile?: string;
+  readonly keybindings: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly ConfigDiagnostic[];
+}

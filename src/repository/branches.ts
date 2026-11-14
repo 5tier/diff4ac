@@ -13,7 +13,7 @@ export class UnknownBranchError extends Error {
   }
 }
 
-async function localBranchExists(
+export async function localBranchExists(
   git: GitGateway,
   name: string,
 ): Promise<boolean> {
@@ -26,7 +26,14 @@ async function localBranchExists(
 
 export async function detectBaseBranch(
   git: GitGateway,
+  override: string | null = null,
 ): Promise<BaseBranch | null> {
+  if (override) {
+    if (await localBranchExists(git, override)) {
+      return { name: override, ref: `refs/heads/${override}` };
+    }
+  }
+
   const originHead = await git.run(
     ["symbolic-ref", "--short", "-q", "refs/remotes/origin/HEAD"],
     { allowExitCodes: [0, 1] },
@@ -76,14 +83,17 @@ function parseBranches(output: string): BranchSummary[] {
   return branches;
 }
 
-export async function listBranches(git: GitGateway): Promise<BranchList> {
+export async function listBranches(
+  git: GitGateway,
+  baseBranchOverride: string | null = null,
+): Promise<BranchList> {
   const worktree: WorktreeInfo = {
     path: git.worktreeRoot,
     branch: await git.currentBranch(),
   };
 
   const [baseBranch, output] = await Promise.all([
-    detectBaseBranch(git),
+    detectBaseBranch(git, baseBranchOverride),
     git.text([
       "for-each-ref",
       "--format=%(HEAD)%00%(refname:short)%00%(objectname)%00%(objectname:short)",

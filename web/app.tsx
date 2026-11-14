@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type {
   BaseBranch,
@@ -28,6 +28,7 @@ import {
   fetchCommit,
   fetchCommits,
   fetchCommitSet,
+  fetchConfig,
   fetchPending,
   fetchTimeWindow,
   fetchWorktreePending,
@@ -36,6 +37,7 @@ import {
   subscribeRepositoryChanges,
 } from "./api";
 import {
+  applyKeybindingOverrides,
   bindingFor,
   bindingForTimeWindow,
   bindingsForPanel,
@@ -43,6 +45,7 @@ import {
   PANEL_LABELS,
   type KeyAction,
   type KeyBinding,
+  type KeybindingOverrides,
   type PanelId,
 } from "./keymap";
 
@@ -406,17 +409,23 @@ function CommitStackView({
 
 function HelpOverlay({
   panel,
+  keymap,
   onClose,
 }: {
   readonly panel: PanelId;
+  readonly keymap: readonly KeyBinding[];
   readonly onClose: () => void;
 }) {
-  const bindings = bindingsForPanel(panel);
+  const bindings = bindingsForPanel(keymap, panel);
 
   const renderBindings = (entries: readonly KeyBinding[]) => (
     <ul className="help-list">
       {entries.map((binding) => (
-        <li className="help-row" key={`${binding.panel}:${binding.key}`}>
+        <li
+          className="help-row"
+          key={`${binding.panel}:${binding.key}`}
+          title={binding.id}
+        >
           <kbd className="help-key">
             {binding.key === " " ? "Space" : binding.key}
           </kbd>
@@ -768,6 +777,12 @@ export function App() {
   const [refreshVersion, setRefreshVersion] = useState(0);
 
   const [focusedPanel, setFocusedPanel] = useState<PanelId>("files");
+  const [keybindingOverrides, setKeybindingOverrides] =
+    useState<KeybindingOverrides>({});
+  const keymap = useMemo(
+    () => applyKeybindingOverrides(keybindingOverrides),
+    [keybindingOverrides],
+  );
   const [helpOpen, setHelpOpen] = useState(false);
   const [timeWindowOpen, setTimeWindowOpen] = useState(false);
   const [timeWindowDialogMode, setTimeWindowDialogMode] = useState<
@@ -792,6 +807,20 @@ export function App() {
   selectedPathRef.current = selectedPath;
   const preserveOnNextLoad = useRef(false);
   const pendingScrollTop = useRef<number | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetchConfig(controller.signal)
+      .then((config) => {
+        setKeybindingOverrides(config.keybindings);
+      })
+      .catch(() => {
+        // Config is optional; defaults remain in force.
+      });
+
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1321,7 +1350,7 @@ export function App() {
         return;
       }
 
-      const binding = bindingFor(focusedPanel, event.key);
+      const binding = bindingFor(keymap, focusedPanel, event.key);
       if (!binding) {
         return;
       }
@@ -1335,7 +1364,7 @@ export function App() {
       }
 
       if (timeWindowOpen) {
-        const timeBinding = bindingForTimeWindow(event.key);
+        const timeBinding = bindingForTimeWindow(keymap, event.key);
         if (!timeBinding) {
           return;
         }
@@ -1365,6 +1394,7 @@ export function App() {
     dispatchTimeWindow,
     focusedPanel,
     helpOpen,
+    keymap,
     timeWindowDialogMode,
     timeWindowOpen,
   ]);
@@ -1680,7 +1710,11 @@ export function App() {
       </footer>
 
       {helpOpen ? (
-        <HelpOverlay panel={focusedPanel} onClose={() => setHelpOpen(false)} />
+        <HelpOverlay
+          panel={focusedPanel}
+          keymap={keymap}
+          onClose={() => setHelpOpen(false)}
+        />
       ) : null}
 
       {timeWindowOpen ? (

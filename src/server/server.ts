@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { buildBranchChangeSet } from "../changeset/branch";
 import { buildCommitChangeSet } from "../changeset/commit";
@@ -8,9 +9,11 @@ import {
   NonContiguousNetDiffError,
 } from "../changeset/commits";
 import { buildPendingChangeSet } from "../changeset/pending";
+import { loadConfig } from "../config/loader";
 import { GitGateway } from "../git/gateway";
 import {
   listBranches,
+  localBranchExists,
   UnknownBranchError,
 } from "../repository/branches";
 import { listCommits } from "../repository/commits";
@@ -19,6 +22,7 @@ import { RepositoryWatcher } from "../repository/watcher";
 import {
   listWorktrees,
   openWorktree,
+  primaryWorktreeRoot,
   UnknownWorktreeError,
 } from "../repository/worktrees";
 import {
@@ -28,7 +32,6 @@ import {
 } from "../time-windows";
 import {
   annotateChangeSet,
-  defaultReviewMarkDirectory,
   isValidContentHash,
   isValidReviewPath,
   ReviewMarkStore,
@@ -36,6 +39,7 @@ import {
 import type {
   ChangeSet,
   ChangeViewMode,
+  ConfigInfo,
   SessionInfo,
   TimeWindow,
 } from "../types";
@@ -115,6 +119,7 @@ export interface StartServerOptions {
   readonly webDir?: string;
   readonly stateDir?: string;
   readonly watchDebounceMs?: number;
+  readonly homeDir?: string;
 }
 
 export interface RunningServer {
@@ -122,6 +127,7 @@ export interface RunningServer {
   readonly url: string;
   readonly token: string;
   readonly server: Bun.Server<unknown>;
+  readonly config: ConfigInfo;
   stop(): void;
 }
 
@@ -137,6 +143,7 @@ interface RequestContext {
   readonly webDir: string;
   readonly repositoryId: string;
   readonly reviewMarks: ReviewMarkStore;
+  readonly config: ConfigInfo;
   readonly events: EventHub;
 }
 
@@ -331,6 +338,10 @@ async function handleRequest(
     return serveEvents(context, request);
   }
 
+  if (url.pathname === "/api/config") {
+    return json(context.config);
+  }
+
   if (url.pathname === "/api/session") {
     const session: SessionInfo = {
       worktree: {
@@ -367,7 +378,7 @@ async function handleRequest(
   if (url.pathname === "/api/branches") {
     try {
       const git = await gitForRequest(context, url);
-      return json(await listBranches(git));
+      return json(await listBranches(git, context.config.baseBranch));
     } catch (error) {
       return gitApiFailure(error);
     }
@@ -381,7 +392,10 @@ async function handleRequest(
 
     try {
       const git = await gitForRequest(context, url);
-      return reviewJson(await buildBranchChangeSet(git, name), context);
+      return reviewJson(
+        await buildBranchChangeSet(git, name, context.config.baseBranch),
+        context,
+      );
     } catch (error) {
       if (error instanceof UnknownBranchError) {
         return text(error.message, 404);
@@ -512,9 +526,32 @@ export async function startServer(
   const token = options.token ?? generateToken();
   const webDir = options.webDir ?? DEFAULT_WEB_DIR;
   const requestedPort = options.port ?? 0;
+  const homeDir = options.homeDir ?? homedir();
   const repositoryId = await repositoryIdentity(git);
+  let config = loadConfig({
+    homeDir,
+    repositoryRoot: await primaryWorktreeRoot(git),
+  });
+  if (
+    config.baseBranch &&
+    !(await localBranchExists(git, config.baseBranch))
+  ) {
+    const missing = config.baseBranch;
+    config = {
+      ...config,
+      baseBranch: null,
+      diagnostics: [
+        ...config.diagnostics,
+        {
+          file: config.baseBranchFile ?? "",
+          field: "baseBranch",
+          message: `branch "${missing}" not found; using auto-detection`,
+        },
+      ],
+    };
+  }
   const reviewMarks = new ReviewMarkStore(
-    options.stateDir ?? defaultReviewMarkDirectory(),
+    options.stateDir ?? join(homeDir, ".diff4ac"),
   );
   const events = createEventHub();
   const watcher = await RepositoryWatcher.start(git, {
@@ -536,6 +573,7 @@ export async function startServer(
         repositoryId,
         reviewMarks,
         events,
+        config,
       }),
   });
 
@@ -547,6 +585,7 @@ export async function startServer(
     url,
     token,
     server,
+    config,
     stop() {
       watcher.stop();
       server.stop(true);

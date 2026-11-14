@@ -9,6 +9,7 @@ import {
   type FixtureCheckout,
   type FixtureRepo,
 } from "./helpers/fixture";
+import { createTempHome, type TempHome } from "./helpers/home";
 
 const PROJECT_ROOT = join(import.meta.dir, "..");
 
@@ -18,6 +19,7 @@ let running: RunningServer;
 let browser: Browser;
 let page: Page;
 let stateDir: string;
+let home: TempHome;
 
 async function launchChromium(): Promise<Browser> {
   const attempts: Array<() => Promise<Browser>> = [
@@ -91,8 +93,19 @@ beforeAll(async () => {
   repo.write("src/gamma.ts", "pending gamma\n");
   linkedWorktree.write("src/linked.ts", "linked pending\n");
 
+  repo.write(".git/info/exclude", ".diff4ac.json\n");
+  repo.write(
+    ".diff4ac.json",
+    `${JSON.stringify({ keybindings: { "branches.moveDown": "n" } })}\n`,
+  );
+
   stateDir = mkdtempSync(join(tmpdir(), "diff4ac-playwright-state-"));
-  running = await startServer({ repoPath: repo.root, stateDir });
+  home = createTempHome();
+  running = await startServer({
+    repoPath: repo.root,
+    stateDir,
+    homeDir: home.path,
+  });
   browser = await launchChromium();
   page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   await page.goto(running.url);
@@ -106,6 +119,7 @@ afterAll(async () => {
   if (stateDir) {
     rmSync(stateDir, { recursive: true, force: true });
   }
+  home?.dispose();
 });
 
 test(
@@ -236,6 +250,29 @@ test(
     expect(await focusedPanel()).toBe("worktrees");
     await page.keyboard.press("2");
     expect(await focusedPanel()).toBe("branches");
+
+    await page.keyboard.press("?");
+    const branchHelp = page.locator('[data-testid="help-overlay"]');
+    await branchHelp.waitFor();
+    const moveDown = branchHelp
+      .locator(".help-row", { hasText: "Move down" })
+      .first();
+    expect(await moveDown.locator(".help-key").textContent()).toBe("n");
+    await page.keyboard.press("Escape");
+    await branchHelp.waitFor({ state: "detached" });
+
+    const branchCursor = await page
+      .locator('[data-panel="branches"]')
+      .getAttribute("data-cursor");
+    await page.keyboard.press("n");
+    await page.waitForFunction(
+      (previous) =>
+        document
+          .querySelector('[data-panel="branches"]')
+          ?.getAttribute("data-cursor") !== previous,
+      branchCursor,
+    );
+
     await page.keyboard.press("3");
     expect(await focusedPanel()).toBe("commits");
     await page.keyboard.press("4");
