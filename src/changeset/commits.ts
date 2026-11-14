@@ -19,6 +19,7 @@ import {
   buildChangeFilesForRange,
   changeSetTotals,
   emptyTreeRef,
+  type ChangeFileOptions,
 } from "./files";
 import { isContiguousCommitSelection } from "./selection";
 
@@ -35,6 +36,7 @@ async function buildSelectedCommitsChangeSet(
   selected: readonly CommitSummary[],
   mode: ChangeViewMode,
   selection: Selection,
+  options: ChangeFileOptions = {},
 ): Promise<ChangeSet> {
   if (mode === "net") {
     const newest = selected[0];
@@ -45,10 +47,16 @@ async function buildSelectedCommitsChangeSet(
 
     const parent = await firstParent(git, oldest.hash);
     const baseRef = parent ?? (await emptyTreeRef(git));
-    const files = await buildChangeFilesForRange(git, {
-      baseRef,
-      targetRef: newest.hash,
-    });
+    const files = await buildChangeFilesForRange(
+      git,
+      {
+        baseRef,
+        targetRef: newest.hash,
+        oldRev: parent,
+        newRev: newest.hash,
+      },
+      options,
+    );
 
     return {
       selection,
@@ -60,7 +68,7 @@ async function buildSelectedCommitsChangeSet(
 
   const commitGroups: CommitChangeGroup[] = [];
   for (const commit of [...selected].reverse()) {
-    const { files, totals } = await buildCommitFiles(git, commit);
+    const { files, totals } = await buildCommitFiles(git, commit, options);
     commitGroups.push({ commit, files, totals });
   }
 
@@ -74,7 +82,7 @@ async function buildSelectedCommitsChangeSet(
   };
 }
 
-export interface CommitsChangeSetOptions {
+export interface CommitsChangeSetOptions extends ChangeFileOptions {
   readonly agentPatterns?: readonly CompiledAgentPattern[];
 }
 
@@ -131,10 +139,11 @@ export async function buildCommitsChangeSet(
     selected,
     mode,
     selection,
+    options,
   );
 }
 
-export interface TimeWindowChangeSetOptions {
+export interface TimeWindowChangeSetOptions extends ChangeFileOptions {
   readonly agentPatterns?: readonly CompiledAgentPattern[];
   readonly agent?: string;
 }
@@ -182,5 +191,6 @@ export async function buildTimeWindowChangeSet(
     selected,
     mode,
     selection,
+    options,
   );
 }

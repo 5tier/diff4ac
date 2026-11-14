@@ -6,13 +6,19 @@ import {
   emptyTreeRef,
   parseNameStatus,
   parseUntracked,
+  type ChangeFileOptions,
   type FileStatusRecord,
 } from "./files";
 
 export async function buildPendingChangeSet(
   git: GitGateway,
+  options: ChangeFileOptions = {},
 ): Promise<ChangeSet> {
-  const baseRef = (await git.hasHead()) ? "HEAD" : await emptyTreeRef(git);
+  const hasHead = await git.hasHead();
+  const baseRef = hasHead ? "HEAD" : await emptyTreeRef(git);
+  const headRev = hasHead
+    ? (await git.text(["rev-parse", "HEAD"])).trim()
+    : null;
 
   const [nameStatusOutput, statusOutput] = await Promise.all([
     git.text([
@@ -40,7 +46,12 @@ export async function buildPendingChangeSet(
     }
   }
 
-  const files = await buildChangeFiles(git, { baseRef }, [...byPath.values()]);
+  const files = await buildChangeFiles(
+    git,
+    { baseRef, oldRev: headRev, newRev: "worktree" },
+    [...byPath.values()],
+    options,
+  );
 
   return {
     selection: { kind: "pending" },

@@ -4,10 +4,10 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Renames are detected and shown as old → new, with only the content changes
-- [ ] Binary files show "binary changed" with old and new sizes, and no garbage text
-- [ ] Image files (png, jpg, gif, webp, svg) show before and after previews, served by the API
-- [ ] File diffs over about 1,500 changed lines are collapsed, with a key to load and expand them
-- [ ] Fixture tests cover a rename with edits, a binary change, an image change and an oversized diff
+- [x] Renames are detected and shown as old → new, with only the content changes
+- [x] Binary files show "binary changed" with old and new sizes, and no garbage text
+- [x] Image files (png, jpg, gif, webp, svg) show before and after previews, served by the API
+- [x] File diffs over about 1,500 changed lines are collapsed, with a key to load and expand them
+- [x] Fixture tests cover a rename with edits, a binary change, an image change and an oversized diff

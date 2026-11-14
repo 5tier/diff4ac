@@ -8,12 +8,14 @@ import type { ChangeSet } from "../types";
 import {
   buildChangeFilesForRange,
   changeSetTotals,
+  type ChangeFileOptions,
 } from "./files";
 
 export async function buildBranchChangeSet(
   git: GitGateway,
   branchName: string,
   baseBranchOverride: string | null = null,
+  options: ChangeFileOptions = {},
 ): Promise<ChangeSet> {
   const branch = await readBranch(git, branchName);
   if (!branch) {
@@ -31,10 +33,16 @@ export async function buildBranchChangeSet(
     await git.text(["merge-base", baseBranch.ref, `refs/heads/${branch.name}`])
   ).trim();
 
-  const files = await buildChangeFilesForRange(git, {
-    baseRef: mergeBase,
-    targetRef: branch.hash,
-  });
+  const files = await buildChangeFilesForRange(
+    git,
+    {
+      baseRef: mergeBase,
+      targetRef: branch.hash,
+      oldRev: mergeBase,
+      newRev: branch.hash,
+    },
+    options,
+  );
 
   return {
     selection: { kind: "branch", branch, baseBranch },

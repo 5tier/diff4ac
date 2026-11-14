@@ -7,7 +7,10 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { isSafeRelativePath } from "../paths";
 import type { ChangeFile, ChangeSet } from "../types";
+
+export { isSafeRelativePath as isValidReviewPath };
 
 interface ReviewMarkFile {
   readonly version: 1;
@@ -19,13 +22,6 @@ const BLOB_HASH = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 
 export function defaultReviewMarkDirectory(): string {
   return join(homedir(), ".diff4ac");
-}
-
-export function isValidReviewPath(path: string): boolean {
-  if (!path || path.includes("\0") || path.startsWith("/")) {
-    return false;
-  }
-  return !path.split("/").some((segment) => segment === ".." || segment === ".");
 }
 
 export function isValidContentHash(value: string): boolean {

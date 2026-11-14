@@ -37,7 +37,11 @@ export interface WorktreeOptions {
 
 export interface FixtureCheckout {
   readonly root: string;
-  write(path: string, content: string, options?: WriteOptions): void;
+  write(
+    path: string,
+    content: string | Uint8Array,
+    options?: WriteOptions,
+  ): void;
   append(path: string, content: string): void;
   remove(path: string, options?: WriteOptions): void;
   rename(oldPath: string, newPath: string, options?: WriteOptions): void;
@@ -102,7 +106,7 @@ export function createFixtureRepo(): FixtureRepo {
 
     const write = (
       path: string,
-      content: string,
+      content: string | Uint8Array,
       options: WriteOptions = {},
     ) => {
       mkdirSync(dirname(absolute(path)), { recursive: true });

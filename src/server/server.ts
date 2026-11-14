@@ -13,10 +13,19 @@ import {
   buildTimeWindowChangeSet,
   NonContiguousNetDiffError,
 } from "../changeset/commits";
+import {
+  imageContentType,
+  readContentAtRev,
+} from "../changeset/files";
 import { buildPendingChangeSet } from "../changeset/pending";
+import {
+  buildScopedChangeSet,
+  type ChangeSetScope,
+} from "../changeset/scope";
 import { loadConfig } from "../config/loader";
 import { applyFilters, isValidGlob, type FilterSettings } from "../filters";
 import { GitGateway } from "../git/gateway";
+import { isSafeRelativePath } from "../paths";
 import {
   listBranches,
   localBranchExists,
@@ -43,6 +52,7 @@ import {
   ReviewMarkStore,
 } from "../review/marks";
 import type {
+  ChangeFile,
   ChangeSet,
   ChangeViewMode,
   ConfigInfo,
@@ -153,6 +163,177 @@ function parseFilterSettings(
     hideNoise: url.searchParams.get("noise") !== "0",
     noisePatterns,
   };
+}
+
+const COMMIT_HASH = /^[0-9a-fA-F]{4,64}$/;
+
+function isValidCommitHash(value: string | null): value is string {
+  return value !== null && COMMIT_HASH.test(value);
+}
+
+function isValidContentRev(value: string | null): value is string {
+  return (
+    value === "index" || value === "worktree" || isValidCommitHash(value)
+  );
+}
+
+interface ParsedTimeWindow {
+  readonly window?: TimeWindow;
+  readonly error?: string;
+}
+
+function parseTimeWindowRequest(url: URL): ParsedTimeWindow {
+  const start = url.searchParams.get("start") ?? "";
+  const end = url.searchParams.get("end") ?? "";
+  const preset = url.searchParams.get("preset") ?? "";
+  const startMs = parseTimeWindowInstant(start);
+  const endMs = parseTimeWindowInstant(end);
+
+  if (
+    startMs === null ||
+    endMs === null ||
+    startMs >= endMs ||
+    !isTimeWindowPreset(preset)
+  ) {
+    return { error: "Bad request: start, end and a preset are required" };
+  }
+
+  const startIso = new Date(startMs).toISOString();
+  const endIso = new Date(endMs).toISOString();
+  return {
+    window: {
+      preset,
+      start: startIso,
+      end: endIso,
+      label: timeWindowLabel(preset, startIso, endIso),
+    },
+  };
+}
+
+interface ParsedScope {
+  readonly scope?: ChangeSetScope;
+  readonly error?: string;
+  readonly missing?: boolean;
+}
+
+function parseScope(url: URL): ParsedScope {
+  const selection = url.searchParams.get("selection");
+  if (!selection) {
+    return { missing: true };
+  }
+
+  switch (selection) {
+    case "pending":
+      return { scope: { kind: "pending" } };
+    case "commit": {
+      const hash = url.searchParams.get("hash");
+      if (!isValidCommitHash(hash)) {
+        return { error: "Bad request: a commit hash is required" };
+      }
+      return { scope: { kind: "commit", hash } };
+    }
+    case "commits": {
+      const hashes = (url.searchParams.get("hashes") ?? "")
+        .split(",")
+        .filter(Boolean);
+      const mode = url.searchParams.get("mode") ?? "net";
+      if (
+        hashes.length === 0 ||
+        !hashes.every((hash) => isValidCommitHash(hash)) ||
+        (mode !== "net" && mode !== "stack")
+      ) {
+        return {
+          error:
+            "Bad request: commit hashes and a mode of net or stack are required",
+        };
+      }
+      return {
+        scope: {
+          kind: "commits",
+          hashes,
+          mode: mode as ChangeViewMode,
+        },
+      };
+    }
+    case "time-window": {
+      const parsed = parseTimeWindowRequest(url);
+      if (!parsed.window) {
+        return { error: parsed.error };
+      }
+      const mode = url.searchParams.get("mode") ?? "auto";
+      if (mode !== "auto" && mode !== "net" && mode !== "stack") {
+        return { error: "Bad request: mode must be auto, net or stack" };
+      }
+      const agent = url.searchParams.get("agent") ?? undefined;
+      return {
+        scope: {
+          kind: "time-window",
+          window: parsed.window,
+          mode: mode as ChangeViewMode | "auto",
+          ...(agent ? { agent } : {}),
+        },
+      };
+    }
+    case "branch": {
+      const name = url.searchParams.get("name");
+      if (!name) {
+        return { error: "Bad request: a branch name is required" };
+      }
+      return { scope: { kind: "branch", name } };
+    }
+    default:
+      return { error: "Bad request: unknown Selection" };
+  }
+}
+
+function changeFileFor(
+  changeSet: ChangeSet,
+  scope: ChangeSetScope,
+  path: string,
+  rev: string | null,
+): ChangeFile | undefined {
+  const matches = changeSet.files.filter((file) => file.path === path);
+  if (matches.length === 0) {
+    return undefined;
+  }
+
+  if (!rev) {
+    return matches[0];
+  }
+
+  if (
+    (rev === "index" || rev === "worktree") &&
+    scope.kind === "pending"
+  ) {
+    return matches[0];
+  }
+
+  return matches.find(
+    (file) => file.oldRev === rev || file.newRev === rev,
+  );
+}
+
+function imageResponse(
+  bytes: Buffer,
+  contentType: string,
+  method: string,
+): Response {
+  const headers: Record<string, string> = {
+    ...SECURITY_HEADERS,
+    "Content-Type": contentType,
+    "Content-Length": String(bytes.byteLength),
+    "Content-Disposition": "inline",
+  };
+
+  if (contentType === "image/svg+xml") {
+    headers["Content-Security-Policy"] =
+      "default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; script-src 'none'; sandbox";
+  }
+
+  return new Response(method === "HEAD" ? null : new Uint8Array(bytes), {
+    status: 200,
+    headers,
+  });
 }
 
 function reviewJson(
@@ -394,6 +575,76 @@ async function handleRequest(
     return json({ path, contentHash, reviewed });
   }
 
+  if (
+    url.pathname === "/api/file-content" ||
+    url.pathname === "/api/file-diff"
+  ) {
+    const path = url.searchParams.get("path");
+    const rev = url.searchParams.get("rev");
+    const revRequired = url.pathname === "/api/file-content";
+    if (
+      !path ||
+      !isSafeRelativePath(path) ||
+      (revRequired && rev === null) ||
+      (rev !== null && !isValidContentRev(rev))
+    ) {
+      return text("Bad request: a safe path and rev are required", 400);
+    }
+
+    const parsed = parseScope(url);
+    if (parsed.missing) {
+      return text("Bad request: a Selection is required", 400);
+    }
+    if (!parsed.scope) {
+      return text(parsed.error ?? "Bad request", 400);
+    }
+
+    const filters = parseFilterSettings(url, context.config.noise);
+    if (!filters) {
+      return text("Bad request: invalid filter", 400);
+    }
+
+    try {
+      const git = await gitForRequest(context, url);
+      const changeSet = annotateChangeSet(
+        applyFilters(
+          await buildScopedChangeSet(git, parsed.scope, {
+            agentPatterns: context.agentPatterns,
+            baseBranch: context.config.baseBranch,
+            includeLargeDiffs: url.pathname === "/api/file-diff",
+          }),
+          filters,
+        ),
+        context.reviewMarks,
+        context.repositoryId,
+      );
+      const file = changeFileFor(changeSet, parsed.scope, path, rev);
+      if (!file) {
+        return text("Not found", 404);
+      }
+
+      if (url.pathname === "/api/file-diff") {
+        return json(file);
+      }
+
+      const sidePath =
+        rev === file.oldRev ? (file.oldPath ?? file.path) : file.path;
+      const contentType = imageContentType(sidePath);
+      if (!contentType) {
+        return text("Not found", 404);
+      }
+
+      const bytes = await readContentAtRev(git, rev as string, sidePath);
+      if (!bytes) {
+        return text("Not found", 404);
+      }
+
+      return imageResponse(bytes, contentType, request.method);
+    } catch (error) {
+      return gitApiFailure(error);
+    }
+  }
+
   if (url.pathname === "/api/events") {
     if (request.method !== "GET") {
       return text("Method not allowed", 405);
@@ -535,26 +786,13 @@ async function handleRequest(
   }
 
   if (url.pathname === "/api/time-window") {
-    const start = url.searchParams.get("start") ?? "";
-    const end = url.searchParams.get("end") ?? "";
-    const preset = url.searchParams.get("preset") ?? "";
+    const parsed = parseTimeWindowRequest(url);
+    if (!parsed.window) {
+      return text(parsed.error ?? "Bad request", 400);
+    }
+    const window = parsed.window;
     const requestedMode = url.searchParams.get("mode") ?? "auto";
     const agent = url.searchParams.get("agent") ?? undefined;
-
-    const startMs = parseTimeWindowInstant(start);
-    const endMs = parseTimeWindowInstant(end);
-
-    if (
-      startMs === null ||
-      endMs === null ||
-      startMs >= endMs ||
-      !isTimeWindowPreset(preset)
-    ) {
-      return text(
-        "Bad request: start, end and a preset are required",
-        400,
-      );
-    }
 
     if (
       requestedMode !== "auto" &&
@@ -563,15 +801,6 @@ async function handleRequest(
     ) {
       return text("Bad request: mode must be auto, net or stack", 400);
     }
-
-    const startIso = new Date(startMs).toISOString();
-    const endIso = new Date(endMs).toISOString();
-    const window: TimeWindow = {
-      preset,
-      start: startIso,
-      end: endIso,
-      label: timeWindowLabel(preset, startIso, endIso),
-    };
 
     try {
       const git = await gitForRequest(context, url);

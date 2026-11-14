@@ -28,6 +28,7 @@ export type KeyAction =
   | { readonly type: "time-window-close" }
   | { readonly type: "cycle-agent-filter" }
   | { readonly type: "toggle-mark" }
+  | { readonly type: "expand-diff" }
   | { readonly type: "filters" }
   | { readonly type: "filters-close" }
   | { readonly type: "toggle-noise" }
@@ -202,6 +203,13 @@ export const KEYMAP: readonly KeyBinding[] = [
     action: { type: "toggle-mark" },
   },
   {
+    id: "files.expandDiff",
+    panel: "files",
+    key: "x",
+    label: "Load large diff",
+    action: { type: "expand-diff" },
+  },
+  {
     id: "diff.scrollDown",
     panel: "diff",
     key: "j",
@@ -221,6 +229,13 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "m",
     label: "Toggle Review Mark",
     action: { type: "toggle-mark" },
+  },
+  {
+    id: "diff.expandDiff",
+    panel: "diff",
+    key: "x",
+    label: "Load large diff",
+    action: { type: "expand-diff" },
   },
   {
     id: "global.focusWorktrees",

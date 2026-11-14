@@ -11,6 +11,7 @@ import {
   buildChangeFilesForRange,
   changeSetTotals,
   emptyTreeRef,
+  type ChangeFileOptions,
 } from "./files";
 
 export interface CommitFiles {
@@ -21,18 +22,25 @@ export interface CommitFiles {
 export async function buildCommitFiles(
   git: GitGateway,
   commit: CommitSummary,
+  options: ChangeFileOptions = {},
 ): Promise<CommitFiles> {
   const parent = await firstParent(git, commit.hash);
   const baseRef = parent ?? (await emptyTreeRef(git));
-  const files = await buildChangeFilesForRange(git, {
-    baseRef,
-    targetRef: commit.hash,
-  });
+  const files = await buildChangeFilesForRange(
+    git,
+    {
+      baseRef,
+      targetRef: commit.hash,
+      oldRev: parent,
+      newRev: commit.hash,
+    },
+    options,
+  );
 
   return { files, totals: changeSetTotals(files) };
 }
 
-export interface CommitChangeSetOptions {
+export interface CommitChangeSetOptions extends ChangeFileOptions {
   readonly agentPatterns?: readonly CompiledAgentPattern[];
 }
 
@@ -44,7 +52,7 @@ export async function buildCommitChangeSet(
   const commit = await readCommit(git, rev, {
     agentPatterns: options.agentPatterns,
   });
-  const { files, totals } = await buildCommitFiles(git, commit);
+  const { files, totals } = await buildCommitFiles(git, commit, options);
 
   return {
     selection: { kind: "commit", commit },

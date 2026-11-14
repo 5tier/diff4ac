@@ -1,4 +1,5 @@
 import { changeSetTotals } from "./changeset/files";
+import { extensionOf } from "./paths";
 import type {
   ChangeFile,
   ChangeSet,
@@ -36,15 +37,7 @@ export interface FilterSettings extends FilterRequest {
   readonly noisePatterns: readonly string[];
 }
 
-export function extensionOf(path: string): string {
-  const slash = path.lastIndexOf("/");
-  const base = slash === -1 ? path : path.slice(slash + 1);
-  const dot = base.lastIndexOf(".");
-  if (dot <= 0) {
-    return "";
-  }
-  return base.slice(dot).toLowerCase();
-}
+export { extensionOf };
 
 export function isValidGlob(pattern: string): boolean {
   return (

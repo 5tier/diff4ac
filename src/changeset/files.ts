@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import type { GitGateway } from "../git/gateway";
+import { extensionOf, isSafeRelativePath } from "../paths";
 import type {
   ChangeFile,
   ChangeTotals,
@@ -14,6 +15,30 @@ const SHA1_EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const SHA256_EMPTY_TREE =
   "6ef19b41225c5369f1c104d45d8d85efa9b057b53b14b4b9b939dd74decc5321";
 
+export const LARGE_DIFF_LINE_LIMIT = 1500;
+
+const IMAGE_CONTENT_TYPES: Readonly<Record<string, string>> = {
+  ".gif": "image/gif",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+};
+
+export function imageContentType(path: string): string | null {
+  return IMAGE_CONTENT_TYPES[extensionOf(path)] ?? null;
+}
+
+export function isImagePath(path: string): boolean {
+  return imageContentType(path) !== null;
+}
+
+export interface ChangeFileOptions {
+  readonly largeDiffThreshold?: number;
+  readonly includeLargeDiffs?: boolean;
+}
+
 export interface FileStatusRecord {
   readonly path: string;
   readonly oldPath?: string;
@@ -23,6 +48,8 @@ export interface FileStatusRecord {
 export interface DiffRange {
   readonly baseRef: string;
   readonly targetRef?: string;
+  readonly oldRev?: string | null;
+  readonly newRev?: string | null;
 }
 
 interface NumstatRecord {
@@ -294,12 +321,169 @@ async function blobHashAt(
 }
 
 function worktreeFilePath(git: GitGateway, path: string): string | null {
-  const root = resolve(git.worktreeRoot);
+  if (!isSafeRelativePath(path)) {
+    return null;
+  }
+
+  let root: string;
+  try {
+    root = realpathSync(git.worktreeRoot);
+  } catch {
+    root = resolve(git.worktreeRoot);
+  }
+
   const full = resolve(root, path);
   if (full !== root && !full.startsWith(`${root}${sep}`)) {
     return null;
   }
-  return full;
+
+  try {
+    const real = realpathSync(full);
+    if (real !== root && !real.startsWith(`${root}${sep}`)) {
+      return null;
+    }
+    return statSync(real).isFile() ? real : null;
+  } catch {
+    return null;
+  }
+}
+
+async function indexBlobHash(
+  git: GitGateway,
+  path: string,
+): Promise<string | null> {
+  if (!isSafeRelativePath(path)) {
+    return null;
+  }
+
+  const { stdout } = await git.run([
+    "ls-files",
+    "--stage",
+    "-z",
+    "--",
+    path,
+  ]);
+  for (const token of nulTokens(stdout.toString("utf8"))) {
+    const tab = token.indexOf("\t");
+    if (tab === -1 || token.slice(tab + 1) !== path) {
+      continue;
+    }
+    const [mode, hash, stage] = token.slice(0, tab).split(" ");
+    if (mode && hash && stage === "0") {
+      return hash;
+    }
+  }
+  return null;
+}
+
+async function gitBlobContent(
+  git: GitGateway,
+  hash: string,
+): Promise<Buffer | null> {
+  const result = await git.run(["cat-file", "-p", hash], {
+    allowExitCodes: [0, 128],
+  });
+  return result.exitCode === 0 ? result.stdout : null;
+}
+
+async function gitBlobSize(
+  git: GitGateway,
+  hash: string,
+): Promise<number | null> {
+  const result = await git.run(["cat-file", "-s", hash], {
+    allowExitCodes: [0, 128],
+  });
+  if (result.exitCode !== 0) {
+    return null;
+  }
+  const size = Number.parseInt(result.stdout.toString("utf8").trim(), 10);
+  return Number.isNaN(size) ? null : size;
+}
+
+export async function readContentAtRev(
+  git: GitGateway,
+  rev: string,
+  path: string,
+): Promise<Buffer | null> {
+  if (rev === "worktree") {
+    const filePath = worktreeFilePath(git, path);
+    if (!filePath) {
+      return null;
+    }
+    try {
+      return readFileSync(filePath);
+    } catch {
+      return null;
+    }
+  }
+
+  if (rev === "index") {
+    const hash = await indexBlobHash(git, path);
+    return hash ? gitBlobContent(git, hash) : null;
+  }
+
+  if (!isSafeRelativePath(path)) {
+    return null;
+  }
+  const hash = await blobHashAt(git, rev, path);
+  return hash ? gitBlobContent(git, hash) : null;
+}
+
+export async function contentSizeAtRev(
+  git: GitGateway,
+  rev: string,
+  path: string,
+): Promise<number | null> {
+  if (rev === "worktree") {
+    const filePath = worktreeFilePath(git, path);
+    if (!filePath) {
+      return null;
+    }
+    try {
+      return statSync(filePath).size;
+    } catch {
+      return null;
+    }
+  }
+
+  if (rev === "index") {
+    const hash = await indexBlobHash(git, path);
+    return hash ? gitBlobSize(git, hash) : null;
+  }
+
+  if (!isSafeRelativePath(path)) {
+    return null;
+  }
+  const hash = await blobHashAt(git, rev, path);
+  return hash ? gitBlobSize(git, hash) : null;
+}
+
+function hasOldSide(status: FileStatus): boolean {
+  return status !== "added" && status !== "untracked";
+}
+
+function hasNewSide(status: FileStatus): boolean {
+  return status !== "deleted";
+}
+
+function oldRevision(range: DiffRange, status: FileStatus): string | undefined {
+  if (!hasOldSide(status)) {
+    return undefined;
+  }
+  if (range.oldRev !== undefined) {
+    return range.oldRev ?? undefined;
+  }
+  return range.baseRef;
+}
+
+function newRevision(range: DiffRange, status: FileStatus): string | undefined {
+  if (!hasNewSide(status)) {
+    return undefined;
+  }
+  if (range.newRev !== undefined) {
+    return range.newRev ?? undefined;
+  }
+  return range.targetRef ?? "worktree";
 }
 
 async function reviewContentHash(
@@ -390,6 +574,7 @@ export async function buildChangeFiles(
   git: GitGateway,
   range: DiffRange,
   records: readonly FileStatusRecord[],
+  options: ChangeFileOptions = {},
 ): Promise<ChangeFile[]> {
   const { stdout } = await git.run([
     "diff",
@@ -400,6 +585,7 @@ export async function buildChangeFiles(
   ]);
   const numstat = parseNumstat(stdout.toString("utf8"));
   const format = await objectFormat(git);
+  const threshold = options.largeDiffThreshold ?? LARGE_DIFF_LINE_LIMIT;
 
   const files: ChangeFile[] = [];
   for (const record of records) {
@@ -407,17 +593,52 @@ export async function buildChangeFiles(
     const stats = numstat.get(record.path);
     const fallback = countDiffLines(diff);
     const binary = stats?.binary ?? looksBinary(diff);
+    const additions = binary ? 0 : (stats?.additions ?? fallback.additions);
+    const deletions = binary ? 0 : (stats?.deletions ?? fallback.deletions);
+    const oldRev = oldRevision(range, record.status);
+    const newRev = newRevision(range, record.status);
+    const collapsed =
+      !binary &&
+      !options.includeLargeDiffs &&
+      additions + deletions > threshold;
+
+    let oldSize: number | undefined;
+    let newSize: number | undefined;
+    if (binary) {
+      if (oldRev) {
+        const size = await contentSizeAtRev(
+          git,
+          oldRev,
+          record.oldPath ?? record.path,
+        );
+        if (size !== null) {
+          oldSize = size;
+        }
+      }
+      if (newRev) {
+        const size = await contentSizeAtRev(git, newRev, record.path);
+        if (size !== null) {
+          newSize = size;
+        }
+      }
+    }
 
     files.push({
       path: record.path,
       ...(record.oldPath ? { oldPath: record.oldPath } : {}),
       status: record.status,
-      additions: binary ? 0 : (stats?.additions ?? fallback.additions),
-      deletions: binary ? 0 : (stats?.deletions ?? fallback.deletions),
+      additions,
+      deletions,
       binary,
-      diff,
-      hunks: binary ? [] : parseHunks(diff),
+      image: isImagePath(record.path),
+      diff: collapsed ? "" : diff,
+      hunks: binary || collapsed ? [] : parseHunks(diff),
       contentHash: await reviewContentHash(git, range, record, diff, format),
+      ...(oldSize !== undefined ? { oldSize } : {}),
+      ...(newSize !== undefined ? { newSize } : {}),
+      ...(oldRev ? { oldRev } : {}),
+      ...(newRev ? { newRev } : {}),
+      ...(collapsed ? { collapsed: true } : {}),
     });
   }
 
@@ -428,6 +649,7 @@ export async function buildChangeFiles(
 export async function buildChangeFilesForRange(
   git: GitGateway,
   range: DiffRange,
+  options: ChangeFileOptions = {},
 ): Promise<ChangeFile[]> {
   const nameStatusOutput = await git.text([
     "diff",
@@ -439,7 +661,12 @@ export async function buildChangeFilesForRange(
     "--no-ext-diff",
   ]);
 
-  return buildChangeFiles(git, range, parseNameStatus(nameStatusOutput));
+  return buildChangeFiles(
+    git,
+    range,
+    parseNameStatus(nameStatusOutput),
+    options,
+  );
 }
 
 export function changeSetTotals(files: readonly ChangeFile[]): ChangeTotals {

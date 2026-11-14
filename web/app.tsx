@@ -30,12 +30,15 @@ import {
   fetchCommits,
   fetchCommitSet,
   fetchConfig,
+  fetchFileDiff,
   fetchPending,
   fetchTimeWindow,
   fetchWorktreePending,
   fetchWorktrees,
+  fileContentUrl,
   setReviewMark,
   subscribeRepositoryChanges,
+  type FileRequestContext,
 } from "./api";
 import {
   applyKeybindingOverrides,
@@ -320,12 +323,79 @@ function diffLineClass(line: string): string {
   return "diff-line diff-context";
 }
 
+function formatBytes(size: number | undefined): string {
+  if (size === undefined) {
+    return "unknown size";
+  }
+  if (size < 1024) {
+    return `${size} B`;
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function binarySummary(file: ChangeFile): string {
+  if (file.status === "added") {
+    return `Binary file added · ${formatBytes(file.newSize)}`;
+  }
+  if (file.status === "deleted") {
+    return `Binary file deleted · ${formatBytes(file.oldSize)}`;
+  }
+  return `Binary file changed · old ${formatBytes(
+    file.oldSize,
+  )} → new ${formatBytes(file.newSize)}`;
+}
+
+function ImagePreview({
+  file,
+  context,
+}: {
+  readonly file: ChangeFile;
+  readonly context: FileRequestContext;
+}) {
+  const before = file.oldRev
+    ? fileContentUrl(context, file.path, file.oldRev)
+    : null;
+  const after = file.newRev
+    ? fileContentUrl(context, file.path, file.newRev)
+    : null;
+
+  if (!before && !after) {
+    return null;
+  }
+
+  return (
+    <div className="image-preview" data-testid="image-preview">
+      {before ? (
+        <figure className="image-preview-side">
+          <figcaption>Before · {file.oldPath ?? file.path}</figcaption>
+          <img
+            src={before}
+            alt={`${file.oldPath ?? file.path} before`}
+            loading="lazy"
+          />
+        </figure>
+      ) : null}
+      {after ? (
+        <figure className="image-preview-side">
+          <figcaption>After · {file.path}</figcaption>
+          <img src={after} alt={`${file.path} after`} loading="lazy" />
+        </figure>
+      ) : null}
+    </div>
+  );
+}
+
 function DiffView({
   file,
   id,
+  context,
 }: {
   readonly file: ChangeFile;
   readonly id?: string;
+  readonly context: FileRequestContext;
 }) {
   return (
     <div className="diff-view" id={id}>
@@ -347,8 +417,15 @@ function DiffView({
         </span>
       </div>
 
+      {file.image ? <ImagePreview file={file} context={context} /> : null}
+
       {file.binary ? (
-        <div className="diff-empty">Binary file changed — preview not available yet.</div>
+        <div className="diff-empty">{binarySummary(file)}</div>
+      ) : file.collapsed ? (
+        <div className="diff-empty diff-collapsed" data-testid="collapsed-diff">
+          Large diff · {file.additions + file.deletions} changed lines. Press{" "}
+          <kbd>x</kbd> to load it.
+        </div>
       ) : (
         <div className="diff-lines">
           {file.diff.split("\n").map((line, index) => (
@@ -382,8 +459,10 @@ function stackFileIndices(
 
 function CommitStackView({
   groups,
+  context,
 }: {
   readonly groups: readonly CommitChangeGroup[];
+  readonly context: FileRequestContext;
 }) {
   if (groups.length === 0) {
     return <div className="diff-empty">No commit changes.</div>;
@@ -410,6 +489,7 @@ function CommitStackView({
                 key={`${group.commit.hash}:${file.path}`}
                 id={stackFileId(group.commit.hash, file.path)}
                 file={file}
+                context={context}
               />
             ))
           )}
@@ -801,6 +881,34 @@ function setChangeFileReviewState(
   return { ...changeSet, files: changeSet.files.map(update) };
 }
 
+function replaceChangeFile(
+  changeSet: ChangeSet,
+  path: string,
+  rev: string | undefined,
+  updated: ChangeFile,
+): ChangeSet {
+  const matches = (file: ChangeFile): boolean =>
+    file.path === path &&
+    (rev === undefined || file.oldRev === rev || file.newRev === rev);
+  const replace = (file: ChangeFile): ChangeFile =>
+    matches(file) ? updated : file;
+
+  if (changeSet.commitGroups) {
+    const commitGroups = changeSet.commitGroups.map((group) => ({
+      ...group,
+      files: group.files.map(replace),
+    }));
+
+    return {
+      ...changeSet,
+      files: commitGroups.flatMap((group) => group.files),
+      commitGroups,
+    };
+  }
+
+  return { ...changeSet, files: changeSet.files.map(replace) };
+}
+
 export function App() {
   const [pending, setPending] = useState<ChangeSet | null>(null);
   const [worktrees, setWorktrees] = useState<readonly WorktreeSummary[]>([]);
@@ -820,6 +928,7 @@ export function App() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [markError, setMarkError] = useState<string | null>(null);
+  const [diffError, setDiffError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [repositoryChanged, setRepositoryChanged] = useState(false);
   const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
@@ -1096,6 +1205,21 @@ export function App() {
   }, [changeSet, loading]);
 
   const files = changeSet?.files ?? [];
+  const fileContext = useMemo<FileRequestContext>(
+    () => ({
+      selection: changeSet?.selection ?? selection,
+      worktreePath: selectedWorktreePath,
+      agent: agentFilter,
+      filters: filterRequest,
+    }),
+    [
+      agentFilter,
+      changeSet?.selection,
+      filterRequest,
+      selectedWorktreePath,
+      selection,
+    ],
+  );
   const filterInfo = changeSet?.filter;
   const hiddenFiles = filterInfo?.hiddenFiles ?? 0;
   const selected = files.find((file) => file.path === selectedPath) ?? null;
@@ -1442,6 +1566,34 @@ export function App() {
             });
           break;
         }
+        case "expand-diff": {
+          const file =
+            focusedPanel === "diff"
+              ? files.find((candidate) => candidate.path === selectedPath)
+              : (files[fileCursor] ??
+                files.find((candidate) => candidate.path === selectedPath));
+          if (!file || !file.collapsed) {
+            break;
+          }
+
+          const rev = file.newRev ?? file.oldRev;
+          setDiffError(null);
+          void fetchFileDiff(fileContext, file.path, rev)
+            .then((updated) => {
+              setChangeSet((current) =>
+                current
+                  ? replaceChangeFile(current, file.path, rev, updated)
+                  : current,
+              );
+              setDiffError(null);
+            })
+            .catch((reason: unknown) => {
+              setDiffError(
+                reason instanceof Error ? reason.message : String(reason),
+              );
+            });
+          break;
+        }
         case "refresh":
           refreshRepository();
           break;
@@ -1462,6 +1614,7 @@ export function App() {
       branchCursor,
       commits,
       commitCursor,
+      fileContext,
       files,
       fileCursor,
       focusedPanel,
@@ -1821,10 +1974,10 @@ export function App() {
                   : emptyFilesMessage(selection)}
               </div>
             ) : (
-              <CommitStackView groups={commitGroups} />
+              <CommitStackView groups={commitGroups} context={fileContext} />
             )
           ) : selected ? (
-            <DiffView file={selected} />
+            <DiffView file={selected} context={fileContext} />
           ) : !loading && !error && files.length === 0 ? (
             <div className="diff-empty">
               {hiddenFiles > 0
@@ -1882,6 +2035,11 @@ export function App() {
         {markError ? (
           <span className="status-error" title={markError}>
             Review Mark failed
+          </span>
+        ) : null}
+        {diffError ? (
+          <span className="status-error" title={diffError}>
+            Diff load failed
           </span>
         ) : null}
         <span className="status-agent">agent: {agentFilter ?? "all"}</span>

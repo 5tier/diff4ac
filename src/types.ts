@@ -33,9 +33,15 @@ export interface ChangeFile {
   readonly additions: number;
   readonly deletions: number;
   readonly binary: boolean;
+  readonly image?: boolean;
   readonly diff: string;
   readonly hunks: readonly Hunk[];
   readonly contentHash: string;
+  readonly oldSize?: number;
+  readonly newSize?: number;
+  readonly oldRev?: string;
+  readonly newRev?: string;
+  readonly collapsed?: boolean;
   readonly reviewed?: boolean;
 }
 

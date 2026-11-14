@@ -1,10 +1,12 @@
 import type {
   BranchList,
+  ChangeFile,
   ChangeSet,
   ChangeViewMode,
   CommitList,
   ConfigInfo,
   FilterRequest,
+  Selection,
   TimeWindow,
   WorktreeList,
 } from "../src/types";
@@ -61,6 +63,88 @@ function appendFilters(
   }
   params.set("noise", filters.hideNoise ? "1" : "0");
   return params;
+}
+
+function appendSelection(
+  params: URLSearchParams,
+  selection: Selection,
+): URLSearchParams {
+  switch (selection.kind) {
+    case "pending":
+      params.set("selection", "pending");
+      break;
+    case "commit":
+      params.set("selection", "commit");
+      params.set("hash", selection.commit.hash);
+      break;
+    case "commits":
+      params.set("selection", "commits");
+      params.set("hashes", selection.commits.map((commit) => commit.hash).join(","));
+      params.set("mode", selection.mode);
+      break;
+    case "time-window":
+      params.set("selection", "time-window");
+      params.set("start", selection.window.start);
+      params.set("end", selection.window.end);
+      params.set("preset", selection.window.preset);
+      params.set("mode", selection.mode);
+      break;
+    case "branch":
+      params.set("selection", "branch");
+      params.set("name", selection.branch.name);
+      break;
+  }
+  return params;
+}
+
+export interface FileRequestContext {
+  readonly selection: Selection;
+  readonly worktreePath?: string | null;
+  readonly agent?: string | null;
+  readonly filters?: FilterRequest;
+}
+
+function fileRequestQuery(
+  target: FileRequestContext,
+  path: string,
+  rev?: string,
+): URLSearchParams {
+  const params = appendSelection(
+    new URLSearchParams(),
+    target.selection,
+  );
+  if (target.worktreePath) {
+    params.set("worktree", target.worktreePath);
+  }
+  if (target.agent) {
+    params.set("agent", target.agent);
+  }
+  appendFilters(params, target.filters);
+  params.set("path", path);
+  if (rev !== undefined) {
+    params.set("rev", rev);
+  }
+  return params;
+}
+
+export function fileContentUrl(
+  target: FileRequestContext,
+  path: string,
+  rev: string,
+): string {
+  const params = fileRequestQuery(target, path, rev);
+  params.set("token", sessionToken);
+  return `/api/file-content?${params.toString()}`;
+}
+
+export function fetchFileDiff(
+  target: FileRequestContext,
+  path: string,
+  rev: string | undefined,
+  signal?: AbortSignal,
+): Promise<ChangeFile> {
+  const params = fileRequestQuery(target, path, rev);
+  return getJson<ChangeFile>(`/api/file-diff?${params.toString()}`, signal);
 }
 
 export function fetchPending(
