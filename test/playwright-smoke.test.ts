@@ -1043,3 +1043,42 @@ test(
   },
   30_000,
 );
+
+test(
+  "renders the change overview ruler and scrolls the diff pane when clicked",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".file-row");
+
+    const ruler = page.locator('[data-testid="overview-ruler"]');
+    await ruler.waitFor();
+    await page.waitForFunction(
+      () =>
+        document.querySelectorAll('[data-testid="overview-mark"]').length > 0,
+    );
+    expect(
+      await page.locator('[data-testid="overview-boundary"]').count(),
+    ).toBeGreaterThan(0);
+    expect(
+      await page.locator('[data-testid="overview-viewport"]').count(),
+    ).toBe(1);
+
+    await page
+      .locator(".diff-pane")
+      .evaluate((element) => element.scrollTo({ top: 0 }));
+
+    const box = await ruler.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) {
+      return;
+    }
+
+    await ruler.click({
+      position: { x: box.width / 2, y: box.height * 0.85 },
+    });
+    await page.waitForFunction(
+      () => (document.querySelector(".diff-pane")?.scrollTop ?? 0) > 0,
+    );
+  },
+  30_000,
+);

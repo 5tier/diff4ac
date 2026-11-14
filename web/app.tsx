@@ -62,7 +62,12 @@ import {
   VIRTUAL_ROW_THRESHOLD,
   type DiffJump,
 } from "./DiffView";
+import { OverviewRuler } from "./OverviewRuler";
 import type { DiffViewMode } from "../src/diff/rows";
+import {
+  buildChangeOverview,
+  type OverviewFile,
+} from "../src/diff/overview";
 import {
   describeModeChange,
   isModeOnlyChange,
@@ -1243,6 +1248,33 @@ export function App() {
     }));
   }, [commitGroups, files, isStack]);
 
+  const overviewFiles = useMemo<OverviewFile[]>(() => {
+    if (isStack) {
+      return commitGroups.flatMap((group) =>
+        group.files.map((file) => ({
+          key: stackFileKey(group.commit.hash, file.path),
+          hunks: file.hunks,
+          ...(file.collapsed ? { collapsed: true } : {}),
+          ...(file.binary ? { binary: true } : {}),
+        })),
+      );
+    }
+
+    return files
+      .filter((file) => file.path === selectedPath)
+      .map((file) => ({
+        key: file.path,
+        hunks: file.hunks,
+        ...(file.collapsed ? { collapsed: true } : {}),
+        ...(file.binary ? { binary: true } : {}),
+      }));
+  }, [commitGroups, files, isStack, selectedPath]);
+
+  const changeOverview = useMemo(
+    () => buildChangeOverview(overviewFiles, diffView),
+    [diffView, overviewFiles],
+  );
+
   const searchMatches = useMemo(
     () => findSearchMatches(searchFiles, searchQuery, diffView),
     [diffView, searchFiles, searchQuery],
@@ -2190,57 +2222,62 @@ export function App() {
           </Panel>
         </aside>
 
-        <main
-          ref={diffRef}
-          className={
-            focusedPanel === "diff" ? "diff-pane diff-pane-focused" : "diff-pane"
-          }
-          data-panel="diff"
-          data-focused={focusedPanel === "diff" ? "true" : "false"}
-        >
-          {isStack ? (
-            commitGroups.length === 0 ? (
+        <div className="diff-shell">
+          <main
+            ref={diffRef}
+            className={
+              focusedPanel === "diff"
+                ? "diff-pane diff-pane-focused"
+                : "diff-pane"
+            }
+            data-panel="diff"
+            data-focused={focusedPanel === "diff" ? "true" : "false"}
+          >
+            {isStack ? (
+              commitGroups.length === 0 ? (
+                <div className="diff-empty">
+                  {hiddenFiles > 0
+                    ? `${hiddenFilesLabel(hiddenFiles)} by Filters.`
+                    : emptyFilesMessage(selection)}
+                </div>
+              ) : (
+                <CommitStackView
+                  groups={commitGroups}
+                  context={fileContext}
+                  viewMode={diffView}
+                  searchMatches={searchMatches}
+                  currentMatch={currentMatch}
+                  jump={jump}
+                />
+              )
+            ) : selected ? (
+              <DiffView
+                fileKey={selected.path}
+                file={selected}
+                context={fileContext}
+                viewMode={diffView}
+                searchMatches={searchMatches.filter(
+                  (match) => match.fileKey === selected.path,
+                )}
+                currentMatch={currentMatch}
+                jump={jump}
+              />
+            ) : !loading && !error && files.length === 0 ? (
               <div className="diff-empty">
                 {hiddenFiles > 0
                   ? `${hiddenFilesLabel(hiddenFiles)} by Filters.`
                   : emptyFilesMessage(selection)}
               </div>
             ) : (
-              <CommitStackView
-                groups={commitGroups}
-                context={fileContext}
-                viewMode={diffView}
-                searchMatches={searchMatches}
-                currentMatch={currentMatch}
-                jump={jump}
-              />
-            )
-          ) : selected ? (
-            <DiffView
-              fileKey={selected.path}
-              file={selected}
-              context={fileContext}
-              viewMode={diffView}
-              searchMatches={searchMatches.filter(
-                (match) => match.fileKey === selected.path,
-              )}
-              currentMatch={currentMatch}
-              jump={jump}
-            />
-          ) : !loading && !error && files.length === 0 ? (
-            <div className="diff-empty">
-              {hiddenFiles > 0
-                ? `${hiddenFilesLabel(hiddenFiles)} by Filters.`
-                : emptyFilesMessage(selection)}
-            </div>
-          ) : (
-            <div className="diff-empty">
-              {error
-                ? "Could not load the Change Set."
-                : "Select a file to see its unified diff."}
-            </div>
-          )}
-        </main>
+              <div className="diff-empty">
+                {error
+                  ? "Could not load the Change Set."
+                  : "Select a file to see its unified diff."}
+              </div>
+            )}
+          </main>
+          <OverviewRuler overview={changeOverview} pane={diffRef} />
+        </div>
       </div>
 
       <footer className="status-bar">

@@ -9,6 +9,7 @@
   --accent: #7fb7e8;
   --add: #7ec699;
   --del: #e28a8a;
+  --modified: #6cb6ff;
   --hunk: #c0a3e5;
   font-family: "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
   font-size: 13px;
@@ -26,6 +27,7 @@
     --accent: #1668a8;
     --add: #1a7f37;
     --del: #b42318;
+    --modified: #0969da;
     --hunk: #6f42c1;
   }
 }
@@ -492,11 +494,67 @@ button {
   color: var(--hunk);
 }
 
+.diff-shell {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
 .diff-pane {
   flex: 1;
   min-width: 0;
   overflow: auto;
   background: var(--bg);
+}
+
+.overview-ruler {
+  position: relative;
+  flex: none;
+  width: 14px;
+  border-left: 1px solid var(--border);
+  background: var(--bg-alt);
+  cursor: pointer;
+  user-select: none;
+}
+
+.overview-boundary {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--muted);
+  opacity: 0.55;
+}
+
+.overview-mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  min-height: 4px;
+  border-radius: 1px;
+}
+
+.overview-mark-add {
+  background: var(--add);
+}
+
+.overview-mark-delete {
+  background: var(--del);
+}
+
+.overview-mark-mixed {
+  background: var(--modified);
+}
+
+.overview-viewport {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  border: 1px solid var(--muted);
+  border-radius: 2px;
+  background: rgba(127, 135, 146, 0.16);
 }
 
 .diff-pane-focused {
@@ -510,6 +568,7 @@ button {
 .diff-heading {
   position: sticky;
   top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
