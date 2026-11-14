@@ -1082,3 +1082,79 @@ test(
   },
   30_000,
 );
+
+test(
+  "command toolbar runs the same actions as s, c and t",
+  async () => {
+    await page.evaluate(() => {
+      sessionStorage.removeItem("diff4ac-diff-view");
+      sessionStorage.removeItem("diff4ac-full-file");
+    });
+    await page.reload();
+    await page.waitForSelector(".file-row");
+
+    const toolbar = page.locator('[data-testid="command-toolbar"]');
+    await toolbar.waitFor();
+
+    const toggleView = page.locator(
+      '[data-binding-id="global.toggleDiffView"]',
+    );
+    const toggleFullFile = page.locator(
+      '[data-binding-id="global.toggleFullFile"]',
+    );
+    const toggleMode = page.locator('[data-binding-id="commits.toggleMode"]');
+
+    expect(await toggleView.locator("kbd").textContent()).toBe("s");
+    expect(await toggleFullFile.locator("kbd").textContent()).toBe("c");
+    expect(await toggleMode.locator("kbd").textContent()).toBe("t");
+
+    const statusView = page.locator('[data-testid="status-view"]');
+    expect(await statusView.textContent()).toContain("side-by-side · full file");
+
+    await toggleView.click();
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-testid="status-view"]')
+        ?.textContent?.includes("unified"),
+    );
+    await page.keyboard.press("s");
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-testid="status-view"]')
+        ?.textContent?.includes("side-by-side"),
+    );
+
+    await toggleFullFile.click();
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-testid="status-view"]')
+        ?.textContent?.includes("hunks only"),
+    );
+    await page.keyboard.press("c");
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-testid="status-view"]')
+        ?.textContent?.includes("full file"),
+    );
+
+    await page.keyboard.press("3");
+    await page.keyboard.press("Space");
+    await page.keyboard.press("j");
+    await page.keyboard.press("Space");
+    await page.waitForFunction(() =>
+      document.querySelector(".status-mode")?.textContent?.includes("Net Diff"),
+    );
+
+    await toggleMode.click();
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".status-mode")
+        ?.textContent?.includes("Commit Stack"),
+    );
+    await page.keyboard.press("t");
+    await page.waitForFunction(() =>
+      document.querySelector(".status-mode")?.textContent?.includes("Net Diff"),
+    );
+  },
+  30_000,
+);

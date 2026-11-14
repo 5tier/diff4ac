@@ -1,0 +1,298 @@
+import type { DiffViewMode } from "./diff/rows";
+import {
+  PANEL_ORDER,
+  type KeyAction,
+  type KeyBinding,
+  type KeyScope,
+  type PanelId,
+} from "./keymap";
+import type { ChangeViewMode } from "./types";
+
+export type ToolbarGroupId =
+  | "panels"
+  | "view"
+  | "navigate"
+  | "review"
+  | "commits"
+  | "repository"
+  | "help";
+
+export const TOOLBAR_GROUP_LABELS: Record<ToolbarGroupId, string> = {
+  panels: "Panels",
+  view: "View",
+  navigate: "Navigate",
+  review: "Review",
+  commits: "Commits",
+  repository: "Repository",
+  help: "Help",
+};
+
+interface ToolbarGroupDefinition {
+  readonly id: ToolbarGroupId;
+  readonly bindingIds: readonly string[];
+}
+
+export const TOOLBAR_GROUPS: readonly ToolbarGroupDefinition[] = [
+  {
+    id: "panels",
+    bindingIds: [
+      "global.focusWorktrees",
+      "global.focusBranches",
+      "global.focusCommits",
+      "global.focusFiles",
+      "global.focusDiff",
+    ],
+  },
+  {
+    id: "view",
+    bindingIds: [
+      "global.toggleDiffView",
+      "global.toggleFullFile",
+      "global.noise",
+      "global.filters",
+    ],
+  },
+  {
+    id: "navigate",
+    bindingIds: [
+      "global.search",
+      "diff.previousHunk",
+      "diff.nextHunk",
+      "diff.previousFile",
+      "diff.nextFile",
+      "search.nextMatch",
+      "search.previousMatch",
+      "search.clear",
+    ],
+  },
+  {
+    id: "review",
+    bindingIds: ["files.toggleMark", "files.expandDiff"],
+  },
+  {
+    id: "commits",
+    bindingIds: [
+      "commits.toggleMode",
+      "commits.timeWindows",
+      "commits.cycleAgentFilter",
+      "commits.rangePick",
+      "commits.togglePick",
+    ],
+  },
+  {
+    id: "repository",
+    bindingIds: ["global.refresh"],
+  },
+  {
+    id: "help",
+    bindingIds: ["global.help"],
+  },
+];
+
+const SHORT_LABELS: Readonly<Record<string, string>> = {
+  "global.focusWorktrees": "Worktrees",
+  "global.focusBranches": "Branches",
+  "global.focusCommits": "Commits",
+  "global.focusFiles": "Files",
+  "global.focusDiff": "Diff",
+  "global.toggleDiffView": "Side-by-side",
+  "global.toggleFullFile": "Full file",
+  "global.noise": "Noise",
+  "global.filters": "Filters",
+  "global.search": "Search",
+  "diff.previousHunk": "Previous hunk",
+  "diff.nextHunk": "Next hunk",
+  "diff.previousFile": "Previous file",
+  "diff.nextFile": "Next file",
+  "search.nextMatch": "Next match",
+  "search.previousMatch": "Previous match",
+  "search.clear": "Clear search",
+  "files.toggleMark": "Review Mark",
+  "files.expandDiff": "Load diff",
+  "commits.toggleMode": "Mode",
+  "commits.timeWindows": "Time Window",
+  "commits.cycleAgentFilter": "Agent",
+  "commits.rangePick": "Range pick",
+  "commits.togglePick": "Pick",
+  "global.refresh": "Refresh",
+  "global.help": "Help",
+};
+
+export interface ToolbarState {
+  readonly hasFile: boolean;
+  readonly selectedFileCollapsed: boolean;
+  readonly hasCommit: boolean;
+  readonly canToggleMode: boolean;
+  readonly mode: ChangeViewMode | null;
+  readonly agentFilter: string | null;
+  readonly hasAgentCommits: boolean;
+  readonly searchActive: boolean;
+  readonly searchMatchCount: number;
+  readonly diffView: DiffViewMode;
+  readonly fullFile: boolean;
+  readonly hideNoise: boolean;
+  readonly filtersOpen: boolean;
+  readonly repositoryChanged: boolean;
+}
+
+export interface ToolbarItem {
+  readonly id: string;
+  readonly group: ToolbarGroupId;
+  readonly label: string;
+  readonly key: string;
+  readonly displayKey: string;
+  readonly action: KeyAction;
+  readonly panel: KeyScope;
+  readonly panelAction: PanelId | null;
+  readonly toggle: boolean;
+  readonly pressed: boolean;
+  readonly highlighted: boolean;
+  readonly enabled: boolean;
+  readonly disabledReason: string | null;
+  readonly value: string | null;
+}
+
+export interface ToolbarGroup {
+  readonly id: ToolbarGroupId;
+  readonly label: string;
+  readonly items: readonly ToolbarItem[];
+}
+
+interface ItemState {
+  readonly enabled: boolean;
+  readonly disabledReason?: string;
+  readonly toggle?: boolean;
+  readonly pressed?: boolean;
+  readonly highlighted?: boolean;
+  readonly value?: string;
+}
+
+function modeLabel(mode: ChangeViewMode): string {
+  return mode === "net" ? "Net Diff" : "Commit Stack";
+}
+
+function isPanelId(scope: KeyScope): scope is PanelId {
+  return (PANEL_ORDER as readonly string[]).includes(scope);
+}
+
+export function displayKey(key: string): string {
+  if (key === " ") {
+    return "Space";
+  }
+  if (key === "Escape") {
+    return "Esc";
+  }
+  return key;
+}
+
+function itemState(binding: KeyBinding, state: ToolbarState): ItemState {
+  switch (binding.id) {
+    case "global.toggleDiffView":
+      return {
+        enabled: true,
+        toggle: true,
+        pressed: state.diffView === "side-by-side",
+      };
+    case "global.toggleFullFile":
+      return { enabled: true, toggle: true, pressed: state.fullFile };
+    case "global.noise":
+      return { enabled: true, toggle: true, pressed: state.hideNoise };
+    case "global.filters":
+      return { enabled: true, highlighted: state.filtersOpen };
+    case "diff.previousHunk":
+    case "diff.nextHunk":
+    case "diff.previousFile":
+    case "diff.nextFile":
+    case "files.toggleMark":
+      return state.hasFile
+        ? { enabled: true }
+        : { enabled: false, disabledReason: "No file selected" };
+    case "files.expandDiff":
+      if (!state.hasFile) {
+        return { enabled: false, disabledReason: "No file selected" };
+      }
+      return state.selectedFileCollapsed
+        ? { enabled: true }
+        : { enabled: false, disabledReason: "No collapsed diff to load" };
+    case "search.nextMatch":
+    case "search.previousMatch":
+      if (!state.searchActive) {
+        return { enabled: false, disabledReason: "No search active" };
+      }
+      return state.searchMatchCount > 0
+        ? { enabled: true }
+        : { enabled: false, disabledReason: "No search matches" };
+    case "search.clear":
+      return state.searchActive
+        ? { enabled: true }
+        : { enabled: false, disabledReason: "No search active" };
+    case "commits.toggleMode":
+      return state.canToggleMode
+        ? {
+            enabled: true,
+            toggle: true,
+            pressed: state.mode === "stack",
+            ...(state.mode ? { value: modeLabel(state.mode) } : {}),
+          }
+        : {
+            enabled: false,
+            disabledReason: "No contiguous commit Selection",
+            ...(state.mode ? { value: modeLabel(state.mode) } : {}),
+          };
+    case "commits.cycleAgentFilter":
+      return {
+        enabled: state.hasAgentCommits,
+        ...(state.hasAgentCommits
+          ? {}
+          : { disabledReason: "No Agent commits" }),
+        value: state.agentFilter ?? "All",
+      };
+    case "commits.rangePick":
+    case "commits.togglePick":
+      return state.hasCommit
+        ? { enabled: true }
+        : { enabled: false, disabledReason: "No commit selected" };
+    case "global.refresh":
+      return { enabled: true, highlighted: state.repositoryChanged };
+    default:
+      return { enabled: true };
+  }
+}
+
+export function buildToolbar(
+  keymap: readonly KeyBinding[],
+  state: ToolbarState,
+): readonly ToolbarGroup[] {
+  const byId = new Map(keymap.map((binding) => [binding.id, binding] as const));
+
+  return TOOLBAR_GROUPS.map((group) => ({
+    id: group.id,
+    label: TOOLBAR_GROUP_LABELS[group.id],
+    items: group.bindingIds.flatMap((id) => {
+      const binding = byId.get(id);
+      if (!binding) {
+        return [];
+      }
+
+      const item = itemState(binding, state);
+      return [
+        {
+          id: binding.id,
+          group: group.id,
+          label: SHORT_LABELS[binding.id] ?? binding.label,
+          key: binding.key,
+          displayKey: displayKey(binding.key),
+          action: binding.action,
+          panel: binding.panel,
+          panelAction: isPanelId(binding.panel) ? binding.panel : null,
+          toggle: item.toggle ?? false,
+          pressed: item.pressed ?? false,
+          highlighted: item.highlighted ?? false,
+          enabled: item.enabled,
+          disabledReason: item.disabledReason ?? null,
+          value: item.value ?? null,
+        },
+      ];
+    }),
+  }));
+}

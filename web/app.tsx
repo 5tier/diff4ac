@@ -55,6 +55,8 @@ import {
   type PanelId,
 } from "./keymap";
 import { FiltersDialog, type FiltersDraft } from "./FiltersDialog";
+import { CommandToolbar } from "./CommandToolbar";
+import { buildToolbar, type ToolbarItem } from "../src/toolbar";
 import {
   countDiffRows,
   DiffView,
@@ -1287,6 +1289,50 @@ export function App() {
       ? searchFiles.filter((file) => file.collapsed === true).length
       : 0;
 
+  const toolbarGroups = useMemo(() => {
+    const selectedFile =
+      files.find((file) => file.path === selectedPath) ?? null;
+    const activeFile = files[fileCursor] ?? selectedFile;
+
+    return buildToolbar(keymap, {
+      hasFile: files.length > 0,
+      selectedFileCollapsed: activeFile?.collapsed === true,
+      hasCommit: commits.length > 0,
+      canToggleMode:
+        (selection.kind === "commits" || selection.kind === "time-window") &&
+        selection.contiguous,
+      mode:
+        selection.kind === "commits" || selection.kind === "time-window"
+          ? selection.mode
+          : null,
+      agentFilter,
+      hasAgentCommits: agentNames.length > 0,
+      searchActive,
+      searchMatchCount: searchMatches.length,
+      diffView,
+      fullFile,
+      hideNoise,
+      filtersOpen,
+      repositoryChanged,
+    });
+  }, [
+    agentFilter,
+    agentNames.length,
+    commits.length,
+    diffView,
+    files,
+    fileCursor,
+    filtersOpen,
+    fullFile,
+    hideNoise,
+    keymap,
+    repositoryChanged,
+    searchActive,
+    searchMatches.length,
+    selectedPath,
+    selection,
+  ]);
+
   useEffect(() => {
     setMatchIndex((current) => {
       if (searchMatches.length === 0) {
@@ -1536,7 +1582,7 @@ export function App() {
   }, []);
 
   const dispatch = useCallback(
-    (action: KeyAction) => {
+    (action: KeyAction, panel: PanelId = focusedPanel) => {
       switch (action.type) {
         case "focus":
           setFocusedPanel(action.panel);
@@ -1547,14 +1593,14 @@ export function App() {
           setRangeAnchor(null);
           break;
         case "move":
-          if (focusedPanel === "branches") {
+          if (panel === "branches") {
             setBranchCursor((cursor) =>
               Math.max(
                 0,
                 Math.min(cursor + action.direction, branches.length - 1),
               ),
             );
-          } else if (focusedPanel === "commits") {
+          } else if (panel === "commits") {
             const nextCursor = Math.max(
               0,
               Math.min(commitCursor + action.direction, commits.length - 1),
@@ -1570,14 +1616,14 @@ export function App() {
               setPickedHashes(hashes);
               setSelection(selectionFromPicks(commits, hashes, "net"));
             }
-          } else if (focusedPanel === "files") {
+          } else if (panel === "files") {
             setFileCursor((cursor) =>
               Math.max(
                 0,
                 Math.min(cursor + action.direction, files.length - 1),
               ),
             );
-          } else if (focusedPanel === "worktrees") {
+          } else if (panel === "worktrees") {
             setWorktreeCursor((cursor) =>
               Math.max(
                 0,
@@ -1587,7 +1633,7 @@ export function App() {
           }
           break;
         case "select":
-          if (focusedPanel === "worktrees") {
+          if (panel === "worktrees") {
             const worktree = worktrees[worktreeCursor];
             if (worktree) {
               setSelectedWorktreePath(worktree.path);
@@ -1595,21 +1641,21 @@ export function App() {
               setRangeAnchor(null);
               setSelection({ kind: "pending" });
             }
-          } else if (focusedPanel === "branches") {
+          } else if (panel === "branches") {
             const branch = branches[branchCursor];
             if (branch && baseBranch) {
               setPickedHashes([]);
               setRangeAnchor(null);
               setSelection({ kind: "branch", branch, baseBranch });
             }
-          } else if (focusedPanel === "commits") {
+          } else if (panel === "commits") {
             const commit = commits[commitCursor];
             if (commit) {
               setRangeAnchor(null);
               setPickedHashes([commit.hash]);
               setSelection({ kind: "commit", commit });
             }
-          } else if (focusedPanel === "files") {
+          } else if (panel === "files") {
             const file = files[fileCursor];
             if (file) {
               setSelectedPath(file.path);
@@ -1617,7 +1663,7 @@ export function App() {
           }
           break;
         case "toggle-pick": {
-          if (focusedPanel !== "commits") {
+          if (panel !== "commits") {
             break;
           }
           const commit = commits[commitCursor];
@@ -1634,7 +1680,7 @@ export function App() {
           break;
         }
         case "range-pick": {
-          if (focusedPanel !== "commits") {
+          if (panel !== "commits") {
             break;
           }
           const commit = commits[commitCursor];
@@ -1698,7 +1744,7 @@ export function App() {
           break;
         case "toggle-mark": {
           const file =
-            focusedPanel === "diff"
+            panel === "diff"
               ? files.find((candidate) => candidate.path === selectedPath)
               : (files[fileCursor] ??
                 files.find((candidate) => candidate.path === selectedPath));
@@ -1740,7 +1786,7 @@ export function App() {
         }
         case "expand-diff": {
           const file =
-            focusedPanel === "diff"
+            panel === "diff"
               ? files.find((candidate) => candidate.path === selectedPath)
               : (files[fileCursor] ??
                 files.find((candidate) => candidate.path === selectedPath));
@@ -1856,6 +1902,13 @@ export function App() {
       searchFiles,
       searchMatches,
     ],
+  );
+
+  const runToolbarAction = useCallback(
+    (item: ToolbarItem) => {
+      dispatch(item.action, item.panelAction ?? undefined);
+    },
+    [dispatch],
   );
 
   useEffect(() => {
@@ -1975,6 +2028,8 @@ export function App() {
           {selectionBadge(selection)}
         </span>
       </header>
+
+      <CommandToolbar groups={toolbarGroups} onAction={runToolbarAction} />
 
       {repositoryChanged ? (
         <div
