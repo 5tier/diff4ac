@@ -76,6 +76,7 @@ export interface CommitSummary {
   readonly committedAt: string;
   readonly relativeDate: string;
   readonly firstParent: string | null;
+  readonly agent: string | null;
 }
 
 export interface CommitList {
@@ -159,9 +160,16 @@ export interface ConfigDiagnostic {
   readonly message: string;
 }
 
+export interface AgentPatternConfig {
+  readonly name: string;
+  readonly trailers: readonly string[];
+  readonly authors: readonly string[];
+}
+
 export interface ConfigInfo {
   readonly baseBranch: string | null;
   readonly baseBranchFile?: string;
   readonly keybindings: Readonly<Record<string, string>>;
+  readonly agents: readonly AgentPatternConfig[];
   readonly diagnostics: readonly ConfigDiagnostic[];
 }

@@ -2,7 +2,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { KEYMAP, type KeybindingOverrides } from "../keymap";
-import type { ConfigDiagnostic, ConfigInfo } from "../types";
+import type {
+  AgentPatternConfig,
+  ConfigDiagnostic,
+  ConfigInfo,
+} from "../types";
 
 export interface LoadConfigOptions {
   readonly repositoryRoot: string;
@@ -12,6 +16,7 @@ export interface LoadConfigOptions {
 interface ParsedSource {
   readonly baseBranch?: string;
   readonly keybindings: KeybindingOverrides;
+  readonly agents: readonly AgentPatternConfig[];
   readonly diagnostics: readonly ConfigDiagnostic[];
 }
 
@@ -34,7 +39,89 @@ function isValidKey(value: string): boolean {
 }
 
 function emptySource(): ParsedSource {
-  return { keybindings: {}, diagnostics: [] };
+  return { keybindings: {}, agents: [], diagnostics: [] };
+}
+
+function readRegexList(
+  value: unknown,
+  file: string,
+  field: string,
+  diagnostics: ConfigDiagnostic[],
+): string[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  const values =
+    typeof value === "string"
+      ? [value]
+      : Array.isArray(value)
+        ? value
+        : null;
+  if (!values) {
+    diagnostics.push({
+      file,
+      field,
+      message: "must be a string or an array of regex strings",
+    });
+    return [];
+  }
+
+  const patterns: string[] = [];
+  values.forEach((raw, index) => {
+    if (typeof raw !== "string") {
+      diagnostics.push({
+        file,
+        field: `${field}[${index}]`,
+        message: "must be a regex string",
+      });
+      return;
+    }
+
+    try {
+      new RegExp(raw, "i");
+    } catch (error) {
+      diagnostics.push({
+        file,
+        field: `${field}[${index}]`,
+        message: `invalid regular expression: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+      return;
+    }
+
+    patterns.push(raw);
+  });
+
+  return patterns;
+}
+
+function mergeAgentPatterns(
+  ...groups: readonly (readonly AgentPatternConfig[])[]
+): AgentPatternConfig[] {
+  const byName = new Map<
+    string,
+    { name: string; trailers: string[]; authors: string[] }
+  >();
+
+  for (const group of groups) {
+    for (const pattern of group) {
+      const existing = byName.get(pattern.name);
+      if (existing) {
+        existing.trailers.push(...pattern.trailers);
+        existing.authors.push(...pattern.authors);
+      } else {
+        byName.set(pattern.name, {
+          name: pattern.name,
+          trailers: [...pattern.trailers],
+          authors: [...pattern.authors],
+        });
+      }
+    }
+  }
+
+  return [...byName.values()];
 }
 
 function readSource(file: string): ParsedSource {
@@ -48,6 +135,7 @@ function readSource(file: string): ParsedSource {
   } catch (error) {
     return {
       keybindings: {},
+      agents: [],
       diagnostics: [
         {
           file,
@@ -66,6 +154,7 @@ function readSource(file: string): ParsedSource {
   } catch (error) {
     return {
       keybindings: {},
+      agents: [],
       diagnostics: [
         {
           file,
@@ -85,6 +174,7 @@ function readSource(file: string): ParsedSource {
   ) {
     return {
       keybindings: {},
+      agents: [],
       diagnostics: [
         {
           file,
@@ -148,7 +238,73 @@ function readSource(file: string): ParsedSource {
     }
   }
 
-  return { baseBranch, keybindings, diagnostics };
+  const agents: AgentPatternConfig[] = [];
+  if ("agents" in record) {
+    const value = record.agents;
+    if (
+      value === null ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      diagnostics.push({
+        file,
+        field: "agents",
+        message: "must be an object mapping Agent names to patterns",
+      });
+    } else {
+      for (const [rawName, entry] of Object.entries(value)) {
+        const name = rawName.trim();
+        if (!name) {
+          diagnostics.push({
+            file,
+            field: "agents",
+            message: "Agent name must be non-empty",
+          });
+          continue;
+        }
+
+        if (
+          entry === null ||
+          typeof entry !== "object" ||
+          Array.isArray(entry)
+        ) {
+          diagnostics.push({
+            file,
+            field: `agents.${name}`,
+            message: "must be an object with trailers and/or authors",
+          });
+          continue;
+        }
+
+        const patterns = entry as Record<string, unknown>;
+        const trailers = readRegexList(
+          patterns.trailers,
+          file,
+          `agents.${name}.trailers`,
+          diagnostics,
+        );
+        const authors = readRegexList(
+          patterns.authors,
+          file,
+          `agents.${name}.authors`,
+          diagnostics,
+        );
+
+        if (trailers.length === 0 && authors.length === 0) {
+          diagnostics.push({
+            file,
+            field: `agents.${name}`,
+            message: "must define at least one trailer or author pattern",
+          });
+          continue;
+        }
+
+        agents.push({ name, trailers, authors });
+      }
+    }
+  }
+
+  return { baseBranch, keybindings, agents, diagnostics };
 }
 
 function scopesConflict(
@@ -294,6 +450,7 @@ export function loadConfig(options: LoadConfigOptions): ConfigInfo {
       repositorySource.baseBranch ?? globalSource.baseBranch ?? null,
     ...(baseBranchFile ? { baseBranchFile } : {}),
     keybindings: conflicts.keybindings,
+    agents: mergeAgentPatterns(globalSource.agents, repositorySource.agents),
     diagnostics: [
       ...globalSource.diagnostics,
       ...repositorySource.diagnostics,

@@ -1,3 +1,8 @@
+import {
+  classifyAgent,
+  DEFAULT_AGENT_PATTERNS,
+  type CompiledAgentPattern,
+} from "../agents";
 import type { GitGateway } from "../git/gateway";
 import { filterCommitsInTimeWindow } from "../time-windows";
 import type { CommitList, CommitSummary, TimeWindow } from "../types";
@@ -12,6 +17,7 @@ const COMMIT_FORMAT = [
   "%cI",
   "%P",
   "%s",
+  "%(trailers:only,unfold)",
 ].join(`%x1f`) + `%x1e`;
 
 const MINUTE = 60;
@@ -54,7 +60,11 @@ export function relativeDate(iso: string, now: Date = new Date()): string {
   return `${seconds} seconds ago`;
 }
 
-function parseCommitLog(output: string, now: Date): CommitSummary[] {
+function parseCommitLog(
+  output: string,
+  now: Date,
+  patterns: readonly CompiledAgentPattern[],
+): CommitSummary[] {
   const commits: CommitSummary[] = [];
 
   for (const record of output.split(RECORD)) {
@@ -63,23 +73,42 @@ function parseCommitLog(output: string, now: Date): CommitSummary[] {
       continue;
     }
 
-    const [hash, shortHash, name, email, committedAt, parents, message] =
-      trimmed.split(FIELD);
+    const [
+      hash,
+      shortHash,
+      name,
+      email,
+      committedAt,
+      parents,
+      message,
+      trailersRaw,
+    ] = trimmed.split(FIELD);
     if (!hash || !shortHash || !committedAt) {
       continue;
     }
+
+    const authorName = name ?? "";
+    const authorEmail = email ?? "";
+    const trailers = (trailersRaw ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
 
     commits.push({
       hash,
       shortHash,
       message: message ?? "",
       author: {
-        name: name ?? "",
-        email: email ?? "",
+        name: authorName,
+        email: authorEmail,
       },
       committedAt,
       relativeDate: relativeDate(committedAt, now),
       firstParent: parents?.split(" ").filter(Boolean)[0] ?? null,
+      agent: classifyAgent(
+        { authorName, authorEmail, trailers },
+        patterns,
+      ),
     });
   }
 
@@ -89,6 +118,8 @@ function parseCommitLog(output: string, now: Date): CommitSummary[] {
 export interface ListCommitsOptions {
   readonly limit?: number;
   readonly now?: Date;
+  readonly agentPatterns?: readonly CompiledAgentPattern[];
+  readonly agent?: string;
 }
 
 export async function listCommits(
@@ -110,9 +141,16 @@ export async function listCommits(
   }
 
   const output = await git.text(args);
+  const commits = parseCommitLog(
+    output,
+    options.now ?? new Date(),
+    options.agentPatterns ?? DEFAULT_AGENT_PATTERNS,
+  );
   return {
     worktree,
-    commits: parseCommitLog(output, options.now ?? new Date()),
+    commits: options.agent
+      ? commits.filter((commit) => commit.agent === options.agent)
+      : commits,
   };
 }
 
@@ -131,7 +169,10 @@ export async function listCommitsInWindow(
 export async function readCommit(
   git: GitGateway,
   rev: string,
-  options: { readonly now?: Date } = {},
+  options: {
+    readonly now?: Date;
+    readonly agentPatterns?: readonly CompiledAgentPattern[];
+  } = {},
 ): Promise<CommitSummary> {
   const output = await git.text([
     "log",
@@ -140,7 +181,11 @@ export async function readCommit(
     rev,
     "--",
   ]);
-  const commit = parseCommitLog(output, options.now ?? new Date())[0];
+  const commit = parseCommitLog(
+    output,
+    options.now ?? new Date(),
+    options.agentPatterns ?? DEFAULT_AGENT_PATTERNS,
+  )[0];
 
   if (!commit) {
     throw new Error(`commit "${rev}" was not found`);

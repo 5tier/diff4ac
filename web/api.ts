@@ -133,6 +133,7 @@ export function fetchTimeWindow(
   mode: ChangeViewMode,
   signal?: AbortSignal,
   worktreePath?: string | null,
+  agent?: string | null,
 ): Promise<ChangeSet> {
   const query = new URLSearchParams({
     start: window.start,
@@ -142,6 +143,9 @@ export function fetchTimeWindow(
   });
   if (worktreePath) {
     query.set("worktree", worktreePath);
+  }
+  if (agent) {
+    query.set("agent", agent);
   }
   return getJson<ChangeSet>(`/api/time-window?${query.toString()}`, signal);
 }

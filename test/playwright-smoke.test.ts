@@ -76,7 +76,9 @@ beforeAll(async () => {
 
   repo.write("src/alpha.ts", `${longFile}changed once\n`);
   repo.write("src/beta.ts", "beta two\n");
-  repo.commit("second commit");
+  repo.commit("second commit", {
+    trailers: ["Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"],
+  });
 
   repo.write("src/beta.ts", "beta three\n");
   repo.commit("third commit");
@@ -640,6 +642,44 @@ test(
     await banner.waitFor({ state: "detached" });
     await page.waitForFunction(
       () => document.querySelectorAll(".file-row-reviewed").length === 0,
+    );
+  },
+  30_000,
+);
+
+test(
+  "badges Agent Commits and filters commits by Agent",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".commit-row");
+    await page.keyboard.press("3");
+
+    await page.waitForFunction(() =>
+      document
+        .querySelector('[data-panel="commits"]')
+        ?.textContent?.includes("🤖 Claude Code"),
+    );
+    const allCommits = await page.locator(".commit-row").count();
+    expect(allCommits).toBeGreaterThan(1);
+
+    await page.keyboard.press("a");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".commit-row").length === 1,
+    );
+    expect(
+      await page.locator(".commit-row .commit-message").textContent(),
+    ).toBe("second commit");
+    expect(await page.locator(".status-agent").textContent()).toContain(
+      "agent: Claude Code",
+    );
+
+    await page.keyboard.press("a");
+    await page.waitForFunction(
+      (count) => document.querySelectorAll(".commit-row").length === count,
+      allCommits,
+    );
+    expect(await page.locator(".status-agent").textContent()).toContain(
+      "agent: all",
     );
   },
   30_000,

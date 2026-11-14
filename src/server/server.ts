@@ -1,6 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import {
+  BUILT_IN_AGENT_PATTERNS,
+  compileAgentPatterns,
+  type CompiledAgentPattern,
+} from "../agents";
 import { buildBranchChangeSet } from "../changeset/branch";
 import { buildCommitChangeSet } from "../changeset/commit";
 import {
@@ -144,6 +149,7 @@ interface RequestContext {
   readonly repositoryId: string;
   readonly reviewMarks: ReviewMarkStore;
   readonly config: ConfigInfo;
+  readonly agentPatterns: readonly CompiledAgentPattern[];
   readonly events: EventHub;
 }
 
@@ -407,7 +413,13 @@ async function handleRequest(
   if (url.pathname === "/api/commits") {
     try {
       const git = await gitForRequest(context, url);
-      return json(await listCommits(git));
+      const agent = url.searchParams.get("agent") ?? undefined;
+      return json(
+        await listCommits(git, {
+          agentPatterns: context.agentPatterns,
+          agent: agent || undefined,
+        }),
+      );
     } catch (error) {
       return gitApiFailure(error);
     }
@@ -421,7 +433,12 @@ async function handleRequest(
 
     try {
       const git = await gitForRequest(context, url);
-      return reviewJson(await buildCommitChangeSet(git, hash), context);
+      return reviewJson(
+        await buildCommitChangeSet(git, hash, {
+          agentPatterns: context.agentPatterns,
+        }),
+        context,
+      );
     } catch (error) {
       return gitApiFailure(error);
     }
@@ -447,7 +464,9 @@ async function handleRequest(
     try {
       const git = await gitForRequest(context, url);
       return reviewJson(
-        await buildCommitsChangeSet(git, hashes, mode),
+        await buildCommitsChangeSet(git, hashes, mode, {
+          agentPatterns: context.agentPatterns,
+        }),
         context,
       );
     } catch (error) {
@@ -460,6 +479,7 @@ async function handleRequest(
     const end = url.searchParams.get("end") ?? "";
     const preset = url.searchParams.get("preset") ?? "";
     const requestedMode = url.searchParams.get("mode") ?? "auto";
+    const agent = url.searchParams.get("agent") ?? undefined;
 
     const startMs = parseTimeWindowInstant(start);
     const endMs = parseTimeWindowInstant(end);
@@ -500,6 +520,10 @@ async function handleRequest(
           git,
           window,
           requestedMode as ChangeViewMode | "auto",
+          {
+            agentPatterns: context.agentPatterns,
+            agent: agent || undefined,
+          },
         ),
         context,
       );
@@ -550,6 +574,10 @@ export async function startServer(
       ],
     };
   }
+  const agentPatterns = compileAgentPatterns([
+    ...BUILT_IN_AGENT_PATTERNS,
+    ...config.agents,
+  ]);
   const reviewMarks = new ReviewMarkStore(
     options.stateDir ?? join(homeDir, ".diff4ac"),
   );
@@ -574,6 +602,7 @@ export async function startServer(
         reviewMarks,
         events,
         config,
+        agentPatterns,
       }),
   });
 

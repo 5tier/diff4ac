@@ -60,6 +60,7 @@ describe("Config Loader", () => {
     expect(config).toEqual({
       baseBranch: null,
       keybindings: {},
+      agents: [],
       diagnostics: [],
     });
     expect(keyFor(config.keybindings, "commits.moveUp")).toBe("k");
@@ -241,6 +242,64 @@ describe("Config Loader", () => {
           diagnostic.file === configFile &&
           diagnostic.field === "keybindings.commits.moveUp" &&
           diagnostic.message.includes("commits.moveDown"),
+      ),
+    ).toBe(true);
+  });
+
+  test("merges Agent patterns and reports invalid regexes with file and field", () => {
+    const home = tempHome();
+    const repo = fixture();
+
+    home.writeGlobalConfig({
+      agents: {
+        "My Agent": {
+          trailers: ["Co-Authored-By: My Agent"],
+          authors: "^my-agent@example\\.com$",
+        },
+      },
+    });
+    repo.write(
+      ".diff4ac.json",
+      `${JSON.stringify({
+        agents: {
+          "My Agent": {
+            trailers: ["X-My-Agent: yes"],
+          },
+          Broken: {
+            trailers: ["("],
+          },
+          Empty: {},
+        },
+      })}\n`,
+    );
+
+    const config = loadConfig({
+      homeDir: home.path,
+      repositoryRoot: repo.root,
+    });
+    const configFile = join(repo.root, ".diff4ac.json");
+
+    expect(config.agents).toEqual([
+      {
+        name: "My Agent",
+        trailers: ["Co-Authored-By: My Agent", "X-My-Agent: yes"],
+        authors: ["^my-agent@example\\.com$"],
+      },
+    ]);
+    expect(
+      config.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.file === configFile &&
+          diagnostic.field === "agents.Broken.trailers[0]" &&
+          diagnostic.message.includes("invalid regular expression"),
+      ),
+    ).toBe(true);
+    expect(
+      config.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.file === configFile &&
+          diagnostic.field === "agents.Empty" &&
+          diagnostic.message.includes("at least one"),
       ),
     ).toBe(true);
   });

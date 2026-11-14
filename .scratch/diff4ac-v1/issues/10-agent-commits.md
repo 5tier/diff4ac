@@ -4,10 +4,10 @@
 
 **Blocked by:** 02, 08
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Built-in patterns recognise Claude Code, Codex and Copilot commits
-- [ ] Config can add patterns (trailer or author regexes mapped to an Agent name)
-- [ ] Agent Commits show a 🤖 badge with the Agent's name in the Commits panel
-- [ ] The Reviewer can filter commits to a single Agent, and the Selection and Change Set update accordingly
-- [ ] Fixture tests cover trailer detection, author-pattern detection, custom patterns and human commits
+- [x] Built-in patterns recognise Claude Code, Codex and Copilot commits
+- [x] Config can add patterns (trailer or author regexes mapped to an Agent name)
+- [x] Agent Commits show a 🤖 badge with the Agent's name in the Commits panel
+- [x] The Reviewer can filter commits to a single Agent, and the Selection and Change Set update accordingly
+- [x] Fixture tests cover trailer detection, author-pattern detection, custom patterns and human commits

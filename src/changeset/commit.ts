@@ -1,4 +1,5 @@
 import type { GitGateway } from "../git/gateway";
+import type { CompiledAgentPattern } from "../agents";
 import { firstParent, readCommit } from "../repository/commits";
 import type {
   ChangeFile,
@@ -31,11 +32,18 @@ export async function buildCommitFiles(
   return { files, totals: changeSetTotals(files) };
 }
 
+export interface CommitChangeSetOptions {
+  readonly agentPatterns?: readonly CompiledAgentPattern[];
+}
+
 export async function buildCommitChangeSet(
   git: GitGateway,
   rev: string,
+  options: CommitChangeSetOptions = {},
 ): Promise<ChangeSet> {
-  const commit = await readCommit(git, rev);
+  const commit = await readCommit(git, rev, {
+    agentPatterns: options.agentPatterns,
+  });
   const { files, totals } = await buildCommitFiles(git, commit);
 
   return {

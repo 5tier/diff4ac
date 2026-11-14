@@ -192,6 +192,15 @@ function CommitRow({
         </span>
         <span className="commit-meta">
           {commit.author.name} · {commit.relativeDate}
+          {commit.agent ? (
+            <span
+              className="commit-agent"
+              data-agent={commit.agent}
+              title={`Agent Commit: ${commit.agent}`}
+            >
+              {" "}🤖 {commit.agent}
+            </span>
+          ) : null}
         </span>
       </button>
     </li>
@@ -760,7 +769,8 @@ export function App() {
   const [selectedWorktreePath, setSelectedWorktreePath] = useState<
     string | null
   >(null);
-  const [commits, setCommits] = useState<readonly CommitSummary[]>([]);
+  const [allCommits, setAllCommits] = useState<readonly CommitSummary[]>([]);
+  const [agentFilter, setAgentFilter] = useState<string | null>(null);
   const [commitsError, setCommitsError] = useState<string | null>(null);
   const [branches, setBranches] = useState<readonly BranchSummary[]>([]);
   const [baseBranch, setBaseBranch] = useState<BaseBranch | null>(null);
@@ -808,6 +818,17 @@ export function App() {
   const preserveOnNextLoad = useRef(false);
   const pendingScrollTop = useRef<number | null>(null);
 
+  const agentNames = [
+    ...new Set(
+      allCommits
+        .map((commit) => commit.agent)
+        .filter((agent): agent is string => agent !== null),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
+  const commits = agentFilter
+    ? allCommits.filter((commit) => commit.agent === agentFilter)
+    : allCommits;
+
   useEffect(() => {
     const controller = new AbortController();
 
@@ -823,11 +844,17 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (agentFilter && !allCommits.some((commit) => commit.agent === agentFilter)) {
+      setAgentFilter(null);
+    }
+  }, [agentFilter, allCommits]);
+
+  useEffect(() => {
     const controller = new AbortController();
 
     fetchCommits(controller.signal, selectedWorktreePath)
       .then((list) => {
-        setCommits(list.commits);
+        setAllCommits(list.commits);
         setWorktree(list.worktree);
         setCommitsError(null);
       })
@@ -924,6 +951,7 @@ export function App() {
                   selection.mode,
                   controller.signal,
                   selectedWorktreePath,
+                  agentFilter,
                 )
               : fetchBranch(
                   selection.branch.name,
@@ -1264,6 +1292,25 @@ export function App() {
         case "time-windows":
           openTimeWindows();
           break;
+        case "cycle-agent-filter": {
+          const nextAgent =
+            agentNames.length === 0
+              ? null
+              : agentFilter === null
+                ? (agentNames[0] ?? null)
+                : (agentNames[agentNames.indexOf(agentFilter) + 1] ?? null);
+          setAgentFilter(nextAgent);
+          setPickedHashes([]);
+          setRangeAnchor(null);
+
+          if (selection.kind === "time-window") {
+            const candidates = nextAgent
+              ? allCommits.filter((commit) => commit.agent === nextAgent)
+              : allCommits;
+            setSelection(selectionFromTimeWindow(selection.window, candidates));
+          }
+          break;
+        }
         case "time-window-close":
           setTimeWindowOpen(false);
           break;
@@ -1341,6 +1388,9 @@ export function App() {
       selection,
       openTimeWindows,
       refreshRepository,
+      agentFilter,
+      agentNames,
+      allCommits,
     ],
   );
 
@@ -1524,7 +1574,11 @@ export function App() {
             {commitsError ? (
               <div className="error">{commitsError}</div>
             ) : commits.length === 0 ? (
-              <div className="placeholder">No commits on this branch yet.</div>
+              <div className="placeholder">
+                {agentFilter
+                  ? `No ${agentFilter} commits on this branch.`
+                  : "No commits on this branch yet."}
+              </div>
             ) : (
               <>
                 {(selection.kind === "commits" ||
@@ -1703,6 +1757,7 @@ export function App() {
             Review Mark failed
           </span>
         ) : null}
+        <span className="status-agent">agent: {agentFilter ?? "all"}</span>
         <span className="status-spacer" />
         <span className="muted">base: {baseBranch?.name ?? "—"}</span>
         <span className="muted">{worktree?.branch ?? ""}</span>

@@ -26,6 +26,7 @@ export type KeyAction =
   | { readonly type: "toggle-mode" }
   | { readonly type: "time-windows" }
   | { readonly type: "time-window-close" }
+  | { readonly type: "cycle-agent-filter" }
   | { readonly type: "toggle-mark" }
   | { readonly type: "refresh" }
   | { readonly type: "scroll"; readonly direction: 1 | -1 }
@@ -133,6 +134,13 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "w",
     label: "Choose a Time Window",
     action: { type: "time-windows" },
+  },
+  {
+    id: "commits.cycleAgentFilter",
+    panel: "commits",
+    key: "a",
+    label: "Filter commits by Agent",
+    action: { type: "cycle-agent-filter" },
   },
   {
     id: "time-window.moveDown",

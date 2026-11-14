@@ -363,6 +363,10 @@ button {
   white-space: nowrap;
 }
 
+.commit-agent {
+  color: var(--hunk);
+}
+
 .file-row {
   display: flex;
   align-items: center;
@@ -588,6 +592,10 @@ button {
   border: 1px solid var(--border);
   border-radius: 3px;
   padding: 1px 7px;
+}
+
+.status-agent {
+  color: var(--muted);
 }
 
 .status-selection {

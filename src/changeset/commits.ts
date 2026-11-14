@@ -1,3 +1,4 @@
+import type { CompiledAgentPattern } from "../agents";
 import type { GitGateway } from "../git/gateway";
 import {
   firstParent,
@@ -73,16 +74,23 @@ async function buildSelectedCommitsChangeSet(
   };
 }
 
+export interface CommitsChangeSetOptions {
+  readonly agentPatterns?: readonly CompiledAgentPattern[];
+}
+
 export async function buildCommitsChangeSet(
   git: GitGateway,
   hashes: readonly string[],
   mode: ChangeViewMode,
+  options: CommitsChangeSetOptions = {},
 ): Promise<ChangeSet> {
   if (hashes.length === 0) {
     throw new Error("commit Selection is empty");
   }
 
-  const list = await listCommits(git);
+  const list = await listCommits(git, {
+    agentPatterns: options.agentPatterns,
+  });
   const positions = new Map(
     list.commits.map((commit, index) => [commit.hash, index] as const),
   );
@@ -126,12 +134,21 @@ export async function buildCommitsChangeSet(
   );
 }
 
+export interface TimeWindowChangeSetOptions {
+  readonly agentPatterns?: readonly CompiledAgentPattern[];
+  readonly agent?: string;
+}
+
 export async function buildTimeWindowChangeSet(
   git: GitGateway,
   window: TimeWindow,
   requestedMode: ChangeViewMode | "auto" = "auto",
+  options: TimeWindowChangeSetOptions = {},
 ): Promise<ChangeSet> {
-  const list = await listCommitsInWindow(git, window);
+  const list = await listCommitsInWindow(git, window, {
+    agentPatterns: options.agentPatterns,
+    agent: options.agent,
+  });
   const selected = list.commits;
   const contiguous = isContiguousCommitSelection(selected);
   const mode =
