@@ -91,12 +91,13 @@ beforeAll(async () => {
 
   repo.write("src/alpha.ts", `${longFile}changed again\n`);
   repo.write("src/gamma.ts", "pending gamma\n");
+  repo.write("bun.lock", "lockfile\n");
   linkedWorktree.write("src/linked.ts", "linked pending\n");
 
   repo.write(".git/info/exclude", ".diff4ac.json\n");
   repo.write(
     ".diff4ac.json",
-    `${JSON.stringify({ keybindings: { "branches.moveDown": "n" } })}\n`,
+    `${JSON.stringify({ keybindings: { "branches.moveDown": "b" } })}\n`,
   );
 
   stateDir = mkdtempSync(join(tmpdir(), "diff4ac-playwright-state-"));
@@ -145,7 +146,7 @@ test(
       const worktreeText = (
         await slowPage.locator(".worktree-row").allTextContents()
       ).join("\n");
-      expect(worktreeText).toContain("2 pending");
+      expect(worktreeText).toContain("3 pending");
       expect(worktreeText).toContain("1 pending");
       expect(await slowPage.locator(".file-row").count()).toBe(0);
       expect(
@@ -176,7 +177,7 @@ test(
     expect(worktreeText).toContain(repo.root);
     expect(worktreeText).toContain(linkedWorktree.root);
     expect(worktreeText).toContain("agent-work");
-    expect(worktreeText).toContain("2 pending");
+    expect(worktreeText).toContain("3 pending");
     expect(worktreeText).toContain("1 pending");
 
     await page.keyboard.press("1");
@@ -257,14 +258,14 @@ test(
     const moveDown = branchHelp
       .locator(".help-row", { hasText: "Move down" })
       .first();
-    expect(await moveDown.locator(".help-key").textContent()).toBe("n");
+    expect(await moveDown.locator(".help-key").textContent()).toBe("b");
     await page.keyboard.press("Escape");
     await branchHelp.waitFor({ state: "detached" });
 
     const branchCursor = await page
       .locator('[data-panel="branches"]')
       .getAttribute("data-cursor");
-    await page.keyboard.press("n");
+    await page.keyboard.press("b");
     await page.waitForFunction(
       (previous) =>
         document
@@ -359,6 +360,8 @@ test(
     expect(await help.textContent()).toContain("Toggle Net Diff / Commit Stack");
     expect(await help.textContent()).toContain("Choose a Time Window");
     expect(await help.textContent()).toContain("Focus Files");
+    expect(await help.textContent()).toContain("Open Filters");
+    expect(await help.textContent()).toContain("Toggle Noise");
     await page.keyboard.press("Escape");
     await help.waitFor({ state: "detached" });
 
@@ -542,6 +545,107 @@ test(
     expect(
       await page.locator(".review-progress").textContent(),
     ).toContain("0/2 reviewed");
+  },
+  30_000,
+);
+
+test(
+  "filters extensions, globs and Noise with f and n",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".file-row");
+
+    expect(await page.locator(".file-row").count()).toBe(2);
+    expect(await page.locator(".status-filters").textContent()).toContain(
+      "noise on",
+    );
+    expect(await page.locator(".status-hidden").textContent()).toContain(
+      "1 file hidden",
+    );
+
+    await page.keyboard.press("n");
+    await page.waitForFunction(
+      () => document.querySelectorAll(".file-row").length === 3,
+    );
+    expect(await page.locator(".status-filters").textContent()).not.toContain(
+      "noise on",
+    );
+    expect(await page.locator(".status-hidden").count()).toBe(0);
+
+    await page.keyboard.press("f");
+    const dialog = page.locator('[data-testid="filters-dialog"]');
+    await dialog.waitFor();
+    expect(await dialog.textContent()).toContain(
+      "Globs without / match basenames at any depth",
+    );
+    expect(await dialog.textContent()).toContain("**/*.lock");
+    expect(
+      await dialog.locator('input[data-extension=".ts"]').count(),
+    ).toBe(1);
+
+    await dialog.locator('input[data-extension=".ts"]').uncheck();
+    await dialog.getByRole("button", { name: "Apply" }).click();
+    await dialog.waitFor({ state: "detached" });
+    await page.waitForFunction(
+      () => document.querySelectorAll(".file-row").length === 1,
+    );
+    expect(await page.locator(".status-hidden").textContent()).toContain(
+      "2 files hidden",
+    );
+    expect(await page.locator(".status-filters").textContent()).toContain(
+      ".ts off",
+    );
+
+    await page.keyboard.press("f");
+    await dialog.waitFor();
+    await dialog.locator('input[data-extension=".ts"]').check();
+    await dialog.locator('textarea[data-filter="include"]').fill("src/**");
+    await dialog
+      .locator('textarea[data-filter="exclude"]')
+      .fill("**/gamma.ts");
+    await dialog.getByRole("button", { name: "Apply" }).click();
+    await dialog.waitFor({ state: "detached" });
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector(".file-row .file-path")
+          ?.textContent?.includes("src/alpha.ts") &&
+        document
+          .querySelector(".status-filters")
+          ?.textContent?.includes("include 1"),
+    );
+    expect(await page.locator(".file-row .file-path").textContent()).toContain(
+      "src/alpha.ts",
+    );
+    expect(await page.locator(".status-hidden").textContent()).toContain(
+      "2 files hidden",
+    );
+    const filtersText = await page.locator(".status-filters").textContent();
+    expect(filtersText).toContain("include 1");
+    expect(filtersText).toContain("exclude 1");
+
+    await page.keyboard.press("r");
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector(".status-filters")
+          ?.textContent?.includes("include 1") &&
+        document
+          .querySelector(".status-filters")
+          ?.textContent?.includes("exclude 1"),
+    );
+
+    await page.keyboard.press("3");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() =>
+      document.querySelector(".top-bar-mode")?.textContent?.startsWith("Commit"),
+    );
+    expect(await page.locator(".status-filters").textContent()).toContain(
+      "include 1",
+    );
+    expect(await page.locator(".status-filters").textContent()).toContain(
+      "exclude 1",
+    );
   },
   30_000,
 );

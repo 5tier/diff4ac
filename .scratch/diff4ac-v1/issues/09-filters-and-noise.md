@@ -4,12 +4,12 @@
 
 **Blocked by:** 01, 08
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Extension Filter lists the extensions present in the current Change Set, each with a toggle
-- [ ] Include and exclude path globs can be entered
-- [ ] Noise is hidden by default, using built-in patterns (lockfiles, `*.snap`, `dist/` and similar) that can be overridden in config
-- [ ] A key toggles Noise visibility
-- [ ] The status bar shows the active Filters and "N files hidden"
-- [ ] Filters persist when the Selection changes
-- [ ] Fixture tests cover each Filter type and how they combine
+- [x] Extension Filter lists the extensions present in the current Change Set, each with a toggle
+- [x] Include and exclude path globs can be entered
+- [x] Noise is hidden by default, using built-in patterns (lockfiles, `*.snap`, `dist/` and similar) that can be overridden in config
+- [x] A key toggles Noise visibility
+- [x] The status bar shows the active Filters and "N files hidden"
+- [x] Filters persist when the Selection changes
+- [x] Fixture tests cover each Filter type and how they combine

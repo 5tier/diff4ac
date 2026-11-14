@@ -7,6 +7,7 @@ import type {
   ChangeSet,
   ChangeViewMode,
   CommitChangeGroup,
+  FilterRequest,
   CommitSummary,
   FileStatus,
   Selection,
@@ -39,6 +40,7 @@ import {
 import {
   applyKeybindingOverrides,
   bindingFor,
+  bindingForFilters,
   bindingForTimeWindow,
   bindingsForPanel,
   nextPanel,
@@ -48,6 +50,7 @@ import {
   type KeybindingOverrides,
   type PanelId,
 } from "./keymap";
+import { FiltersDialog, type FiltersDraft } from "./FiltersDialog";
 
 interface PanelProps {
   readonly id: PanelId;
@@ -675,6 +678,42 @@ function selectionFromPicks(
   };
 }
 
+function splitGlobLines(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function activeFilterSummary(filter: FilterRequest | undefined): string {
+  if (!filter) {
+    return "none";
+  }
+
+  const parts: string[] = [];
+  if (filter.hideNoise) {
+    parts.push("noise on");
+  }
+  if (filter.disabledExtensions.length > 0) {
+    parts.push(
+      `${filter.disabledExtensions
+        .map((extension) => extension || "(no extension)")
+        .join(", ")} off`,
+    );
+  }
+  if (filter.includeGlobs.length > 0) {
+    parts.push(`include ${filter.includeGlobs.length}`);
+  }
+  if (filter.excludeGlobs.length > 0) {
+    parts.push(`exclude ${filter.excludeGlobs.length}`);
+  }
+  return parts.length > 0 ? parts.join(" · ") : "none";
+}
+
+function hiddenFilesLabel(count: number): string {
+  return `${count} file${count === 1 ? "" : "s"} hidden`;
+}
+
 function selectionFromTimeWindow(
   window: TimeWindow,
   allCommits: readonly CommitSummary[],
@@ -783,6 +822,23 @@ export function App() {
     () => applyKeybindingOverrides(keybindingOverrides),
     [keybindingOverrides],
   );
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [disabledExtensions, setDisabledExtensions] = useState<
+    readonly string[]
+  >([]);
+  const [includeGlobs, setIncludeGlobs] = useState("");
+  const [excludeGlobs, setExcludeGlobs] = useState("");
+  const [hideNoise, setHideNoise] = useState(true);
+  const [noisePatterns, setNoisePatterns] = useState<readonly string[]>([]);
+  const filterRequest = useMemo<FilterRequest>(
+    () => ({
+      disabledExtensions,
+      includeGlobs: splitGlobLines(includeGlobs),
+      excludeGlobs: splitGlobLines(excludeGlobs),
+      hideNoise,
+    }),
+    [disabledExtensions, excludeGlobs, hideNoise, includeGlobs],
+  );
   const [helpOpen, setHelpOpen] = useState(false);
   const [timeWindowOpen, setTimeWindowOpen] = useState(false);
   const [timeWindowDialogMode, setTimeWindowDialogMode] = useState<
@@ -814,6 +870,7 @@ export function App() {
     fetchConfig(controller.signal)
       .then((config) => {
         setKeybindingOverrides(config.keybindings);
+        setNoisePatterns(config.noise);
       })
       .catch(() => {
         // Config is optional; defaults remain in force.
@@ -903,13 +960,18 @@ export function App() {
     const request =
       selection.kind === "pending"
         ? selectedWorktreePath
-          ? fetchWorktreePending(selectedWorktreePath, controller.signal)
-          : fetchPending(controller.signal)
+          ? fetchWorktreePending(
+              selectedWorktreePath,
+              controller.signal,
+              filterRequest,
+            )
+          : fetchPending(controller.signal, filterRequest)
         : selection.kind === "commit"
           ? fetchCommit(
               selection.commit.hash,
               controller.signal,
               selectedWorktreePath,
+              filterRequest,
             )
           : selection.kind === "commits"
             ? fetchCommitSet(
@@ -917,6 +979,7 @@ export function App() {
                 selection.mode,
                 controller.signal,
                 selectedWorktreePath,
+                filterRequest,
               )
             : selection.kind === "time-window"
               ? fetchTimeWindow(
@@ -924,11 +987,13 @@ export function App() {
                   selection.mode,
                   controller.signal,
                   selectedWorktreePath,
+                  filterRequest,
                 )
               : fetchBranch(
                   selection.branch.name,
                   controller.signal,
                   selectedWorktreePath,
+                  filterRequest,
                 );
 
     request
@@ -989,7 +1054,7 @@ export function App() {
       });
 
     return () => controller.abort();
-  }, [selection, selectedWorktreePath, refreshVersion]);
+  }, [filterRequest, selection, selectedWorktreePath, refreshVersion]);
 
   useEffect(() => {
     if (loading || pendingScrollTop.current === null) {
@@ -1003,6 +1068,8 @@ export function App() {
   }, [changeSet, loading]);
 
   const files = changeSet?.files ?? [];
+  const filterInfo = changeSet?.filter;
+  const hiddenFiles = filterInfo?.hiddenFiles ?? 0;
   const selected = files.find((file) => file.path === selectedPath) ?? null;
   const selectedWorktree =
     selection.kind === "pending"
@@ -1127,6 +1194,15 @@ export function App() {
     },
     [chooseTimeWindowOption, timeWindowCursor],
   );
+
+  const applyFilterDraft = useCallback((draft: FiltersDraft) => {
+    preserveOnNextLoad.current = true;
+    setDisabledExtensions([...new Set(draft.disabledExtensions)]);
+    setIncludeGlobs(draft.includeGlobs);
+    setExcludeGlobs(draft.excludeGlobs);
+    setHideNoise(draft.hideNoise);
+    setFiltersOpen(false);
+  }, []);
 
   const refreshRepository = useCallback(() => {
     preserveOnNextLoad.current = true;
@@ -1267,6 +1343,16 @@ export function App() {
         case "time-window-close":
           setTimeWindowOpen(false);
           break;
+        case "filters":
+          setFiltersOpen(true);
+          break;
+        case "filters-close":
+          setFiltersOpen(false);
+          break;
+        case "toggle-noise":
+          preserveOnNextLoad.current = true;
+          setHideNoise((current) => !current);
+          break;
         case "toggle-mark": {
           const file =
             focusedPanel === "diff"
@@ -1350,15 +1436,16 @@ export function App() {
         return;
       }
 
-      const binding = bindingFor(keymap, focusedPanel, event.key);
-      if (!binding) {
-        return;
-      }
-
       if (helpOpen) {
-        event.preventDefault();
-        if (binding.action.type === "close-help") {
-          dispatch(binding.action);
+        const close = keymap.find(
+          (entry) =>
+            entry.panel === "global" &&
+            entry.action.type === "close-help" &&
+            entry.key === event.key,
+        );
+        if (close) {
+          event.preventDefault();
+          dispatch(close.action);
         }
         return;
       }
@@ -1379,7 +1466,17 @@ export function App() {
         return;
       }
 
-      if (binding.action.type === "close-help") {
+      if (filtersOpen) {
+        const filterBinding = bindingForFilters(keymap, event.key);
+        if (filterBinding) {
+          event.preventDefault();
+          dispatch(filterBinding.action);
+        }
+        return;
+      }
+
+      const binding = bindingFor(keymap, focusedPanel, event.key);
+      if (!binding || binding.action.type === "close-help") {
         return;
       }
 
@@ -1393,6 +1490,7 @@ export function App() {
     dispatch,
     dispatchTimeWindow,
     focusedPanel,
+    filtersOpen,
     helpOpen,
     keymap,
     timeWindowDialogMode,
@@ -1569,7 +1667,11 @@ export function App() {
               <div className="error">{error}</div>
             ) : isStack ? (
               commitGroups.length === 0 ? (
-                <div className="placeholder">{emptyFilesMessage(selection)}</div>
+                <div className="placeholder">
+                  {hiddenFiles > 0
+                    ? `${hiddenFilesLabel(hiddenFiles)} by Filters.`
+                    : emptyFilesMessage(selection)}
+                </div>
               ) : (
                 <div className="stack-file-list">
                   {commitGroups.map((group) => (
@@ -1624,7 +1726,11 @@ export function App() {
                 </div>
               )
             ) : files.length === 0 ? (
-              <div className="placeholder">{emptyFilesMessage(selection)}</div>
+              <div className="placeholder">
+                {hiddenFiles > 0
+                  ? `${hiddenFilesLabel(hiddenFiles)} by Filters.`
+                  : emptyFilesMessage(selection)}
+              </div>
             ) : (
               <ul className="file-list">
                 {files.map((file, index) => (
@@ -1654,11 +1760,23 @@ export function App() {
           data-focused={focusedPanel === "diff" ? "true" : "false"}
         >
           {isStack ? (
-            <CommitStackView groups={commitGroups} />
+            commitGroups.length === 0 ? (
+              <div className="diff-empty">
+                {hiddenFiles > 0
+                  ? `${hiddenFilesLabel(hiddenFiles)} by Filters.`
+                  : emptyFilesMessage(selection)}
+              </div>
+            ) : (
+              <CommitStackView groups={commitGroups} />
+            )
           ) : selected ? (
             <DiffView file={selected} />
           ) : !loading && !error && files.length === 0 ? (
-            <div className="diff-empty">{emptyFilesMessage(selection)}</div>
+            <div className="diff-empty">
+              {hiddenFiles > 0
+                ? `${hiddenFilesLabel(hiddenFiles)} by Filters.`
+                : emptyFilesMessage(selection)}
+            </div>
           ) : (
             <div className="diff-empty">
               {error
@@ -1698,6 +1816,15 @@ export function App() {
           {files.filter((file) => file.reviewed === true).length}/
           {files.length} reviewed
         </span>
+        <span
+          className="status-filters"
+          title={`Filters: ${activeFilterSummary(filterRequest)}`}
+        >
+          Filters: {activeFilterSummary(filterRequest)}
+        </span>
+        {hiddenFiles > 0 ? (
+          <span className="status-hidden">{hiddenFilesLabel(hiddenFiles)}</span>
+        ) : null}
         {markError ? (
           <span className="status-error" title={markError}>
             Review Mark failed
@@ -1733,6 +1860,21 @@ export function App() {
             setTimeWindowError(null);
           }}
           onClose={() => setTimeWindowOpen(false)}
+        />
+      ) : null}
+
+      {filtersOpen ? (
+        <FiltersDialog
+          availableExtensions={filterInfo?.availableExtensions ?? []}
+          noisePatterns={noisePatterns}
+          initial={{
+            disabledExtensions,
+            includeGlobs,
+            excludeGlobs,
+            hideNoise,
+          }}
+          onApply={applyFilterDraft}
+          onClose={() => setFiltersOpen(false)}
         />
       ) : null}
     </div>

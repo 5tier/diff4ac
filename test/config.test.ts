@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { buildBranchChangeSet } from "../src/changeset/branch";
 import { GitGateway } from "../src/git/gateway";
 import { loadConfig } from "../src/config/loader";
+import { DEFAULT_NOISE_PATTERNS } from "../src/filters";
 import { applyKeybindingOverrides } from "../src/keymap";
 import { startServer, type RunningServer } from "../src/server/server";
 import type { BranchList, ConfigInfo } from "../src/types";
@@ -60,6 +61,7 @@ describe("Config Loader", () => {
     expect(config).toEqual({
       baseBranch: null,
       keybindings: {},
+      noise: DEFAULT_NOISE_PATTERNS,
       diagnostics: [],
     });
     expect(keyFor(config.keybindings, "commits.moveUp")).toBe("k");
@@ -72,8 +74,8 @@ describe("Config Loader", () => {
     home.writeGlobalConfig({
       baseBranch: "develop",
       keybindings: {
-        "commits.moveDown": "n",
-        "global.focusFiles": "f",
+        "commits.moveDown": "u",
+        "global.focusFiles": "g",
       },
     });
     repo.write(
@@ -100,13 +102,73 @@ describe("Config Loader", () => {
     expect(config.baseBranch).toBe("release");
     expect(config.keybindings).toEqual({
       "commits.moveDown": "e",
-      "global.focusFiles": "f",
+      "global.focusFiles": "g",
       "commits.select": "l",
     });
     expect(keyFor(config.keybindings, "commits.moveDown")).toBe("e");
     expect(keyFor(config.keybindings, "commits.select")).toBe("l");
-    expect(keyFor(config.keybindings, "global.focusFiles")).toBe("f");
+    expect(keyFor(config.keybindings, "global.focusFiles")).toBe("g");
     expect(keyFor(config.keybindings, "commits.moveUp")).toBe("k");
+  });
+
+  test("merges Noise patterns with Repository precedence", () => {
+    const home = tempHome();
+    const repo = fixture();
+
+    home.writeGlobalConfig({ noise: ["**/global/**"] });
+    repo.write(
+      ".diff4ac.json",
+      `${JSON.stringify({ noise: ["**/repo/**"] })}\n`,
+    );
+
+    const config = loadConfig({
+      homeDir: home.path,
+      repositoryRoot: repo.root,
+    });
+
+    expect(config.noise).toEqual(["**/repo/**"]);
+    expect(config.diagnostics).toEqual([]);
+  });
+
+  test("allows an explicit empty Noise list to disable the built-ins", () => {
+    const home = tempHome();
+    const repo = fixture();
+
+    repo.write(".diff4ac.json", `${JSON.stringify({ noise: [] })}\n`);
+
+    const config = loadConfig({
+      homeDir: home.path,
+      repositoryRoot: repo.root,
+    });
+
+    expect(config.noise).toEqual([]);
+    expect(config.diagnostics).toEqual([]);
+  });
+
+  test("reports invalid Noise config and falls back to the lower-precedence value", () => {
+    const home = tempHome();
+    const repo = fixture();
+
+    home.writeGlobalConfig({ noise: ["**/global/**"] });
+    repo.write(
+      ".diff4ac.json",
+      `${JSON.stringify({ noise: ["ok/**", 42] })}\n`,
+    );
+
+    const config = loadConfig({
+      homeDir: home.path,
+      repositoryRoot: repo.root,
+    });
+
+    expect(config.noise).toEqual(["**/global/**"]);
+    expect(config.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          file: join(repo.root, ".diff4ac.json"),
+          field: "noise",
+        }),
+      ]),
+    );
   });
 
   test("reports invalid fields with file and field names while keeping valid values", () => {
@@ -308,7 +370,7 @@ describe("Config Loader", () => {
       ".diff4ac.json",
       `${JSON.stringify({
         baseBranch: "develop",
-        keybindings: { "branches.moveDown": "n" },
+        keybindings: { "branches.moveDown": "b" },
       })}\n`,
     );
     const configFile = join(repo.root, ".diff4ac.json");
@@ -327,7 +389,7 @@ describe("Config Loader", () => {
     expect(configResponse.status).toBe(200);
     const config = (await configResponse.json()) as ConfigInfo;
     expect(config.baseBranch).toBe("develop");
-    expect(config.keybindings).toEqual({ "branches.moveDown": "n" });
+    expect(config.keybindings).toEqual({ "branches.moveDown": "b" });
     expect(config.diagnostics).toEqual([]);
 
     const branchesResponse = await fetch(

@@ -27,12 +27,15 @@ export type KeyAction =
   | { readonly type: "time-windows" }
   | { readonly type: "time-window-close" }
   | { readonly type: "toggle-mark" }
+  | { readonly type: "filters" }
+  | { readonly type: "filters-close" }
+  | { readonly type: "toggle-noise" }
   | { readonly type: "refresh" }
   | { readonly type: "scroll"; readonly direction: 1 | -1 }
   | { readonly type: "help" }
   | { readonly type: "close-help" };
 
-export type KeyScope = PanelId | "global" | "time-window";
+export type KeyScope = PanelId | "global" | "time-window" | "filters";
 
 export interface KeyBinding {
   readonly id: string;
@@ -261,6 +264,27 @@ export const KEYMAP: readonly KeyBinding[] = [
     action: { type: "help" },
   },
   {
+    id: "global.filters",
+    panel: "global",
+    key: "f",
+    label: "Open Filters",
+    action: { type: "filters" },
+  },
+  {
+    id: "global.noise",
+    panel: "global",
+    key: "n",
+    label: "Toggle Noise",
+    action: { type: "toggle-noise" },
+  },
+  {
+    id: "filters.close",
+    panel: "filters",
+    key: "Escape",
+    label: "Close Filters",
+    action: { type: "filters-close" },
+  },
+  {
     id: "global.refresh",
     panel: "global",
     key: "r",
@@ -306,6 +330,15 @@ export function bindingForTimeWindow(
 ): KeyBinding | undefined {
   return keymap.find(
     (binding) => binding.panel === "time-window" && binding.key === key,
+  );
+}
+
+export function bindingForFilters(
+  keymap: readonly KeyBinding[],
+  key: string,
+): KeyBinding | undefined {
+  return keymap.find(
+    (binding) => binding.panel === "filters" && binding.key === key,
   );
 }
 
