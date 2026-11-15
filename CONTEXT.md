@@ -62,6 +62,14 @@ _Avoid_: Squashed diff, combined diff
 A Change Set shown as one diff per commit, in order, exposing intermediate churn.
 _Avoid_: History view, per-commit view
 
+**Snapshot**:
+The full contents of the Repository at one point (a commit, or a Worktree as it is on disk), as browsed in Code View; unlike a Change Set it includes files nobody changed.
+_Avoid_: Tree (clashes with git trees), checkout, source
+
+**Code View**:
+The mode in which the Reviewer browses a Snapshot as a folder tree and reads whole files, with the Selection's changes marked rather than shown as a diff.
+_Avoid_: Browse mode, tree view, file view
+
 ### Review progress
 
 **Review Mark**:
