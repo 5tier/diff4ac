@@ -128,21 +128,28 @@ export async function listWorktrees(git: GitGateway): Promise<WorktreeList> {
   const records = await readWorktreeRecords(git);
   const currentPath = canonicalPath(git.worktreeRoot);
 
-  const worktrees: WorktreeSummary[] = await Promise.all(
-    records
-      .filter((record) => !record.bare && !record.prunable)
-      .map(async (record) => {
-        const path = canonicalPath(record.path);
-        return {
-          path,
-          branch: record.branch,
-          head: record.head,
-          shortHead: record.head.slice(0, 7),
-          pendingCount: await pendingCount(record.path),
-          current: path === currentPath,
-        };
-      }),
-  );
+  const worktrees = (
+    await Promise.all(
+      records
+        .filter((record) => !record.bare && !record.prunable)
+        .map(async (record): Promise<WorktreeSummary | null> => {
+          try {
+            const path = canonicalPath(record.path);
+            return {
+              path,
+              branch: record.branch,
+              head: record.head,
+              shortHead: record.head.slice(0, 7),
+              pendingCount: await pendingCount(record.path),
+              current: path === currentPath,
+            };
+          } catch {
+            // A broken linked Worktree must not take down the whole list.
+            return null;
+          }
+        }),
+    )
+  ).filter((worktree): worktree is WorktreeSummary => worktree !== null);
 
   return { worktrees };
 }

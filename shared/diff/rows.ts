@@ -387,20 +387,3 @@ export function highlightSegments(
 
   return segments;
 }
-
-export function wordDiffSegments(
-  text: string,
-  tokens: readonly TokenSpan[] | null,
-  ranges: readonly WordRange[] | null,
-): {
-  readonly text: string;
-  readonly style?: Readonly<Record<string, string>>;
-  readonly highlighted: boolean;
-}[] {
-  return highlightSegments(text, tokens, ranges).map((segment) => ({
-    text: segment.text,
-    ...(segment.style ? { style: segment.style } : {}),
-    highlighted: segment.word,
-  }));
-}
-

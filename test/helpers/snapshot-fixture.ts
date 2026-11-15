@@ -33,6 +33,11 @@ export function createSnapshotFixture(): SnapshotFixture {
   repo.write("old/move-old.txt", "one\ntwo\nthree\n");
   repo.write("assets/logo.png", buffer(0, 1, 2, 3));
   repo.write("assets/raw.bin", buffer(0, 1, 2, 3));
+  repo.write("assets/a:b.png", buffer(0, 1, 2, 3));
+  repo.write("weird/a:b.txt", "colon\n");
+  repo.write("weird/-lead.txt", "dash\n");
+  repo.write("weird/a b.txt", "space\n");
+  repo.write("weird/üñï.txt", "unicode\n");
   repo.write(".gitignore", ".env\nignored.png\n");
   repo.write(".env", "API_KEY=secret\n");
   repo.write("ignored.png", buffer(0, 1, 2, 3));
@@ -40,6 +45,11 @@ export function createSnapshotFixture(): SnapshotFixture {
   const initial = repo.commit("initial");
 
   repo.write("src/a.txt", "alpha\nsecond\n");
+  repo.write("assets/a:b.png", buffer(0, 9, 9));
+  repo.write("weird/a:b.txt", "colon second\n");
+  repo.write("weird/-lead.txt", "dash second\n");
+  repo.write("weird/a b.txt", "space second\n");
+  repo.write("weird/üñï.txt", "unicode second\n");
   const second = repo.commit("second");
 
   repo.git(["checkout", "-q", "-b", "feature"]);
@@ -48,6 +58,8 @@ export function createSnapshotFixture(): SnapshotFixture {
   repo.git(["checkout", "-q", "main"]);
 
   repo.write("src/a.txt", "alpha\nsecond\npending\n");
+  repo.write("assets/a:b.png", buffer(0, 8, 8, 8));
+  repo.write("weird/a:b.txt", "colon pending\n");
   repo.remove("old/deleted.txt");
   repo.rename("old/move-old.txt", "old/move-new.ts");
   repo.write("old/move-new.ts", "one\nTWO\nthree\nfour\n");

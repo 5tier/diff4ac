@@ -4,6 +4,7 @@ import {
   BUILT_IN_AGENT_PATTERNS,
   compileAgentPatterns,
 } from "../agents";
+import { buildPendingChangeSet } from "../changeset/pending";
 import { loadConfig } from "../config/loader";
 import { GitGateway } from "../git/gateway";
 import { localBranchExists } from "../repository/branches";
@@ -182,6 +183,20 @@ export async function startServer(
   const reviewMarks = new ReviewMarkStore(
     options.stateDir ?? join(homeDir, ".diff4ac"),
   );
+  if (reviewMarks.hasMarksFor(repositoryId)) {
+    try {
+      const pending = await buildPendingChangeSet(git);
+      reviewMarks.prune(
+        repositoryId,
+        pending.files.map((file) => ({
+          path: file.path,
+          contentHash: file.contentHash,
+        })),
+      );
+    } catch {
+      // Pruning is best-effort; a broken Repository must still start.
+    }
+  }
   const events = createEventHub();
   const watcher = await RepositoryWatcher.start(git, {
     debounceMs: options.watchDebounceMs ?? 150,

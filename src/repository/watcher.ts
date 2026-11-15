@@ -3,7 +3,6 @@ import {
   readdirSync,
   statSync,
   watch,
-  type FSWatcher,
 } from "node:fs";
 import { dirname, isAbsolute, join, relative as relativePath } from "node:path";
 import { GitGateway } from "../git/gateway";

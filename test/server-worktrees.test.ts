@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { chmodSync } from "node:fs";
 import type {
   BranchList,
   ChangeSet,
@@ -206,6 +207,28 @@ describe("Worktree HTTP API", () => {
       )}&preset=today&mode=side-by-side`,
     );
     expect(invalidMode.status).toBe(400);
+  });
+
+  test("a broken linked Worktree does not break the list", async () => {
+    const repo = createFixtureRepo();
+    repo.write("base.txt", "base\n");
+    repo.commit("initial");
+    const linked = repo.addWorktree("broken", { branch: "broken-work" });
+    chmodSync(linked.root, 0o000);
+
+    try {
+      const running = (await startFixtureServer({ repo })).running;
+      const response = await getJson<WorktreeList>(running, "/api/worktrees");
+      expect(response.status).toBe(200);
+      expect(
+        response.body.worktrees.some((worktree) => worktree.path === linked.root),
+      ).toBe(false);
+      expect(
+        response.body.worktrees.some((worktree) => worktree.current),
+      ).toBe(true);
+    } finally {
+      chmodSync(linked.root, 0o755);
+    }
   });
 
   test("ignores the worktree parameter only on the Worktrees endpoint", async () => {

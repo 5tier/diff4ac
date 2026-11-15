@@ -268,6 +268,12 @@ describe("command toolbar model", () => {
   test("formats special keys for the keyboard chip", () => {
     expect(displayKey(" ")).toBe("Space");
     expect(displayKey("Escape")).toBe("Esc");
+    expect(displayKey("Enter")).toBe("Enter");
+    expect(displayKey("Tab")).toBe("Tab");
+    expect(displayKey("ArrowUp")).toBe("↑");
+    expect(displayKey("ArrowDown")).toBe("↓");
+    expect(displayKey("ArrowLeft")).toBe("←");
+    expect(displayKey("ArrowRight")).toBe("→");
     expect(displayKey("]")).toBe("]");
   });
 });

@@ -1,10 +1,18 @@
 import type { GitGateway } from "../git/gateway";
+import { isValidBranchName } from "../paths";
 import type {
   BaseBranch,
   BranchList,
   BranchSummary,
   WorktreeInfo,
 } from "../../shared/types";
+
+export class InvalidBranchNameError extends Error {
+  constructor() {
+    super("invalid branch name");
+    this.name = "InvalidBranchNameError";
+  }
+}
 
 export class UnknownBranchError extends Error {
   constructor(name: string) {
@@ -136,6 +144,10 @@ export async function readBranch(
   git: GitGateway,
   name: string,
 ): Promise<BranchSummary | null> {
+  if (!isValidBranchName(name)) {
+    throw new InvalidBranchNameError();
+  }
+
   const result = await git.run(
     ["rev-parse", "--verify", "--quiet", `refs/heads/${name}`],
     { allowExitCodes: [0, 1] },

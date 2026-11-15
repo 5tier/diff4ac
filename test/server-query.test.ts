@@ -143,6 +143,12 @@ describe("scope parsing", () => {
       parseBranchScope(url("")),
       "Bad request: a branch name is required",
     );
+    for (const name of ["../x", "/x", "a b", "a..b"]) {
+      expectFailure(
+        parseBranchScope(url(`name=${encodeURIComponent(name)}`)),
+        "Bad request: invalid branch name",
+      );
+    }
   });
 
   test("dispatches parseScope on the selection parameter", () => {

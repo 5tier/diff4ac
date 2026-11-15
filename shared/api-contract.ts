@@ -18,7 +18,6 @@ import type {
   Selection,
   SessionInfo,
   SnapshotEntryKind,
-  SnapshotChangeStatus,
   SnapshotFile,
   SnapshotPathMatch,
   SnapshotTreeEntry,

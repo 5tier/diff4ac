@@ -116,6 +116,23 @@ describe("typed git failures over HTTP", () => {
     expect(branch.body).toBe('branch "missing" was not found');
   });
 
+  test("invalid branch names are 400 while missing branches stay 404", async () => {
+    const repo = repoWithCommits();
+    const running = (await startFixtureServer({ repo })).running;
+
+    for (const name of ["../escape", "a b", "release~1"]) {
+      const response = await getJson<string>(
+        running,
+        `/api/branch?name=${encodeURIComponent(name)}`,
+      );
+      expect(response.status, name).toBe(400);
+      expect(response.body).toBe("Bad request: invalid branch name");
+    }
+
+    const missing = await getJson<string>(running, "/api/branch?name=nope");
+    expect(missing.status).toBe(404);
+  });
+
   test("a malformed hash is still a 400", async () => {
     const repo = repoWithCommits();
     const running = (await startFixtureServer({ repo })).running;

@@ -5,23 +5,45 @@ import {
   renameSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { isSafeRelativePath } from "../paths";
 import type { ChangeFile, ChangeSet } from "../../shared/types";
 
-export { isSafeRelativePath as isValidReviewPath };
-
 interface ReviewMarkFile {
-  readonly version: 1;
-  readonly marks: Record<string, true>;
+  readonly version?: number;
+  readonly marks?: Record<string, true | number>;
 }
 
 const MARKS_FILE = "review-marks.json";
 const BLOB_HASH = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+const MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+const MAX_MARKS_PER_REPOSITORY = 5_000;
 
-export function defaultReviewMarkDirectory(): string {
-  return join(homedir(), ".diff4ac");
+interface ParsedMarkKey {
+  readonly repositoryId: string;
+  readonly path: string;
+  readonly contentHash: string;
+}
+
+function parseMarkKey(key: string): ParsedMarkKey | null {
+  try {
+    const value = JSON.parse(key) as unknown;
+    if (
+      Array.isArray(value) &&
+      value.length === 3 &&
+      typeof value[0] === "string" &&
+      typeof value[1] === "string" &&
+      typeof value[2] === "string"
+    ) {
+      return {
+        repositoryId: value[0],
+        path: value[1],
+        contentHash: value[2],
+      };
+    }
+  } catch {
+    // Ignore malformed stored keys.
+  }
+  return null;
 }
 
 export function isValidContentHash(value: string): boolean {
@@ -56,7 +78,7 @@ function markKey(
 }
 
 export class ReviewMarkStore {
-  private readonly marks = new Map<string, true>();
+  private readonly marks = new Map<string, number>();
   private loaded = false;
 
   constructor(readonly directory: string) {}
@@ -76,15 +98,76 @@ export class ReviewMarkStore {
       return;
     }
 
+    let upgraded = false;
     try {
       const parsed = JSON.parse(readFileSync(file, "utf8")) as ReviewMarkFile;
       for (const [key, value] of Object.entries(parsed.marks ?? {})) {
         if (value === true) {
-          this.marks.set(key, true);
+          this.marks.set(key, Date.now());
+          upgraded = true;
+        } else if (typeof value === "number" && Number.isFinite(value)) {
+          this.marks.set(key, value);
         }
       }
     } catch {
       // A corrupt marks file should never stop the Reviewer.
+    }
+
+    if (upgraded) {
+      this.save();
+    }
+  }
+
+  hasMarksFor(repositoryId: string): boolean {
+    this.load();
+    for (const key of this.marks.keys()) {
+      if (parseMarkKey(key)?.repositoryId === repositoryId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  prune(
+    repositoryId: string,
+    active: readonly { readonly path: string; readonly contentHash: string }[],
+    now = Date.now(),
+  ): void {
+    this.load();
+    const activeKeys = new Set(
+      active.map((file) =>
+        markKey(repositoryId, file.path, file.contentHash),
+      ),
+    );
+    const remaining: { key: string; markedAt: number }[] = [];
+    let changed = false;
+
+    for (const [key, markedAt] of this.marks) {
+      const parsed = parseMarkKey(key);
+      if (!parsed || parsed.repositoryId !== repositoryId) {
+        continue;
+      }
+      if (now - markedAt > MAX_AGE_MS && !activeKeys.has(key)) {
+        this.marks.delete(key);
+        changed = true;
+      } else {
+        remaining.push({ key, markedAt });
+      }
+    }
+
+    remaining.sort((left, right) => left.markedAt - right.markedAt);
+    if (remaining.length > MAX_MARKS_PER_REPOSITORY) {
+      for (const entry of remaining.slice(
+        0,
+        remaining.length - MAX_MARKS_PER_REPOSITORY,
+      )) {
+        this.marks.delete(entry.key);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this.save();
     }
   }
 
@@ -107,7 +190,7 @@ export class ReviewMarkStore {
     const key = markKey(repositoryId, path, contentHash);
 
     if (marked) {
-      this.marks.set(key, true);
+      this.marks.set(key, Date.now());
     } else {
       this.marks.delete(key);
     }
@@ -118,7 +201,7 @@ export class ReviewMarkStore {
   private save(): void {
     mkdirSync(this.directory, { recursive: true });
     const data: ReviewMarkFile = {
-      version: 1,
+      version: 2,
       marks: Object.fromEntries(this.marks),
     };
     const file = this.filePath();

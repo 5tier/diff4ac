@@ -360,7 +360,7 @@ describe("git process counts", () => {
   });
 
   test("time-window and commit-set endpoints share the batched builder", async () => {
-    const { repo, hash } = largeCommitRepo();
+    const { repo } = largeCommitRepo();
     const running = await start(repo);
 
     let spawned = 0;

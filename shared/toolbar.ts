@@ -121,14 +121,20 @@ function isPanelId(scope: KeyScope): scope is PanelId {
   return (PANEL_ORDER as readonly string[]).includes(scope);
 }
 
+const DISPLAY_KEYS: Readonly<Record<string, string>> = {
+  " ": "Space",
+  Escape: "Esc",
+  Enter: "Enter",
+  Tab: "Tab",
+  ArrowUp: "↑",
+  ArrowDown: "↓",
+  ArrowLeft: "←",
+  ArrowRight: "→",
+  Backspace: "Backspace",
+};
+
 export function displayKey(key: string): string {
-  if (key === " ") {
-    return "Space";
-  }
-  if (key === "Escape") {
-    return "Esc";
-  }
-  return key;
+  return DISPLAY_KEYS[key] ?? key;
 }
 
 function itemState(binding: KeyBinding, state: ToolbarState): ItemState {

@@ -3,7 +3,7 @@ import {
   isValidGlob,
   type FilterSettings,
 } from "../filters";
-import { isSafeRelativePath } from "../paths";
+import { isSafeRelativePath, isValidBranchName } from "../paths";
 import {
   isTimeWindowPreset,
   parseTimeWindowInstant,
@@ -150,9 +150,12 @@ export function parseBranchScope(
   url: URL,
 ): ParseResult<Extract<ChangeSetScope, { kind: "branch" }>> {
   const name = url.searchParams.get("name");
-  return name
+  if (!name) {
+    return fail("Bad request: a branch name is required");
+  }
+  return isValidBranchName(name)
     ? ok({ kind: "branch", name })
-    : fail("Bad request: a branch name is required");
+    : fail("Bad request: invalid branch name");
 }
 
 export function parseSnapshotSide(url: URL): ParseResult<SnapshotSide> {

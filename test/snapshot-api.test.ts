@@ -288,6 +288,75 @@ describe("Snapshot file content", () => {
     expect(submodule.submoduleOid).toMatch(/^[0-9a-f]{40,64}$/);
   });
 
+  test("handles colons, leading dashes, spaces and unicode in paths", async () => {
+    const { repo, second } = snapshotFixture();
+    const running = (await startFixtureServer({ repo })).running;
+
+    const cases: readonly [string, string][] = [
+      ["weird/a:b.txt", "colon second\n"],
+      ["weird/-lead.txt", "dash second\n"],
+      ["weird/a b.txt", "space second\n"],
+      ["weird/üñï.txt", "unicode second\n"],
+    ];
+    for (const [path, text] of cases) {
+      const file = await snapshotFile(
+        running,
+        commitSelection(second),
+        "after",
+        path,
+      );
+      expect(file.text, path).toBe(text);
+
+      const diff = await getJson<{ diff: string }>(
+        running,
+        `/api/file-diff?selection=commit&hash=${second}&path=${encodeURIComponent(
+          path,
+        )}&rev=${second}`,
+      );
+      expect(diff.status, path).toBe(200);
+      expect(diff.body.diff).toContain(`${text.trim()}`);
+    }
+
+    const pending = await snapshotFile(
+      running,
+      { selection: "pending" },
+      "after",
+      "weird/a:b.txt",
+    );
+    expect(pending.text).toBe("colon pending\n");
+
+    const pendingDiff = await getJson<{ diff: string }>(
+      running,
+      `/api/file-diff?selection=pending&path=${encodeURIComponent(
+        "weird/a:b.txt",
+      )}&rev=worktree`,
+    );
+    expect(pendingDiff.status).toBe(200);
+    expect(pendingDiff.body.diff).toContain("+colon pending");
+
+    const pendingImage = await getRaw(
+      running,
+      `/api/file-content?selection=pending&path=${encodeURIComponent(
+        "assets/a:b.png",
+      )}&rev=worktree`,
+    );
+    expect(pendingImage.status).toBe(200);
+    expect([...new Uint8Array(await pendingImage.arrayBuffer())]).toEqual([
+      0, 8, 8, 8,
+    ]);
+
+    const commitImage = await getRaw(
+      running,
+      `/api/file-content?selection=commit&hash=${second}&path=${encodeURIComponent(
+        "assets/a:b.png",
+      )}&rev=${second}`,
+    );
+    expect(commitImage.status).toBe(200);
+    expect([...new Uint8Array(await commitImage.arrayBuffer())]).toEqual([
+      0, 9, 9,
+    ]);
+  });
+
   test("only serves paths that belong to the Snapshot", async () => {
     const { repo } = snapshotFixture();
     const running = (await startFixtureServer({ repo })).running;

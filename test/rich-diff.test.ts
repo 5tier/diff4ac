@@ -1,7 +1,26 @@
 import { describe, expect, test } from "bun:test";
 import type { Hunk, HunkLine } from "../shared/types";
-import { buildDiffRows, wordDiffSegments } from "../shared/diff/rows";
+import { buildDiffRows, highlightSegments } from "../shared/diff/rows";
+import type { TokenSpan } from "../shared/diff/rows";
+import type { WordRange } from "../shared/diff/word-diff";
 import { languageForPath } from "../web/highlight";
+
+
+function wordDiffSegments(
+  text: string,
+  tokens: readonly TokenSpan[] | null,
+  ranges: readonly WordRange[] | null,
+): {
+  readonly text: string;
+  readonly style?: Readonly<Record<string, string>>;
+  readonly highlighted: boolean;
+}[] {
+  return highlightSegments(text, tokens, ranges).map((segment) => ({
+    text: segment.text,
+    ...(segment.style ? { style: segment.style } : {}),
+    highlighted: segment.word,
+  }));
+}
 
 function line(
   type: HunkLine["type"],

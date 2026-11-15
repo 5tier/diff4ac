@@ -4,6 +4,7 @@ import {
   type KeyBinding,
   type PanelId,
 } from "../../shared/keymap";
+import { displayKey } from "../../shared/toolbar";
 
 export function HelpOverlay({
   panel,
@@ -27,9 +28,7 @@ export function HelpOverlay({
           key={`${binding.panel}:${binding.key}`}
           title={binding.id}
         >
-          <kbd className="help-key">
-            {binding.key === " " ? "Space" : binding.key}
-          </kbd>
+          <kbd className="help-key">{displayKey(binding.key)}</kbd>
           <span className="help-label">{binding.label}</span>
         </li>
       ))}

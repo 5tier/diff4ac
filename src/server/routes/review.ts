@@ -1,7 +1,5 @@
-import {
-  isValidContentHash,
-  isValidReviewPath,
-} from "../../review/marks";
+import { isSafeRelativePath } from "../../paths";
+import { isValidContentHash } from "../../review/marks";
 import { guardReviewMarkRequest } from "../../../shared/api-contract";
 import { json, text } from "../http";
 import type { RouteRequest } from "./types";
@@ -20,7 +18,7 @@ export async function handleReviewMark({
   const parsed = guardReviewMarkRequest(body, "");
   if (
     !parsed.ok ||
-    !isValidReviewPath(parsed.value.path) ||
+    !isSafeRelativePath(parsed.value.path) ||
     !isValidContentHash(parsed.value.contentHash)
   ) {
     return text(

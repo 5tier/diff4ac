@@ -293,6 +293,7 @@ test(
       .locator(".help-row", { hasText: "Move down" })
       .first();
     expect(await moveDown.locator(".help-key").textContent()).toBe("b");
+    expect(await branchHelp.textContent()).toContain("Esc");
     await page.keyboard.press("Escape");
     await branchHelp.waitFor({ state: "detached" });
 

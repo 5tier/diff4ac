@@ -2,7 +2,10 @@ import { NonContiguousNetDiffError } from "../../changeset/commits";
 import { NoMergeBaseError } from "../../changeset/branch";
 import { applyFilters } from "../../filters";
 import type { GitGateway } from "../../git/gateway";
-import { UnknownBranchError } from "../../repository/branches";
+import {
+  InvalidBranchNameError,
+  UnknownBranchError,
+} from "../../repository/branches";
 import { UnknownCommitError } from "../../repository/commits";
 import { openWorktree, UnknownWorktreeError } from "../../repository/worktrees";
 import { annotateChangeSet } from "../../review/marks";
@@ -14,6 +17,9 @@ import { parseFilterSettings } from "../query";
 export function gitApiFailure(error: unknown): Response {
   if (error instanceof UnknownWorktreeError) {
     return text(error.message, 404);
+  }
+  if (error instanceof InvalidBranchNameError) {
+    return text(error.message, 400);
   }
   if (error instanceof UnknownBranchError) {
     return text(error.message, 404);
