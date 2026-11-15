@@ -24,6 +24,7 @@ function state(overrides: Partial<ToolbarState> = {}): ToolbarState {
     hideNoise: true,
     filtersOpen: false,
     repositoryChanged: false,
+    filesView: "list",
     ...overrides,
   };
 }
@@ -76,6 +77,7 @@ describe("command toolbar model", () => {
         "global.cycleTheme",
         "global.noise",
         "global.filters",
+        "files.toggleTree",
       ],
       [
         "global.search",
@@ -201,6 +203,16 @@ describe("command toolbar model", () => {
       disabledReason: "No Agent commits",
       value: "All",
     });
+  });
+
+  test("shows the current Files view mode", () => {
+    expect(item(state(), "files.toggleTree")).toMatchObject({
+      enabled: true,
+      value: "List",
+    });
+    expect(
+      item(state({ filesView: "tree" }), "files.toggleTree")?.value,
+    ).toBe("Tree");
   });
 
   test("shows the current theme value", () => {

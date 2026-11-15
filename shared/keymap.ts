@@ -33,6 +33,9 @@ export type KeyAction =
   | { readonly type: "toggle-pick" }
   | { readonly type: "range-pick" }
   | { readonly type: "toggle-mode" }
+  | { readonly type: "toggle-files-view" }
+  | { readonly type: "expand" }
+  | { readonly type: "collapse" }
   | { readonly type: "time-windows" }
   | { readonly type: "time-window-close" }
   | { readonly type: "cycle-agent-filter" }
@@ -257,6 +260,30 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "x",
     label: "Load large diff",
     action: { type: "expand-diff" },
+  },
+  {
+    id: "files.toggleTree",
+    toolbarGroup: "view",
+    toolbarOrder: 5,
+    shortLabel: "Tree",
+    panel: "files",
+    key: "T",
+    label: "Toggle folder tree",
+    action: { type: "toggle-files-view" },
+  },
+  {
+    id: "files.expand",
+    panel: "files",
+    key: "l",
+    label: "Expand folder",
+    action: { type: "expand" },
+  },
+  {
+    id: "files.collapse",
+    panel: "files",
+    key: "h",
+    label: "Collapse folder or go to parent",
+    action: { type: "collapse" },
   },
   {
     id: "diff.scrollDown",

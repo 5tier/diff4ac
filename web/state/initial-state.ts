@@ -18,6 +18,9 @@ export function createInitialAppState(): AppState {
     branchCursor: 0,
     commitCursor: 0,
     fileCursor: 0,
+    filesView:
+      readSessionStorage("diff4ac-files-view") === "tree" ? "tree" : "list",
+    collapsedFolders: [],
     pickedHashes: [],
     rangeAnchor: null,
     selection: { kind: "pending" },

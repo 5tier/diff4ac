@@ -8,6 +8,12 @@ import { CommandToolbar } from "./CommandToolbar";
 import { buildToolbar } from "../shared/toolbar";
 import { appReducer, createInitialAppState } from "./state/app-state";
 import { splitGlobLines } from "./state/selection";
+import {
+  activeTreeFileRow,
+  buildFileTreeModel,
+  expandKeysForFile,
+  visibleFileRowIndexRevealed,
+} from "./state/file-tree";
 import { useRepositoryData } from "./hooks/useRepositoryData";
 import { useChangeSet } from "./hooks/useChangeSet";
 import { useSearch } from "./hooks/useSearch";
@@ -33,6 +39,7 @@ export function App() {
     branchCursor,
     commitCursor,
     fileCursor,
+    filesView,
     selectedPath,
     filtersOpen,
     disabledExtensions,
@@ -141,6 +148,17 @@ export function App() {
     selected,
   } = changeSetState;
 
+  const fileTreeModel = useMemo(
+    () =>
+      buildFileTreeModel(
+        files,
+        commitGroups,
+        isStack,
+        state.collapsedFolders,
+      ),
+    [commitGroups, files, isStack, state.collapsedFolders],
+  );
+
   useAppEffects({
     state,
     appDispatch,
@@ -148,7 +166,8 @@ export function App() {
     worktrees,
     branches,
     commits,
-    files,
+    fileRowCount:
+      filesView === "tree" ? fileTreeModel.rows.length : files.length,
     selectedWorktreePath,
     setKeybindingOverrides,
     setNoisePatterns,
@@ -176,6 +195,17 @@ export function App() {
     diffView,
     appDispatch,
     diffRef,
+    fileCursorForKey: (fileKey) => {
+      if (filesView !== "tree") {
+        return undefined;
+      }
+      const keys = expandKeysForFile(fileTreeModel, fileKey);
+      if (keys.length > 0) {
+        appDispatch({ type: "expand-folders", keys });
+      }
+      const index = visibleFileRowIndexRevealed(fileTreeModel, fileKey);
+      return index >= 0 ? index : undefined;
+    },
   });
 
   const actions = useActions({
@@ -194,6 +224,7 @@ export function App() {
     branches,
     baseBranch,
     worktrees,
+    fileTreeModel,
     searchFiles: search.searchFiles,
     searchMatches: search.searchMatches,
     currentDiffFileKey: search.currentDiffFileKey,
@@ -225,7 +256,11 @@ export function App() {
   const toolbarGroups = useMemo(() => {
     const selectedFile =
       files.find((file) => file.path === selectedPath) ?? null;
-    const activeFile = files[fileCursor] ?? selectedFile;
+    const treeFile =
+      filesView === "tree"
+        ? activeTreeFileRow(fileTreeModel, fileCursor)?.node.payload.file
+        : null;
+    const activeFile = treeFile ?? files[fileCursor] ?? selectedFile;
 
     return buildToolbar(keymap, {
       hasFile: files.length > 0,
@@ -248,6 +283,7 @@ export function App() {
       hideNoise,
       filtersOpen,
       repositoryChanged: repository.repositoryChanged,
+      filesView,
     });
   }, [
     agentFilter,
@@ -256,6 +292,8 @@ export function App() {
     diffView,
     files,
     fileCursor,
+    fileTreeModel,
+    filesView,
     filtersOpen,
     fullFile,
     hideNoise,
@@ -339,7 +377,13 @@ export function App() {
           hiddenFiles={hiddenFiles}
           fileCursor={fileCursor}
           selectedPath={selectedPath}
+          filesView={filesView}
+          fileTree={fileTreeModel}
           stackFileIndex={stackFileIndex}
+          onToggleFolder={(index, key) => {
+            appDispatch({ type: "toggle-folder", key });
+            appDispatch({ type: "set-cursor", panel: "files", index });
+          }}
           onSelectFile={(index, path) =>
             appDispatch({ type: "select-file", index, path })
           }

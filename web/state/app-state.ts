@@ -1,23 +1,16 @@
-import type {
-  BaseBranch,
-  BranchSummary,
-  ChangeViewMode,
-  CommitSummary,
-  Selection,
-  Theme,
-  TimeWindow,
-} from "../../shared/types";
+import type { FilesView, Selection, Theme } from "../../shared/types";
 import type { DiffViewMode } from "../../shared/diff/rows";
 import { TIME_WINDOW_OPTIONS } from "../../shared/time-windows";
 import { nextPanel, type PanelId } from "../../shared/keymap";
 import { nextTheme } from "../theme";
-import type { FiltersDraft } from "../FiltersDialog";
 import {
   selectionFromPicks,
   selectionFromTimeWindow,
 } from "./selection";
 
-export type CursorPanel = "worktrees" | "branches" | "commits" | "files";
+import type { AppAction, CursorPanel } from "./app-actions";
+
+export type { AppAction, CursorPanel } from "./app-actions";
 
 export interface AppState {
   readonly focusedPanel: PanelId;
@@ -25,6 +18,8 @@ export interface AppState {
   readonly branchCursor: number;
   readonly commitCursor: number;
   readonly fileCursor: number;
+  readonly filesView: FilesView;
+  readonly collapsedFolders: readonly string[];
   readonly pickedHashes: readonly string[];
   readonly rangeAnchor: number | null;
   readonly selection: Selection;
@@ -50,108 +45,6 @@ export interface AppState {
   readonly agentFilter: string | null;
 }
 
-export type AppAction =
-  | { readonly type: "focus"; readonly panel: PanelId }
-  | { readonly type: "cycle"; readonly direction: 1 | -1 }
-  | {
-      readonly type: "move";
-      readonly panel: CursorPanel;
-      readonly direction: 1 | -1;
-      readonly count: number;
-    }
-  | {
-      readonly type: "move-commit";
-      readonly direction: 1 | -1;
-      readonly commits: readonly CommitSummary[];
-    }
-  | { readonly type: "select-worktree"; readonly index: number }
-  | {
-      readonly type: "select-branch";
-      readonly index: number;
-      readonly branch: BranchSummary;
-      readonly baseBranch: BaseBranch | null;
-    }
-  | {
-      readonly type: "select-commit";
-      readonly index: number;
-      readonly commit: CommitSummary;
-    }
-  | {
-      readonly type: "select-file";
-      readonly index: number;
-      readonly path: string;
-    }
-  | {
-      readonly type: "set-file-selection";
-      readonly index: number;
-      readonly path: string;
-    }
-  | {
-      readonly type: "toggle-pick";
-      readonly commit: CommitSummary | undefined;
-      readonly commits: readonly CommitSummary[];
-      readonly mode: ChangeViewMode;
-    }
-  | {
-      readonly type: "range-pick";
-      readonly index: number;
-      readonly commit: CommitSummary | undefined;
-    }
-  | { readonly type: "toggle-mode" }
-  | {
-      readonly type: "cycle-agent-filter";
-      readonly agents: readonly string[];
-      readonly allCommits: readonly CommitSummary[];
-    }
-  | { readonly type: "set-agent-filter"; readonly agent: string | null }
-  | { readonly type: "open-time-windows"; readonly today: string }
-  | { readonly type: "close-time-window" }
-  | { readonly type: "time-window-move"; readonly direction: 1 | -1 }
-  | { readonly type: "time-window-custom-mode" }
-  | {
-      readonly type: "apply-time-window";
-      readonly window: TimeWindow;
-      readonly commits: readonly CommitSummary[];
-    }
-  | { readonly type: "time-window-error"; readonly message: string | null }
-  | { readonly type: "time-window-start"; readonly value: string }
-  | { readonly type: "time-window-end"; readonly value: string }
-  | { readonly type: "time-window-back" }
-  | { readonly type: "filters-open" }
-  | { readonly type: "filters-close" }
-  | { readonly type: "apply-filter-draft"; readonly draft: FiltersDraft }
-  | { readonly type: "toggle-noise" }
-  | { readonly type: "toggle-full-file" }
-  | { readonly type: "toggle-diff-view" }
-  | { readonly type: "cycle-theme" }
-  | { readonly type: "set-theme"; readonly theme: Theme }
-  | { readonly type: "help-open" }
-  | { readonly type: "help-close" }
-  | { readonly type: "search-open" }
-  | { readonly type: "search-query"; readonly value: string }
-  | { readonly type: "search-commit" }
-  | { readonly type: "search-clear" }
-  | { readonly type: "set-match-index"; readonly index: number }
-  | { readonly type: "clamp-match-index"; readonly count: number }
-  | {
-      readonly type: "clamp-cursor";
-      readonly panel: CursorPanel;
-      readonly count: number;
-    }
-  | {
-      readonly type: "set-cursor";
-      readonly panel: CursorPanel;
-      readonly index: number;
-    }
-  | { readonly type: "load-start"; readonly preserve: boolean }
-  | {
-      readonly type: "change-set-loaded";
-      readonly selectedPath: string | null;
-      readonly fileCursor: number;
-      readonly selection?: Selection;
-    }
-  | { readonly type: "selection-missing" }
-  | { readonly type: "set-selection"; readonly selection: Selection };
 
 function clampCursor(value: number, count: number): number {
   return Math.max(0, Math.min(value, count - 1));
@@ -234,6 +127,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         focusedPanel: "worktrees",
         worktreeCursor: action.index,
+        collapsedFolders: [],
         pickedHashes: [],
         rangeAnchor: null,
         selection: { kind: "pending" },
@@ -243,6 +137,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         focusedPanel: "branches",
         branchCursor: action.index,
+        collapsedFolders: [],
         pickedHashes: [],
         rangeAnchor: null,
         selection: action.baseBranch
@@ -258,6 +153,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         focusedPanel: "commits",
         commitCursor: action.index,
+        collapsedFolders: [],
         rangeAnchor: null,
         pickedHashes: [action.commit.hash],
         selection: { kind: "commit", commit: action.commit },
@@ -275,6 +171,45 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         fileCursor: action.index,
         selectedPath: action.path,
       };
+    case "toggle-files-view":
+      return {
+        ...state,
+        filesView: state.filesView === "list" ? "tree" : "list",
+        fileCursor: action.fileCursor,
+      };
+    case "toggle-folder":
+      return {
+        ...state,
+        collapsedFolders: state.collapsedFolders.includes(action.key)
+          ? state.collapsedFolders.filter((key) => key !== action.key)
+          : [...state.collapsedFolders, action.key],
+      };
+    case "expand-folder":
+      return {
+        ...state,
+        collapsedFolders: state.collapsedFolders.filter(
+          (key) => key !== action.key,
+        ),
+      };
+    case "collapse-folder":
+      return {
+        ...state,
+        collapsedFolders: state.collapsedFolders.includes(action.key)
+          ? state.collapsedFolders
+          : [...state.collapsedFolders, action.key],
+      };
+    case "expand-folders": {
+      if (action.keys.length === 0) {
+        return state;
+      }
+      const expanded = new Set(action.keys);
+      return {
+        ...state,
+        collapsedFolders: state.collapsedFolders.filter(
+          (key) => !expanded.has(key),
+        ),
+      };
+    }
     case "toggle-pick": {
       if (!action.commit) {
         return state;
@@ -285,6 +220,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         : [...state.pickedHashes, picked];
       return {
         ...state,
+        collapsedFolders: [],
         rangeAnchor: null,
         pickedHashes: next,
         selection: selectionFromPicks(action.commits, next, action.mode),
@@ -296,6 +232,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       }
       return {
         ...state,
+        collapsedFolders: [],
         rangeAnchor: action.index,
         pickedHashes: [action.commit.hash],
         selection: { kind: "commit", commit: action.commit },
@@ -336,6 +273,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         agentFilter: nextAgent,
+        collapsedFolders: [],
         pickedHashes: [],
         rangeAnchor: null,
         selection,
@@ -372,6 +310,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case "apply-time-window":
       return {
         ...state,
+        collapsedFolders: [],
         pickedHashes: [],
         rangeAnchor: null,
         selection: selectionFromTimeWindow(action.window, action.commits),
@@ -468,17 +407,20 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ...state,
         selectedPath: action.selectedPath,
         fileCursor: action.fileCursor,
-        ...(action.selection ? { selection: action.selection } : {}),
+        ...(action.selection
+          ? { selection: action.selection, collapsedFolders: [] }
+          : {}),
       };
     case "selection-missing":
       return {
         ...state,
+        collapsedFolders: [],
         pickedHashes: [],
         rangeAnchor: null,
         selection: { kind: "pending" },
       };
     case "set-selection":
-      return { ...state, selection: action.selection };
+      return { ...state, selection: action.selection, collapsedFolders: [] };
   }
 }
 

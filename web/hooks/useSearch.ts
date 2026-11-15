@@ -31,6 +31,8 @@ export interface UseSearchParams {
   readonly diffView: DiffViewMode;
   readonly appDispatch: Dispatch<AppAction>;
   readonly diffRef: MutableRefObject<HTMLElement | null>;
+  /** File-row index for a file key in the current Files panel mode. */
+  readonly fileCursorForKey?: (fileKey: string) => number | undefined;
 }
 
 export interface SearchState {
@@ -45,7 +47,11 @@ export interface SearchState {
   readonly updateSearchQuery: (value: string) => void;
   readonly clearSearch: () => void;
   readonly commitSearch: () => void;
-  readonly jumpToTarget: (fileKey: string, row: number) => void;
+  readonly jumpToTarget: (
+    fileKey: string,
+    row: number,
+    fileCursor?: number,
+  ) => void;
   readonly jumpToMatch: (index: number) => void;
   readonly currentDiffFileKey: () => string | null;
   readonly currentHunkLocation: () => HunkLocation | null;
@@ -62,6 +68,7 @@ export function useSearch({
   diffView,
   appDispatch,
   diffRef,
+  fileCursorForKey,
 }: UseSearchParams): SearchState {
   const [jump, setJump] = useState<DiffJump | null>(null);
   const jumpNonce = useRef(0);
@@ -135,7 +142,7 @@ export function useSearch({
   }, [appDispatch, searchMatches]);
 
   const selectSearchFile = useCallback(
-    (fileKey: string) => {
+    (fileKey: string, fileCursor?: number) => {
       if (isStack) {
         const file = searchFiles.find((candidate) => candidate.key === fileKey);
         if (!file) {
@@ -144,12 +151,13 @@ export function useSearch({
         appDispatch({
           type: "set-file-selection",
           path: file.path,
-          index: stackFileIndex.get(fileKey) ?? 0,
+          index: fileCursor ?? stackFileIndex.get(fileKey) ?? 0,
         });
         return;
       }
 
-      const index = files.findIndex((file) => file.path === fileKey);
+      const index =
+        fileCursor ?? files.findIndex((file) => file.path === fileKey);
       if (index >= 0) {
         appDispatch({ type: "set-file-selection", path: fileKey, index });
       }
@@ -158,12 +166,13 @@ export function useSearch({
   );
 
   const jumpToTarget = useCallback(
-    (fileKey: string, row: number) => {
-      selectSearchFile(fileKey);
+    (fileKey: string, row: number, fileCursor?: number) => {
+      const index = fileCursor ?? fileCursorForKey?.(fileKey);
+      selectSearchFile(fileKey, index);
       jumpNonce.current += 1;
       setJump({ fileKey, row, nonce: jumpNonce.current });
     },
-    [jumpNonce, selectSearchFile],
+    [fileCursorForKey, jumpNonce, selectSearchFile],
   );
 
   useEffect(() => {

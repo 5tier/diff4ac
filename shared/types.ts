@@ -182,6 +182,8 @@ export interface SessionInfo {
 
 export type Theme = "system" | "light" | "dark";
 
+export type FilesView = "list" | "tree";
+
 export type WatchMode = "native" | "per-directory" | "polling";
 
 export interface WatchStatus {

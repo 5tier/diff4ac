@@ -1,84 +1,37 @@
 import { useCallback } from "react";
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type {
-  BaseBranch,
-  BranchSummary,
-  ChangeFile,
-  ChangeSet,
-  CommitSummary,
-  WorktreeSummary,
-} from "../../shared/types";
-import {
-  createCustomTimeWindow,
-  createPresetTimeWindow,
-  localDateInputValue,
-  TIME_WINDOW_OPTIONS,
-} from "../../shared/time-windows";
-import {
-  fetchFileDiff,
-  setReviewMark,
-  type FileRequestContext,
-} from "../api";
+import { localDateInputValue } from "../../shared/time-windows";
+import { fetchFileDiff, setReviewMark } from "../api";
 import type { KeyAction, PanelId } from "../../shared/keymap";
 import type { ToolbarItem } from "../../shared/toolbar";
 import { nextTheme, storeTheme } from "../theme";
 import { stepMatchIndex } from "../../shared/diff/search";
-import type { SearchFile, SearchMatch } from "../../shared/diff/search";
 import {
   nextFileTarget,
   nextHunkTarget,
-  type HunkLocation,
 } from "../../shared/diff/navigation";
-import type { AppAction, AppState } from "../state/app-state";
-import type { FiltersDraft } from "../FiltersDialog";
+import { useDialogActions } from "./useDialogActions";
 import {
   replaceChangeFile,
   setChangeFileReviewState,
 } from "../state/selection";
+import {
+  activeFileForAction,
+  filesViewToggleActions,
+  treeCollapseAction,
+  treeExpandAction,
+  treeJumpFilePlan,
+  treeSelectAction,
+} from "../state/file-tree";
 
-export interface UseActionsParams {
-  readonly state: AppState;
-  readonly appDispatch: Dispatch<AppAction>;
-  readonly files: readonly ChangeFile[];
-  readonly fileContext: FileRequestContext;
-  readonly setChangeSet: Dispatch<SetStateAction<ChangeSet | null>>;
-  readonly setDiffError: Dispatch<SetStateAction<string | null>>;
-  readonly setMarkError: Dispatch<SetStateAction<string | null>>;
-  readonly commits: readonly CommitSummary[];
-  readonly allCommits: readonly CommitSummary[];
-  readonly hasMoreCommits: boolean;
-  readonly loadMoreCommits: () => void;
-  readonly agentNames: readonly string[];
-  readonly branches: readonly BranchSummary[];
-  readonly baseBranch: BaseBranch | null;
-  readonly worktrees: readonly WorktreeSummary[];
-  readonly searchFiles: readonly SearchFile[];
-  readonly searchMatches: readonly SearchMatch[];
-  readonly currentDiffFileKey: () => string | null;
-  readonly currentHunkLocation: () => HunkLocation | null;
-  readonly jumpToMatch: (index: number) => void;
-  readonly jumpToTarget: (fileKey: string, row: number) => void;
-  readonly clearSearch: () => void;
-  readonly refreshRepository: () => void;
-  readonly markPreserve: () => void;
-  readonly setSelectedWorktreePath: Dispatch<SetStateAction<string | null>>;
-  readonly diffRef: MutableRefObject<HTMLElement | null>;
-}
+import type { ActionDispatcher, UseActionsParams } from "./action-types";
 
-export interface ActionDispatcher {
-  readonly dispatch: (action: KeyAction, panel?: PanelId) => void;
-  readonly dispatchTimeWindow: (action: KeyAction) => void;
-  readonly chooseTimeWindowOption: (index: number) => void;
-  readonly applyCustomTimeWindow: () => void;
-  readonly applyFilterDraft: (draft: FiltersDraft) => void;
-  readonly closeTimeWindow: () => void;
-  readonly runToolbarAction: (item: ToolbarItem) => void;
-}
+export type { ActionDispatcher, UseActionsParams } from "./action-types";
 
 export function useActions({
   state,
   appDispatch,
   files,
+  fileTreeModel,
   fileContext,
   setChangeSet,
   setDiffError,
@@ -103,72 +56,20 @@ export function useActions({
   setSelectedWorktreePath,
   diffRef,
 }: UseActionsParams): ActionDispatcher {
-  const chooseTimeWindowOption = useCallback(
-    (index: number) => {
-      const option = TIME_WINDOW_OPTIONS[index];
-      if (!option) {
-        return;
-      }
-
-      if (option.preset === "custom") {
-        appDispatch({ type: "time-window-custom-mode" });
-        return;
-      }
-
-      appDispatch({
-        type: "apply-time-window",
-        window: createPresetTimeWindow(option.preset, new Date()),
-        commits,
-      });
-    },
-    [appDispatch, commits],
-  );
-
-  const applyCustomTimeWindow = useCallback(() => {
-    try {
-      appDispatch({
-        type: "apply-time-window",
-        window: createCustomTimeWindow(
-          state.timeWindowStart,
-          state.timeWindowEnd,
-        ),
-        commits,
-      });
-    } catch (error) {
-      appDispatch({
-        type: "time-window-error",
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }, [appDispatch, commits, state.timeWindowEnd, state.timeWindowStart]);
-
-  const dispatchTimeWindow = useCallback(
-    (action: KeyAction) => {
-      switch (action.type) {
-        case "move":
-          appDispatch({
-            type: "time-window-move",
-            direction: action.direction,
-          });
-          break;
-        case "select":
-          chooseTimeWindowOption(state.timeWindowCursor);
-          break;
-        case "time-window-close":
-          appDispatch({ type: "close-time-window" });
-          break;
-      }
-    },
-    [appDispatch, chooseTimeWindowOption, state.timeWindowCursor],
-  );
-
-  const applyFilterDraft = useCallback(
-    (draft: FiltersDraft) => {
-      markPreserve();
-      appDispatch({ type: "apply-filter-draft", draft });
-    },
-    [appDispatch, markPreserve],
-  );
+  const {
+    dispatchTimeWindow,
+    chooseTimeWindowOption,
+    applyCustomTimeWindow,
+    applyFilterDraft,
+    closeTimeWindow,
+  } = useDialogActions({
+    appDispatch,
+    commits,
+    timeWindowCursor: state.timeWindowCursor,
+    timeWindowStart: state.timeWindowStart,
+    timeWindowEnd: state.timeWindowEnd,
+    markPreserve,
+  });
 
   const dispatch = useCallback(
     (action: KeyAction, panel: PanelId = state.focusedPanel) => {
@@ -206,7 +107,10 @@ export function useActions({
               type: "move",
               panel: "files",
               direction: action.direction,
-              count: files.length,
+              count:
+                state.filesView === "tree"
+                  ? fileTreeModel.rows.length
+                  : files.length,
             });
           } else if (panel === "worktrees") {
             appDispatch({
@@ -247,13 +151,22 @@ export function useActions({
               });
             }
           } else if (panel === "files") {
-            const file = files[state.fileCursor];
-            if (file) {
-              appDispatch({
-                type: "select-file",
-                index: state.fileCursor,
-                path: file.path,
-              });
+            const treeAction = treeSelectAction(
+              state.filesView,
+              state.fileCursor,
+              fileTreeModel,
+            );
+            if (treeAction) {
+              appDispatch(treeAction);
+            } else {
+              const file = files[state.fileCursor];
+              if (file) {
+                appDispatch({
+                  type: "select-file",
+                  index: state.fileCursor,
+                  path: file.path,
+                });
+              }
             }
           }
           break;
@@ -285,6 +198,39 @@ export function useActions({
         case "toggle-mode":
           appDispatch({ type: "toggle-mode" });
           break;
+        case "toggle-files-view": {
+          for (const action of filesViewToggleActions(
+            state.filesView,
+            state.fileCursor,
+            state.selectedPath,
+            fileTreeModel,
+          )) {
+            appDispatch(action);
+          }
+          break;
+        }
+        case "expand": {
+          const action = treeExpandAction(
+            state.filesView,
+            state.fileCursor,
+            fileTreeModel,
+          );
+          if (action) {
+            appDispatch(action);
+          }
+          break;
+        }
+        case "collapse": {
+          const action = treeCollapseAction(
+            state.filesView,
+            state.fileCursor,
+            fileTreeModel,
+          );
+          if (action) {
+            appDispatch(action);
+          }
+          break;
+        }
         case "time-windows":
           appDispatch({
             type: "open-time-windows",
@@ -312,13 +258,14 @@ export function useActions({
           appDispatch({ type: "toggle-noise" });
           break;
         case "toggle-mark": {
-          const file =
-            panel === "diff"
-              ? files.find((candidate) => candidate.path === state.selectedPath)
-              : (files[state.fileCursor] ??
-                files.find(
-                  (candidate) => candidate.path === state.selectedPath,
-                ));
+          const file = activeFileForAction(
+            panel,
+            files,
+            state.filesView,
+            state.fileCursor,
+            state.selectedPath,
+            fileTreeModel,
+          );
           if (!file) {
             break;
           }
@@ -356,13 +303,14 @@ export function useActions({
           break;
         }
         case "expand-diff": {
-          const file =
-            panel === "diff"
-              ? files.find((candidate) => candidate.path === state.selectedPath)
-              : (files[state.fileCursor] ??
-                files.find(
-                  (candidate) => candidate.path === state.selectedPath,
-                ));
+          const file = activeFileForAction(
+            panel,
+            files,
+            state.filesView,
+            state.fileCursor,
+            state.selectedPath,
+            fileTreeModel,
+          );
           if (!file || !file.collapsed) {
             break;
           }
@@ -412,6 +360,26 @@ export function useActions({
           break;
         }
         case "jump-file": {
+          if (state.filesView === "tree") {
+            const plan = treeJumpFilePlan(
+              fileTreeModel,
+              searchFiles,
+              currentDiffFileKey(),
+              action.direction,
+            );
+            if (plan) {
+              for (const treeAction of plan.actions) {
+                appDispatch(treeAction);
+              }
+              jumpToTarget(
+                plan.target.fileKey,
+                plan.target.row,
+                plan.fileCursor,
+              );
+            }
+            break;
+          }
+
           const target = nextFileTarget(
             searchFiles,
             currentDiffFileKey(),
@@ -462,6 +430,7 @@ export function useActions({
       currentHunkLocation,
       diffRef,
       fileContext,
+      fileTreeModel,
       files,
       hasMoreCommits,
       jumpToMatch,
@@ -479,10 +448,6 @@ export function useActions({
       worktrees,
     ],
   );
-
-  const closeTimeWindow = useCallback(() => {
-    appDispatch({ type: "close-time-window" });
-  }, [appDispatch]);
 
   const runToolbarAction = useCallback(
     (item: ToolbarItem) => {

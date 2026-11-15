@@ -450,6 +450,73 @@ test(
 );
 
 test(
+  "switches the Files panel to a folder tree with T",
+  async () => {
+    const treePage = await browser.newPage({
+      viewport: { width: 1200, height: 800 },
+    });
+
+    try {
+      await treePage.goto(running.url);
+      await treePage.waitForSelector(".file-row");
+      await treePage.keyboard.press("4");
+      await treePage.keyboard.press("T");
+      await treePage.waitForSelector(".folder-row");
+
+      expect(await treePage.locator(".folder-row").count()).toBeGreaterThan(0);
+      expect(
+        (await treePage.locator(".folder-row").allTextContents()).join("\n"),
+      ).toContain("src");
+
+      // h moves from the file to its parent folder, then collapses it.
+      await treePage.keyboard.press("h");
+      await treePage.waitForFunction(
+        () =>
+          document
+            .querySelector(".folder-row-cursor")
+            ?.getAttribute("data-folder-path") === "src",
+      );
+      await treePage.keyboard.press("h");
+      await treePage.waitForFunction(
+        () => document.querySelectorAll(".file-row").length === 0,
+      );
+
+      // l expands the folder again and j moves onto its first file.
+      await treePage.keyboard.press("l");
+      await treePage.waitForFunction(
+        () => document.querySelectorAll(".file-row").length > 0,
+      );
+      await treePage.keyboard.press("j");
+      await treePage.waitForFunction(
+        () => document.querySelector(".file-row-cursor") !== null,
+      );
+      await treePage.keyboard.press("Enter");
+      await treePage.waitForFunction(() =>
+        document
+          .querySelector(".diff-heading-path")
+          ?.textContent?.includes("src/alpha.ts"),
+      );
+
+      await treePage.keyboard.press("m");
+      await treePage.waitForFunction(
+        () => document.querySelectorAll(".file-row-reviewed").length === 1,
+      );
+      await treePage.keyboard.press("m");
+      await treePage.waitForFunction(
+        () => document.querySelectorAll(".file-row-reviewed").length === 0,
+      );
+
+      await treePage.reload();
+      await treePage.waitForSelector(".folder-row");
+      expect(await treePage.locator(".file-row").count()).toBeGreaterThan(0);
+    } finally {
+      await treePage.close();
+    }
+  },
+  30_000,
+);
+
+test(
   "picks commits with Space and v and toggles Net Diff and Commit Stack with t",
   async () => {
     await page.reload();

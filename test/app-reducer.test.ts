@@ -365,3 +365,66 @@ describe("appReducer Selection changes", () => {
     expect(next.selectedPath).toBe("src/b.ts");
   });
 });
+
+describe("appReducer Files view", () => {
+  test("toggles between the flat list and the folder tree", () => {
+    const tree = reduce(baseState(), {
+      type: "toggle-files-view",
+      fileCursor: 3,
+    });
+    expect(tree.filesView).toBe("tree");
+    expect(tree.fileCursor).toBe(3);
+
+    const list = reduce(tree, { type: "toggle-files-view", fileCursor: 1 });
+    expect(list.filesView).toBe("list");
+    expect(list.fileCursor).toBe(1);
+  });
+
+  test("toggles, expands and collapses folders", () => {
+    const collapsed = reduce(baseState(), {
+      type: "toggle-folder",
+      key: "src",
+    });
+    expect(collapsed.collapsedFolders).toEqual(["src"]);
+
+    const expanded = reduce(collapsed, {
+      type: "toggle-folder",
+      key: "src",
+    });
+    expect(expanded.collapsedFolders).toEqual([]);
+
+    const added = reduce(
+      reduce(expanded, { type: "collapse-folder", key: "src" }),
+      { type: "collapse-folder", key: "src" },
+    );
+    expect(added.collapsedFolders).toEqual(["src"]);
+    expect(
+      reduce(added, { type: "expand-folder", key: "src" }).collapsedFolders,
+    ).toEqual([]);
+  });
+
+  test("expands several folders at once", () => {
+    const state = baseState({ collapsedFolders: ["src", "lib", "docs"] });
+    const next = reduce(state, {
+      type: "expand-folders",
+      keys: ["src", "lib"],
+    });
+    expect(next.collapsedFolders).toEqual(["docs"]);
+  });
+
+  test("a new Selection forgets collapsed folders", () => {
+    const state = baseState({ collapsedFolders: ["src"] });
+    const next = reduce(state, {
+      type: "select-branch",
+      index: 0,
+      branch: {
+        name: "feature",
+        hash: "abc",
+        shortHash: "abc",
+        current: false,
+      },
+      baseBranch: { name: "main", ref: "refs/heads/main" },
+    });
+    expect(next.collapsedFolders).toEqual([]);
+  });
+});

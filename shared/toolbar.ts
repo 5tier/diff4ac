@@ -8,7 +8,7 @@ import {
   type PanelId,
   type ToolbarGroupId,
 } from "./keymap";
-import type { ChangeViewMode, Theme } from "./types";
+import type { ChangeViewMode, FilesView, Theme } from "./types";
 import { modeLabel } from "./changeset/selection";
 
 export type { ToolbarGroupId } from "./keymap";
@@ -78,6 +78,7 @@ export interface ToolbarState {
   readonly hideNoise: boolean;
   readonly filtersOpen: boolean;
   readonly repositoryChanged: boolean;
+  readonly filesView: FilesView;
 }
 
 export interface ToolbarItem {
@@ -146,6 +147,11 @@ function itemState(binding: KeyBinding, state: ToolbarState): ItemState {
       return { enabled: true, toggle: true, pressed: state.hideNoise };
     case "global.filters":
       return { enabled: true, highlighted: state.filtersOpen };
+    case "files.toggleTree":
+      return {
+        enabled: true,
+        value: state.filesView === "tree" ? "Tree" : "List",
+      };
     case "diff.previousHunk":
     case "diff.nextHunk":
     case "diff.previousFile":

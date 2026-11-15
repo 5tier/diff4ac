@@ -26,11 +26,13 @@ export function FileRow({
   file,
   selected,
   cursor,
+  depth,
   onSelect,
 }: {
   readonly file: ChangeFile;
   readonly selected: boolean;
   readonly cursor: boolean;
+  readonly depth?: number;
   readonly onSelect: () => void;
 }) {
   const reviewed = file.reviewed === true;
@@ -51,6 +53,11 @@ export function FileRow({
       <button
         type="button"
         className={classes}
+        style={
+          depth === undefined
+            ? undefined
+            : { paddingLeft: `${8 + depth * 14}px` }
+        }
         onClick={onSelect}
         title={
           modeChange ? `${title}\n${describeModeChange(modeChange)}` : title

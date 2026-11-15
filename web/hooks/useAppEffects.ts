@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   BranchSummary,
-  ChangeFile,
   CommitSummary,
   WatchStatus,
   WorktreeSummary,
@@ -23,7 +22,7 @@ export interface UseAppEffectsParams {
   readonly worktrees: readonly WorktreeSummary[];
   readonly branches: readonly BranchSummary[];
   readonly commits: readonly CommitSummary[];
-  readonly files: readonly ChangeFile[];
+  readonly fileRowCount: number;
   readonly selectedWorktreePath: string | null;
   readonly setKeybindingOverrides: Dispatch<SetStateAction<KeybindingOverrides>>;
   readonly setNoisePatterns: Dispatch<SetStateAction<readonly string[]>>;
@@ -37,13 +36,13 @@ export function useAppEffects({
   worktrees,
   branches,
   commits,
-  files,
+  fileRowCount,
   selectedWorktreePath,
   setKeybindingOverrides,
   setNoisePatterns,
   setWatchStatuses,
 }: UseAppEffectsParams): void {
-  const { theme, diffView, fullFile, agentFilter } = state;
+  const { theme, diffView, fullFile, filesView, agentFilter } = state;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -106,6 +105,14 @@ export function useAppEffects({
   }, [fullFile]);
 
   useEffect(() => {
+    try {
+      sessionStorage.setItem("diff4ac-files-view", filesView);
+    } catch {
+      return;
+    }
+  }, [filesView]);
+
+  useEffect(() => {
     appDispatch({
       type: "clamp-cursor",
       panel: "worktrees",
@@ -133,9 +140,9 @@ export function useAppEffects({
     appDispatch({
       type: "clamp-cursor",
       panel: "files",
-      count: files.length,
+      count: fileRowCount,
     });
-  }, [appDispatch, files.length]);
+  }, [appDispatch, fileRowCount]);
 
   useEffect(() => {
     if (selectedWorktreePath) {

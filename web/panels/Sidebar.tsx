@@ -4,6 +4,7 @@ import type {
   ChangeFile,
   CommitChangeGroup,
   CommitSummary,
+  FilesView,
   Selection,
   WorktreeSummary,
 } from "../../shared/types";
@@ -14,6 +15,8 @@ import {
   selectionIncludesCommit,
   stackFileId,
 } from "../state/selection";
+import type { FileTreeModel, FileTreeSection } from "../state/file-tree";
+import { FolderTree } from "./FolderTree";
 import { Panel } from "./Panel";
 import { BranchRow, CommitRow, FileRow, WorktreeRow } from "./Rows";
 
@@ -45,8 +48,25 @@ export interface SidebarProps {
   readonly hiddenFiles: number;
   readonly fileCursor: number;
   readonly selectedPath: string | null;
+  readonly filesView: FilesView;
+  readonly fileTree: FileTreeModel;
   readonly stackFileIndex: Map<string, number>;
+  readonly onToggleFolder: (index: number, key: string) => void;
   readonly onSelectFile: (index: number, path: string, commitHash?: string) => void;
+}
+
+function sectionFiles(
+  section: FileTreeSection,
+  groups: readonly CommitChangeGroup[],
+): readonly { readonly file: ChangeFile; readonly commitHash: string }[] {
+  const group = groups.find((candidate) => candidate.commit.hash === section.key);
+  if (!group) {
+    return [];
+  }
+  return group.files.map((file) => ({
+    file,
+    commitHash: group.commit.hash,
+  }));
 }
 
 export function Sidebar({
@@ -77,7 +97,10 @@ export function Sidebar({
   hiddenFiles,
   fileCursor,
   selectedPath,
+  filesView,
+  fileTree,
   stackFileIndex,
+  onToggleFolder,
   onSelectFile,
 }: SidebarProps) {
   return (
@@ -216,43 +239,100 @@ export function Sidebar({
             </div>
           ) : (
             <div className="stack-file-list">
-              {commitGroups.map((group) => (
-                <section className="stack-file-group" key={group.commit.hash}>
+              {fileTree.sections.map((section) => (
+                <section
+                  className="stack-file-group"
+                  key={section.key}
+                >
                   <div
                     className="stack-file-heading"
-                    title={group.commit.message}
+                    title={section.heading?.message}
                   >
                     <span className="commit-hash">
-                      {group.commit.shortHash}
+                      {section.heading?.shortHash}
                     </span>
                     <span className="stack-file-message">
-                      {group.commit.message}
+                      {section.heading?.message}
                     </span>
                   </div>
-                  {group.files.length === 0 ? (
+                  {section.nodes.length === 0 ? (
                     <div className="placeholder">No file changes.</div>
-                  ) : (
-                    <ul className="file-list">
-                      {group.files.map((file) => {
-                        const key = `${group.commit.hash}:${file.path}`;
-                        const index = stackFileIndex.get(key) ?? 0;
+                  ) : filesView === "tree" ? (
+                    <FolderTree
+                      nodes={section.nodes}
+                      expanded={fileTree.expanded}
+                      cursorIndex={fileCursor - section.startIndex}
+                      onToggleFolder={(folder, rowIndex) =>
+                        onToggleFolder(
+                          section.startIndex + rowIndex,
+                          folder.key,
+                        )
+                      }
+                      renderFile={(file, renderState) => {
+                        const payload = file.payload;
+                        const globalIndex =
+                          section.startIndex + renderState.rowIndex;
                         return (
                           <FileRow
-                            key={key}
-                            file={file}
-                            selected={file.path === selectedPath}
-                            cursor={fileCursor === index}
+                            file={payload.file}
+                            selected={payload.file.path === selectedPath}
+                            cursor={renderState.cursor}
+                            depth={renderState.depth}
                             onSelect={() => {
-                              onSelectFile(index, file.path, group.commit.hash);
-                              document
-                                .getElementById(
-                                  stackFileId(group.commit.hash, file.path),
-                                )
-                                ?.scrollIntoView({ block: "start" });
+                              onSelectFile(
+                                globalIndex,
+                                payload.file.path,
+                                payload.commitHash ?? undefined,
+                              );
+                              if (payload.commitHash) {
+                                document
+                                  .getElementById(
+                                    stackFileId(
+                                      payload.commitHash,
+                                      payload.file.path,
+                                    ),
+                                  )
+                                  ?.scrollIntoView({ block: "start" });
+                              }
                             }}
                           />
                         );
-                      })}
+                      }}
+                    />
+                  ) : (
+                    <ul className="file-list">
+                      {section.nodes.length === 0
+                        ? null
+                        : sectionFiles(section, commitGroups).map((entry) => {
+                            const file = entry.file;
+                            const key = `${entry.commitHash}:${file.path}`;
+                            const index = stackFileIndex.get(key) ?? 0;
+                            return (
+                              <FileRow
+                                key={key}
+                                file={file}
+                                selected={file.path === selectedPath}
+                                cursor={fileCursor === index}
+                                onSelect={() => {
+                                  onSelectFile(
+                                    index,
+                                    file.path,
+                                    entry.commitHash,
+                                  );
+                                  if (entry.commitHash) {
+                                    document
+                                      .getElementById(
+                                        stackFileId(
+                                          entry.commitHash,
+                                          file.path,
+                                        ),
+                                      )
+                                      ?.scrollIntoView({ block: "start" });
+                                  }
+                                }}
+                              />
+                            );
+                          })}
                     </ul>
                   )}
                 </section>
@@ -265,6 +345,29 @@ export function Sidebar({
               ? `${hiddenFilesLabel(hiddenFiles)} by Filters.`
               : emptyFilesMessage(selection)}
           </div>
+        ) : filesView === "tree" ? (
+          <FolderTree
+            nodes={fileTree.sections[0]?.nodes ?? []}
+            expanded={fileTree.expanded}
+            cursorIndex={fileCursor}
+            onToggleFolder={(folder, rowIndex) =>
+              onToggleFolder(rowIndex, folder.key)
+            }
+            renderFile={(file, renderState) => {
+              const payload = file.payload;
+              return (
+                <FileRow
+                  file={payload.file}
+                  selected={payload.file.path === selectedPath}
+                  cursor={renderState.cursor}
+                  depth={renderState.depth}
+                  onSelect={() =>
+                    onSelectFile(renderState.rowIndex, payload.file.path)
+                  }
+                />
+              );
+            }}
+          />
         ) : (
           <ul className="file-list">
             {files.map((file, index) => (
