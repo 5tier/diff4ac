@@ -8,11 +8,11 @@ import {
   isTimeWindowPreset,
   parseTimeWindowInstant,
   timeWindowLabel,
-} from "../time-windows";
+} from "../../shared/time-windows";
 import type {
   ChangeViewMode,
   TimeWindow,
-} from "../types";
+} from "../../shared/types";
 
 export type ParseResult<T> =
   | { readonly ok: true; readonly value: T }

@@ -1,5 +1,14 @@
 export type PanelId = "worktrees" | "branches" | "commits" | "files" | "diff";
 
+export type ToolbarGroupId =
+  | "panels"
+  | "view"
+  | "navigate"
+  | "review"
+  | "commits"
+  | "repository"
+  | "help";
+
 export const PANEL_ORDER: readonly PanelId[] = [
   "worktrees",
   "branches",
@@ -58,6 +67,12 @@ export interface KeyBinding {
   readonly key: string;
   readonly label: string;
   readonly action: KeyAction;
+  /** Toolbar group this binding belongs to, if it is shown in the toolbar. */
+  readonly toolbarGroup?: ToolbarGroupId;
+  /** Order within the toolbar group. */
+  readonly toolbarOrder?: number;
+  /** Compact toolbar label, when the keymap label is too long. */
+  readonly shortLabel?: string;
 }
 
 export const KEYMAP: readonly KeyBinding[] = [
@@ -126,6 +141,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "commits.togglePick",
+    toolbarGroup: "commits",
+    toolbarOrder: 4,
+    shortLabel: "Pick",
     panel: "commits",
     key: " ",
     label: "Pick or unpick commit",
@@ -133,6 +151,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "commits.rangePick",
+    toolbarGroup: "commits",
+    toolbarOrder: 3,
+    shortLabel: "Range pick",
     panel: "commits",
     key: "v",
     label: "Start range pick",
@@ -140,6 +161,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "commits.toggleMode",
+    toolbarGroup: "commits",
+    toolbarOrder: 0,
+    shortLabel: "Mode",
     panel: "commits",
     key: "t",
     label: "Toggle Net Diff / Commit Stack",
@@ -147,6 +171,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "commits.timeWindows",
+    toolbarGroup: "commits",
+    toolbarOrder: 1,
+    shortLabel: "Time Window",
     panel: "commits",
     key: "w",
     label: "Choose a Time Window",
@@ -154,6 +181,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "commits.cycleAgentFilter",
+    toolbarGroup: "commits",
+    toolbarOrder: 2,
+    shortLabel: "Agent",
     panel: "commits",
     key: "a",
     label: "Filter commits by Agent",
@@ -210,6 +240,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "files.toggleMark",
+    toolbarGroup: "review",
+    toolbarOrder: 0,
+    shortLabel: "Review Mark",
     panel: "files",
     key: "m",
     label: "Toggle Review Mark",
@@ -217,6 +250,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "files.expandDiff",
+    toolbarGroup: "review",
+    toolbarOrder: 1,
+    shortLabel: "Load diff",
     panel: "files",
     key: "x",
     label: "Load large diff",
@@ -252,6 +288,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "diff.nextHunk",
+    toolbarGroup: "navigate",
+    toolbarOrder: 2,
+    shortLabel: "Next hunk",
     panel: "diff",
     key: "]",
     label: "Next hunk",
@@ -259,6 +298,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "diff.previousHunk",
+    toolbarGroup: "navigate",
+    toolbarOrder: 1,
+    shortLabel: "Previous hunk",
     panel: "diff",
     key: "[",
     label: "Previous hunk",
@@ -266,6 +308,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "diff.nextFile",
+    toolbarGroup: "navigate",
+    toolbarOrder: 4,
+    shortLabel: "Next file",
     panel: "diff",
     key: "}",
     label: "Next file",
@@ -273,6 +318,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "diff.previousFile",
+    toolbarGroup: "navigate",
+    toolbarOrder: 3,
+    shortLabel: "Previous file",
     panel: "diff",
     key: "{",
     label: "Previous file",
@@ -280,6 +328,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.focusWorktrees",
+    toolbarGroup: "panels",
+    toolbarOrder: 0,
+    shortLabel: "Worktrees",
     panel: "global",
     key: "1",
     label: "Focus Worktrees",
@@ -287,6 +338,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.focusBranches",
+    toolbarGroup: "panels",
+    toolbarOrder: 1,
+    shortLabel: "Branches",
     panel: "global",
     key: "2",
     label: "Focus Branches",
@@ -294,6 +348,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.focusCommits",
+    toolbarGroup: "panels",
+    toolbarOrder: 2,
+    shortLabel: "Commits",
     panel: "global",
     key: "3",
     label: "Focus Commits",
@@ -301,6 +358,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.focusFiles",
+    toolbarGroup: "panels",
+    toolbarOrder: 3,
+    shortLabel: "Files",
     panel: "global",
     key: "4",
     label: "Focus Files",
@@ -308,6 +368,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.focusDiff",
+    toolbarGroup: "panels",
+    toolbarOrder: 4,
+    shortLabel: "Diff",
     panel: "global",
     key: "0",
     label: "Focus Diff",
@@ -322,6 +385,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.help",
+    toolbarGroup: "help",
+    toolbarOrder: 0,
+    shortLabel: "Help",
     panel: "global",
     key: "?",
     label: "Show keybindings",
@@ -329,6 +395,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.filters",
+    toolbarGroup: "view",
+    toolbarOrder: 4,
+    shortLabel: "Filters",
     panel: "global",
     key: "f",
     label: "Open Filters",
@@ -336,6 +405,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.noise",
+    toolbarGroup: "view",
+    toolbarOrder: 3,
+    shortLabel: "Noise",
     panel: "global",
     key: "n",
     label: "Toggle Noise",
@@ -343,6 +415,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.search",
+    toolbarGroup: "navigate",
+    toolbarOrder: 0,
+    shortLabel: "Search",
     panel: "global",
     key: "/",
     label: "Search Change Set",
@@ -350,6 +425,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "search.nextMatch",
+    toolbarGroup: "navigate",
+    toolbarOrder: 5,
+    shortLabel: "Next match",
     panel: "search",
     key: "n",
     label: "Next match",
@@ -357,6 +435,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "search.previousMatch",
+    toolbarGroup: "navigate",
+    toolbarOrder: 6,
+    shortLabel: "Previous match",
     panel: "search",
     key: "N",
     label: "Previous match",
@@ -364,6 +445,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "search.clear",
+    toolbarGroup: "navigate",
+    toolbarOrder: 7,
+    shortLabel: "Clear search",
     panel: "search",
     key: "Escape",
     label: "Clear search",
@@ -378,6 +462,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.refresh",
+    toolbarGroup: "repository",
+    toolbarOrder: 0,
+    shortLabel: "Refresh",
     panel: "global",
     key: "r",
     label: "Refresh Repository",
@@ -385,6 +472,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.toggleDiffView",
+    toolbarGroup: "view",
+    toolbarOrder: 0,
+    shortLabel: "Side-by-side",
     panel: "global",
     key: "s",
     label: "Toggle side-by-side diff",
@@ -392,6 +482,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.toggleFullFile",
+    toolbarGroup: "view",
+    toolbarOrder: 1,
+    shortLabel: "Full file",
     panel: "global",
     key: "c",
     label: "Toggle full file / changed hunks only",
@@ -399,6 +492,9 @@ export const KEYMAP: readonly KeyBinding[] = [
   },
   {
     id: "global.cycleTheme",
+    toolbarGroup: "view",
+    toolbarOrder: 2,
+    shortLabel: "Theme",
     panel: "global",
     key: "D",
     label: "Cycle theme",

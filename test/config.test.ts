@@ -5,9 +5,9 @@ import { buildBranchChangeSet } from "../src/changeset/branch";
 import { GitGateway } from "../src/git/gateway";
 import { loadConfig } from "../src/config/loader";
 import { DEFAULT_NOISE_PATTERNS } from "../src/filters";
-import { applyKeybindingOverrides } from "../src/keymap";
+import { applyKeybindingOverrides } from "../shared/keymap";
 import { startServer, type RunningServer } from "../src/server/server";
-import type { BranchList, ConfigInfo } from "../src/types";
+import type { BranchList, ConfigInfo } from "../shared/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import { createTempHome, type TempHome } from "./helpers/home";
 

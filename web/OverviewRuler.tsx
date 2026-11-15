@@ -1,5 +1,5 @@
 import { useEffect, useState, type RefObject } from "react";
-import type { ChangeOverview, OverviewMark } from "../src/diff/overview";
+import type { ChangeOverview, OverviewMark } from "../shared/diff/overview";
 
 interface Viewport {
   readonly top: number;

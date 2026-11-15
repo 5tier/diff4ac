@@ -3,15 +3,15 @@ import type {
   ChangeFile,
   CommitChangeGroup,
   Selection,
-} from "../../src/types";
-import type { DiffViewMode } from "../../src/diff/rows";
-import type { SearchMatch } from "../../src/diff/search";
+} from "../../shared/types";
+import type { DiffViewMode } from "../../shared/diff/rows";
+import type { SearchMatch } from "../../shared/diff/search";
 import type { FileRequestContext } from "../api";
 import type { DiffJump } from "../DiffView";
 import { DiffView } from "../DiffView";
 import { OverviewRuler } from "../OverviewRuler";
-import type { buildChangeOverview } from "../../src/diff/overview";
-import type { PanelId } from "../keymap";
+import type { buildChangeOverview } from "../../shared/diff/overview";
+import type { PanelId } from "../../shared/keymap";
 import { emptyFilesMessage, hiddenFilesLabel } from "../state/selection";
 import { CommitStackView } from "./CommitStackView";
 

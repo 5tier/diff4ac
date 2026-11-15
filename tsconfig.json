@@ -13,5 +13,5 @@
     "verbatimModuleSyntax": true,
     "types": ["bun"]
   },
-  "include": ["src", "web", "test", "scripts"]
+  "include": ["src", "shared", "web", "test", "scripts"]
 }

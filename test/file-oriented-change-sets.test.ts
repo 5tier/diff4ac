@@ -9,7 +9,7 @@ import {
 } from "../src/changeset/scope";
 import { GitGateway, setGitSpawnObserver } from "../src/git/gateway";
 import { startServer, type RunningServer } from "../src/server/server";
-import type { ChangeFile, ChangeSet, TimeWindow } from "../src/types";
+import type { ChangeFile, ChangeSet, TimeWindow } from "../shared/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import { createTempHome, type TempHome } from "./helpers/home";
 

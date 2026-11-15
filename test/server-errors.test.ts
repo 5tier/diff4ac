@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { BranchList } from "../src/types";
+import type { BranchList } from "../shared/types";
 import {
   createFixtureRepo,
   type FixtureRepo,

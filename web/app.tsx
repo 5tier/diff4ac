@@ -1,11 +1,11 @@
 import { useMemo, useReducer, useState } from "react";
-import type { FilterRequest } from "../src/types";
+import type { FilterRequest } from "../shared/types";
 import {
   applyKeybindingOverrides,
   type KeybindingOverrides,
-} from "./keymap";
+} from "../shared/keymap";
 import { CommandToolbar } from "./CommandToolbar";
-import { buildToolbar } from "../src/toolbar";
+import { buildToolbar } from "../shared/toolbar";
 import { appReducer, createInitialAppState } from "./state/app-state";
 import { splitGlobLines } from "./state/selection";
 import { useRepositoryData } from "./hooks/useRepositoryData";

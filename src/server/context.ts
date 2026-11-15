@@ -1,7 +1,7 @@
 import type { CompiledAgentPattern } from "../agents";
 import type { GitGateway } from "../git/gateway";
 import type { ReviewMarkStore } from "../review/marks";
-import type { ConfigInfo } from "../types";
+import type { ConfigInfo } from "../../shared/types";
 
 export interface EventHub {
   subscribe(listener: () => void): () => void;

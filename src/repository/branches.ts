@@ -4,7 +4,7 @@ import type {
   BranchList,
   BranchSummary,
   WorktreeInfo,
-} from "../types";
+} from "../../shared/types";
 
 export class UnknownBranchError extends Error {
   constructor(name: string) {

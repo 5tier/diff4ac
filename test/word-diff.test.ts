@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
-  lineSimilarity,
+  tokenSimilarity,
   tokenizeLine,
   wordDiff,
-} from "../src/diff/word-diff";
-import { alignChangeLines } from "../src/diff/pairing";
+} from "../shared/diff/word-diff";
+import { alignChangeLines } from "../shared/diff/pairing";
 
 function changed(line: string, ranges: readonly { start: number; end: number }[]) {
   return ranges.map((range) => line.slice(range.start, range.end));
@@ -63,8 +63,8 @@ describe("word diff", () => {
   });
 
   test("similarity prefers lines with shared words", () => {
-    expect(lineSimilarity("const a = 1", "const a = 2")).toBeGreaterThan(
-      lineSimilarity("const a = 1", "unrelated"),
+    expect(tokenSimilarity("const a = 1", "const a = 2")).toBeGreaterThan(
+      tokenSimilarity("const a = 1", "unrelated"),
     );
   });
 });

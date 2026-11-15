@@ -5,7 +5,7 @@ import type {
   ChangeSet,
   ChangeViewMode,
   TimeWindow,
-} from "../types";
+} from "../../shared/types";
 import { buildBranchChangeSet, resolveBranchScope } from "./branch";
 import { buildCommitChangeSet, resolveCommitRange } from "./commit";
 import {

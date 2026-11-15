@@ -1,8 +1,8 @@
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
-import { countPendingFiles } from "../changeset/files";
+import { countPendingFiles } from "./status";
 import { GitGateway } from "../git/gateway";
-import type { WorktreeList, WorktreeSummary } from "../types";
+import type { WorktreeList, WorktreeSummary } from "../../shared/types";
 
 export class UnknownWorktreeError extends Error {
   constructor(path: string) {

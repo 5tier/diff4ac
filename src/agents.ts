@@ -1,4 +1,4 @@
-import type { AgentPatternConfig } from "./types";
+import type { AgentPatternConfig } from "../shared/types";
 
 export interface CompiledAgentPattern {
   readonly name: string;

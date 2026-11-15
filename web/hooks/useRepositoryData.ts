@@ -7,7 +7,7 @@ import type {
   CommitSummary,
   WorktreeInfo,
   WorktreeSummary,
-} from "../../src/types";
+} from "../../shared/types";
 import {
   fetchBranches,
   fetchCommits,

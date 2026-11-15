@@ -1,16 +1,18 @@
 import type { GitGateway } from "../git/gateway";
-import type { ChangeSet } from "../types";
+import type { ChangeSet } from "../../shared/types";
 import {
   buildChangeFiles,
-  changeSetTotals,
   emptyTreeRef,
   parseNameStatus,
-  parseUnstagedDeletions,
-  parseUntracked,
   type ChangeFileOptions,
   type DiffRange,
   type FileStatusRecord,
 } from "./files";
+import { changeSetTotals } from "./totals";
+import {
+  parseUnstagedDeletions,
+  parseUntracked,
+} from "../repository/status";
 import { pairPendingRenames, type PendingRename } from "./pending-renames";
 
 function renameRecord(rename: PendingRename): FileStatusRecord {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Hunk, HunkLine } from "../src/types";
-import { buildDiffRows, wordDiffSegments } from "../src/diff/rows";
+import type { Hunk, HunkLine } from "../shared/types";
+import { buildDiffRows, wordDiffSegments } from "../shared/diff/rows";
 import { languageForPath } from "../web/highlight";
 
 function line(

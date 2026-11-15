@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Hunk } from "../src/types";
+import type { Hunk } from "../shared/types";
 import { highlightHunks, languageForPath, supportsLanguage } from "../web/highlight";
 
 const hunk: Hunk = {

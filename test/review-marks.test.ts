@@ -10,7 +10,7 @@ import {
   ReviewMarkStore,
 } from "../src/review/marks";
 import type { RunningServer } from "../src/server/server";
-import type { ChangeSet } from "../src/types";
+import type { ChangeSet } from "../shared/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import { startFixtureServer } from "./helpers/server";
 

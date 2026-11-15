@@ -4,7 +4,7 @@ import type {
   ChangeSet,
   CommitList,
   WorktreeList,
-} from "../src/types";
+} from "../shared/types";
 import { createFixtureRepo } from "./helpers/fixture";
 import {
   getJson,

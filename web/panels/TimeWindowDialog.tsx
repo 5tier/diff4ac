@@ -1,4 +1,4 @@
-import { TIME_WINDOW_OPTIONS } from "../../src/time-windows";
+import { TIME_WINDOW_OPTIONS } from "../../shared/time-windows";
 
 export interface TimeWindowDialogProps {
   readonly cursor: number;

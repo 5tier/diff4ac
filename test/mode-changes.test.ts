@@ -7,7 +7,7 @@ import { buildPendingChangeSet } from "../src/changeset/pending";
 import {
   describeModeChange,
   isModeOnlyChange,
-} from "../src/diff/mode";
+} from "../shared/diff/mode";
 import { GitGateway } from "../src/git/gateway";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 

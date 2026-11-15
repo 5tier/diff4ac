@@ -1,6 +1,6 @@
 import type { HighlighterCore, LanguageRegistration } from "shiki/types";
-import type { Hunk } from "../src/types";
-import type { HunkHighlight, TokenSpan } from "../src/diff/rows";
+import type { Hunk } from "../shared/types";
+import type { HunkHighlight, TokenSpan } from "../shared/diff/rows";
 
 type LanguageModule = { readonly default: readonly LanguageRegistration[] };
 type LanguageLoader = () => Promise<LanguageModule>;

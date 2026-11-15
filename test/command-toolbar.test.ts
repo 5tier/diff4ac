@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { applyKeybindingOverrides, KEYMAP } from "../src/keymap";
+import { applyKeybindingOverrides, KEYMAP } from "../shared/keymap";
 import {
   buildToolbar,
   displayKey,
   TOOLBAR_GROUP_LABELS,
   type ToolbarState,
-} from "../src/toolbar";
+} from "../shared/toolbar";
 
 function state(overrides: Partial<ToolbarState> = {}): ToolbarState {
   return {

@@ -11,7 +11,7 @@ import type {
   CommitChangeGroup,
   CommitSummary,
   FilterRequest,
-} from "../src/types";
+} from "../shared/types";
 
 function file(path: string, overrides: Partial<ChangeFile> = {}): ChangeFile {
   return {

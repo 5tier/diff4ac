@@ -1,4 +1,8 @@
-import type { CommitSummary } from "../types";
+import type { ChangeViewMode, CommitSummary } from "../types";
+
+export function modeLabel(mode: ChangeViewMode): string {
+  return mode === "net" ? "Net Diff" : "Commit Stack";
+}
 
 export function isContiguousCommitSelection(
   selected: readonly CommitSummary[],

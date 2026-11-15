@@ -7,28 +7,28 @@ import type {
   ChangeSet,
   CommitSummary,
   WorktreeSummary,
-} from "../../src/types";
+} from "../../shared/types";
 import {
   createCustomTimeWindow,
   createPresetTimeWindow,
   localDateInputValue,
   TIME_WINDOW_OPTIONS,
-} from "../../src/time-windows";
+} from "../../shared/time-windows";
 import {
   fetchFileDiff,
   setReviewMark,
   type FileRequestContext,
 } from "../api";
-import type { KeyAction, PanelId } from "../keymap";
-import type { ToolbarItem } from "../../src/toolbar";
+import type { KeyAction, PanelId } from "../../shared/keymap";
+import type { ToolbarItem } from "../../shared/toolbar";
 import { nextTheme, storeTheme } from "../theme";
-import { stepMatchIndex } from "../../src/diff/search";
-import type { SearchFile, SearchMatch } from "../../src/diff/search";
+import { stepMatchIndex } from "../../shared/diff/search";
+import type { SearchFile, SearchMatch } from "../../shared/diff/search";
 import {
   nextFileTarget,
   nextHunkTarget,
   type HunkLocation,
-} from "../../src/diff/navigation";
+} from "../../shared/diff/navigation";
 import type { AppAction, AppState } from "../state/app-state";
 import type { FiltersDraft } from "../FiltersDialog";
 import {

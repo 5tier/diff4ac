@@ -6,7 +6,7 @@ import type {
   FilterRequest,
   Selection,
   WorktreeInfo,
-} from "../../src/types";
+} from "../../shared/types";
 import type { FileRequestContext } from "../api";
 import {
   fetchBranch,

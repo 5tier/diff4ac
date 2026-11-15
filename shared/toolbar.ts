@@ -1,21 +1,17 @@
 import type { DiffViewMode } from "./diff/rows";
 import {
+  KEYMAP,
   PANEL_ORDER,
   type KeyAction,
   type KeyBinding,
   type KeyScope,
   type PanelId,
+  type ToolbarGroupId,
 } from "./keymap";
 import type { ChangeViewMode, Theme } from "./types";
+import { modeLabel } from "./changeset/selection";
 
-export type ToolbarGroupId =
-  | "panels"
-  | "view"
-  | "navigate"
-  | "review"
-  | "commits"
-  | "repository"
-  | "help";
+export type { ToolbarGroupId } from "./keymap";
 
 export const TOOLBAR_GROUP_LABELS: Record<ToolbarGroupId, string> = {
   panels: "Panels",
@@ -27,98 +23,44 @@ export const TOOLBAR_GROUP_LABELS: Record<ToolbarGroupId, string> = {
   help: "Help",
 };
 
+export const TOOLBAR_GROUP_ORDER: readonly ToolbarGroupId[] = [
+  "panels",
+  "view",
+  "navigate",
+  "review",
+  "commits",
+  "repository",
+  "help",
+];
+
 interface ToolbarGroupDefinition {
   readonly id: ToolbarGroupId;
   readonly bindingIds: readonly string[];
 }
 
-export const TOOLBAR_GROUPS: readonly ToolbarGroupDefinition[] = [
-  {
-    id: "panels",
-    bindingIds: [
-      "global.focusWorktrees",
-      "global.focusBranches",
-      "global.focusCommits",
-      "global.focusFiles",
-      "global.focusDiff",
-    ],
-  },
-  {
-    id: "view",
-    bindingIds: [
-      "global.toggleDiffView",
-      "global.toggleFullFile",
-      "global.cycleTheme",
-      "global.noise",
-      "global.filters",
-    ],
-  },
-  {
-    id: "navigate",
-    bindingIds: [
-      "global.search",
-      "diff.previousHunk",
-      "diff.nextHunk",
-      "diff.previousFile",
-      "diff.nextFile",
-      "search.nextMatch",
-      "search.previousMatch",
-      "search.clear",
-    ],
-  },
-  {
-    id: "review",
-    bindingIds: ["files.toggleMark", "files.expandDiff"],
-  },
-  {
-    id: "commits",
-    bindingIds: [
-      "commits.toggleMode",
-      "commits.timeWindows",
-      "commits.cycleAgentFilter",
-      "commits.rangePick",
-      "commits.togglePick",
-    ],
-  },
-  {
-    id: "repository",
-    bindingIds: ["global.refresh"],
-  },
-  {
-    id: "help",
-    bindingIds: ["global.help"],
-  },
-];
+function deriveToolbarGroups(
+  keymap: readonly KeyBinding[],
+): readonly ToolbarGroupDefinition[] {
+  const grouped = new Map<ToolbarGroupId, { id: string; order: number }[]>();
+  for (const binding of keymap) {
+    if (!binding.toolbarGroup) {
+      continue;
+    }
+    const entries = grouped.get(binding.toolbarGroup) ?? [];
+    entries.push({ id: binding.id, order: binding.toolbarOrder ?? 0 });
+    grouped.set(binding.toolbarGroup, entries);
+  }
 
-const SHORT_LABELS: Readonly<Record<string, string>> = {
-  "global.focusWorktrees": "Worktrees",
-  "global.focusBranches": "Branches",
-  "global.focusCommits": "Commits",
-  "global.focusFiles": "Files",
-  "global.focusDiff": "Diff",
-  "global.toggleDiffView": "Side-by-side",
-  "global.toggleFullFile": "Full file",
-  "global.cycleTheme": "Theme",
-  "global.noise": "Noise",
-  "global.filters": "Filters",
-  "global.search": "Search",
-  "diff.previousHunk": "Previous hunk",
-  "diff.nextHunk": "Next hunk",
-  "diff.previousFile": "Previous file",
-  "diff.nextFile": "Next file",
-  "search.nextMatch": "Next match",
-  "search.previousMatch": "Previous match",
-  "search.clear": "Clear search",
-  "files.toggleMark": "Review Mark",
-  "files.expandDiff": "Load diff",
-  "commits.toggleMode": "Mode",
-  "commits.timeWindows": "Time Window",
-  "commits.cycleAgentFilter": "Agent",
-  "commits.rangePick": "Range pick",
-  "commits.togglePick": "Pick",
-  "global.refresh": "Refresh",
-  "global.help": "Help",
-};
+  return TOOLBAR_GROUP_ORDER.map((id) => ({
+    id,
+    bindingIds: (grouped.get(id) ?? [])
+      .sort((left, right) => left.order - right.order)
+      .map((entry) => entry.id),
+  }));
+}
+
+export const TOOLBAR_GROUPS: readonly ToolbarGroupDefinition[] =
+  deriveToolbarGroups(KEYMAP);
 
 export interface ToolbarState {
   readonly hasFile: boolean;
@@ -168,10 +110,6 @@ interface ItemState {
   readonly pressed?: boolean;
   readonly highlighted?: boolean;
   readonly value?: string;
-}
-
-function modeLabel(mode: ChangeViewMode): string {
-  return mode === "net" ? "Net Diff" : "Commit Stack";
 }
 
 function themeLabel(theme: Theme): string {
@@ -274,7 +212,7 @@ export function buildToolbar(
 ): readonly ToolbarGroup[] {
   const byId = new Map(keymap.map((binding) => [binding.id, binding] as const));
 
-  return TOOLBAR_GROUPS.map((group) => ({
+  return deriveToolbarGroups(keymap).map((group) => ({
     id: group.id,
     label: TOOLBAR_GROUP_LABELS[group.id],
     items: group.bindingIds.flatMap((id) => {
@@ -288,7 +226,7 @@ export function buildToolbar(
         {
           id: binding.id,
           group: group.id,
-          label: SHORT_LABELS[binding.id] ?? binding.label,
+          label: binding.shortLabel ?? binding.label,
           key: binding.key,
           displayKey: displayKey(binding.key),
           action: binding.action,

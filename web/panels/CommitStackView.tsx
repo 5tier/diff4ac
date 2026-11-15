@@ -4,10 +4,10 @@ import {
   VIRTUAL_ROW_THRESHOLD,
   type DiffJump,
 } from "../DiffView";
-import type { DiffViewMode } from "../../src/diff/rows";
+import type { DiffViewMode } from "../../shared/diff/rows";
 import type { FileRequestContext } from "../api";
-import type { CommitChangeGroup } from "../../src/types";
-import type { SearchMatch } from "../../src/diff/search";
+import type { CommitChangeGroup } from "../../shared/types";
+import type { SearchMatch } from "../../shared/diff/search";
 import { stackFileId, stackFileKey } from "../state/selection";
 
 export function CommitStackView({

@@ -52,7 +52,7 @@ function lcsLength(left: readonly WordToken[], right: readonly WordToken[]): num
   return previous[0] ?? 0;
 }
 
-export function lineSimilarity(left: string, right: string): number {
+export function tokenSimilarity(left: string, right: string): number {
   if (left === right) {
     return 1;
   }

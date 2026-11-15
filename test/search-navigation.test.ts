@@ -1,18 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import type { Hunk, HunkLine } from "../src/types";
-import { buildDiffRows } from "../src/diff/rows";
+import type { Hunk, HunkLine } from "../shared/types";
+import { buildDiffRows } from "../shared/diff/rows";
 import {
   findSearchMatches,
   groupMatchesByRow,
   stepMatchIndex,
   type SearchFile,
-} from "../src/diff/search";
+} from "../shared/diff/search";
 import {
   buildHunkAnchors,
   hunkAtRow,
   nextFileTarget,
   nextHunkTarget,
-} from "../src/diff/navigation";
+} from "../shared/diff/navigation";
 
 function line(
   type: HunkLine["type"],

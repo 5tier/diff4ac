@@ -1,10 +1,7 @@
-import type { Theme } from "../src/types";
+import type { Theme } from "../shared/types";
+import { isTheme } from "../shared/theme";
 
 export const THEME_STORAGE_KEY = "diff4ac-theme";
-
-export function isTheme(value: unknown): value is Theme {
-  return value === "system" || value === "light" || value === "dark";
-}
 
 export function nextTheme(theme: Theme): Theme {
   if (theme === "system") {

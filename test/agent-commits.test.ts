@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { RunningServer } from "../src/server/server";
-import type { ChangeSet, CommitList } from "../src/types";
+import type { ChangeSet, CommitList } from "../shared/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import {
   getJson as getJsonResponse,

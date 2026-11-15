@@ -1,5 +1,5 @@
 import type { AppState } from "./app-state";
-import { localDateInputValue } from "../../src/time-windows";
+import { localDateInputValue } from "../../shared/time-windows";
 import { readStoredTheme } from "../theme";
 
 function readSessionStorage(key: string): string | null {

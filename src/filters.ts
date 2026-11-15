@@ -1,11 +1,11 @@
-import { changeSetTotals } from "./changeset/files";
+import { changeSetTotals } from "./changeset/totals";
 import { extensionOf } from "./paths";
 import type {
   ChangeFile,
   ChangeSet,
   FilterInfo,
   FilterRequest,
-} from "./types";
+} from "../shared/types";
 
 export const DEFAULT_NOISE_PATTERNS: readonly string[] = [
   "**/*.lock",

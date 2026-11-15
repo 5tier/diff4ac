@@ -6,8 +6,8 @@ import type {
   CommitSummary,
   Selection,
   WorktreeSummary,
-} from "../../src/types";
-import type { PanelId } from "../keymap";
+} from "../../shared/types";
+import type { PanelId } from "../../shared/keymap";
 import {
   emptyFilesMessage,
   hiddenFilesLabel,

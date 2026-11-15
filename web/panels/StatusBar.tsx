@@ -5,8 +5,8 @@ import type {
   FilterRequest,
   Selection,
   WorktreeInfo,
-} from "../../src/types";
-import type { DiffViewMode } from "../../src/diff/rows";
+} from "../../shared/types";
+import type { DiffViewMode } from "../../shared/diff/rows";
 import {
   activeFilterSummary,
   hiddenFilesLabel,

@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startServer, type RunningServer } from "../src/server/server";
-import type { ChangeSet } from "../src/types";
+import type { ChangeSet } from "../shared/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import { createTempHome, type TempHome } from "./helpers/home";
 

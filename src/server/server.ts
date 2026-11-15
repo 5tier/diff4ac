@@ -11,7 +11,7 @@ import { repositoryIdentity } from "../repository/identity";
 import { RepositoryWatcher } from "../repository/watcher";
 import { primaryWorktreeRoot } from "../repository/worktrees";
 import { ReviewMarkStore } from "../review/marks";
-import type { ConfigInfo } from "../types";
+import type { ConfigInfo } from "../../shared/types";
 import type { EventHub, RequestContext } from "./context";
 import { text } from "./http";
 import { routeFor } from "./routes";

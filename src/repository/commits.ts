@@ -4,8 +4,8 @@ import {
   type CompiledAgentPattern,
 } from "../agents";
 import type { GitGateway } from "../git/gateway";
-import { filterCommitsInTimeWindow } from "../time-windows";
-import type { CommitList, CommitSummary, TimeWindow } from "../types";
+import { filterCommitsInTimeWindow } from "../../shared/time-windows";
+import type { CommitList, CommitSummary, TimeWindow } from "../../shared/types";
 
 export class UnknownCommitError extends Error {
   constructor(readonly hash: string) {

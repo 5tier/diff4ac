@@ -7,9 +7,12 @@ import type {
   FilterRequest,
   Selection,
   TimeWindow,
-} from "../../src/types";
-import { isContiguousCommitSelection } from "../../src/changeset/selection";
-import { filterCommitsInTimeWindow } from "../../src/time-windows";
+} from "../../shared/types";
+import {
+  isContiguousCommitSelection,
+  modeLabel,
+} from "../../shared/changeset/selection";
+import { filterCommitsInTimeWindow } from "../../shared/time-windows";
 import { ApiError } from "../api-error";
 
 export function selectionLabel(selection: Selection): string {
@@ -40,10 +43,6 @@ export function selectionBadge(selection: Selection): string {
     case "branch":
       return `Branch ${selection.branch.name}`;
   }
-}
-
-export function modeLabel(mode: ChangeViewMode): string {
-  return mode === "net" ? "Net Diff" : "Commit Stack";
 }
 
 export function modeStatusLabel(selection: Selection): string | null {

@@ -4,13 +4,13 @@ import {
   requireBaseBranch,
   UnknownBranchError,
 } from "../repository/branches";
-import type { ChangeSet, Selection } from "../types";
+import type { ChangeSet, Selection } from "../../shared/types";
 import {
   buildChangeFilesForRange,
-  changeSetTotals,
   type ChangeFileOptions,
   type DiffRange,
 } from "./files";
+import { changeSetTotals } from "./totals";
 
 export class NoMergeBaseError extends Error {
   constructor(branch: string, base: string) {

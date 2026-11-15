@@ -6,10 +6,10 @@ import type {
   Selection,
   Theme,
   TimeWindow,
-} from "../../src/types";
-import type { DiffViewMode } from "../../src/diff/rows";
-import { TIME_WINDOW_OPTIONS } from "../../src/time-windows";
-import { nextPanel, type PanelId } from "../keymap";
+} from "../../shared/types";
+import type { DiffViewMode } from "../../shared/diff/rows";
+import { TIME_WINDOW_OPTIONS } from "../../shared/time-windows";
+import { nextPanel, type PanelId } from "../../shared/keymap";
 import { nextTheme } from "../theme";
 import type { FiltersDraft } from "../FiltersDialog";
 import {

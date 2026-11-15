@@ -1,4 +1,4 @@
-import type { Selection } from "../../src/types";
+import type { Selection } from "../../shared/types";
 import { selectionBadge, selectionLabel } from "../state/selection";
 
 export function TopBar({

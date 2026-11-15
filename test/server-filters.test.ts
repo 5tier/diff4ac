@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ChangeSet, CommitList } from "../src/types";
+import type { ChangeSet, CommitList } from "../shared/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import {
   getJson,

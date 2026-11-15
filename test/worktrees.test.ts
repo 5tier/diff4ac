@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { buildPendingChangeSet } from "../src/changeset/pending";
 import { GitGateway } from "../src/git/gateway";
 import { listWorktrees } from "../src/repository/worktrees";
-import type { WorktreeSummary } from "../src/types";
+import type { WorktreeSummary } from "../shared/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 
 const repos: FixtureRepo[] = [];

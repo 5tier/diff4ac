@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { BranchSummary } from "../src/types";
+import type { BranchSummary } from "../shared/types";
 import type { AppState } from "../web/state/app-state";
 import {
   baseState,

@@ -8,7 +8,7 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { isSafeRelativePath } from "../paths";
-import type { ChangeFile, ChangeSet } from "../types";
+import type { ChangeFile, ChangeSet } from "../../shared/types";
 
 export { isSafeRelativePath as isValidReviewPath };
 

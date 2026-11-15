@@ -2,13 +2,14 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_NOISE_PATTERNS, isValidGlob } from "../filters";
-import { KEYMAP, type KeybindingOverrides } from "../keymap";
+import { KEYMAP, type KeybindingOverrides } from "../../shared/keymap";
+import { isTheme } from "../../shared/theme";
 import type {
   AgentPatternConfig,
   ConfigDiagnostic,
   ConfigInfo,
   Theme,
-} from "../types";
+} from "../../shared/types";
 
 export interface LoadConfigOptions {
   readonly repositoryRoot: string;
@@ -22,12 +23,6 @@ interface ParsedSource {
   readonly noise?: readonly string[];
   readonly theme?: Theme;
   readonly diagnostics: readonly ConfigDiagnostic[];
-}
-
-const THEMES: readonly Theme[] = ["system", "light", "dark"];
-
-function isTheme(value: unknown): value is Theme {
-  return typeof value === "string" && THEMES.includes(value as Theme);
 }
 
 const NAMED_KEYS = new Set(["Enter", "Tab", "Escape"]);

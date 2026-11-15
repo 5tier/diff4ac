@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { PanelId } from "../keymap";
+import type { PanelId } from "../../shared/keymap";
 
 export interface PanelProps {
   readonly id: PanelId;

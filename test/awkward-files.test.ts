@@ -16,7 +16,7 @@ import {
   ReviewMarkStore,
 } from "../src/review/marks";
 import { startServer, type RunningServer } from "../src/server/server";
-import type { ChangeFile, ChangeSet } from "../src/types";
+import type { ChangeFile, ChangeSet } from "../shared/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import { createTempHome, type TempHome } from "./helpers/home";
 

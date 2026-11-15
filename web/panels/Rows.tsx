@@ -4,12 +4,12 @@ import type {
   CommitSummary,
   FileStatus,
   WorktreeSummary,
-} from "../../src/types";
+} from "../../shared/types";
 import {
   describeModeChange,
   isModeOnlyChange,
   modeChangeFor,
-} from "../../src/diff/mode";
+} from "../../shared/diff/mode";
 
 const STATUS_LABEL: Record<FileStatus, string> = {
   added: "A",

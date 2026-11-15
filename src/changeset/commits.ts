@@ -15,16 +15,16 @@ import type {
   Selection,
   TimeWindow,
   WorktreeInfo,
-} from "../types";
+} from "../../shared/types";
 import { resolveCommitRange } from "./commit";
 import {
   buildChangeFilesForRange,
-  changeSetTotals,
   emptyTreeRef,
   type ChangeFileOptions,
   type DiffRange,
 } from "./files";
-import { isContiguousCommitSelection } from "./selection";
+import { changeSetTotals } from "./totals";
+import { isContiguousCommitSelection } from "../../shared/changeset/selection";
 
 export class NonContiguousNetDiffError extends Error {
   constructor() {

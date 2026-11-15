@@ -3,16 +3,16 @@ import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import type { GitGateway } from "../git/gateway";
 import { diffTempFiles } from "../git/temp-diff";
-import { parseModeChange } from "../diff/mode";
+import { parseModeChange } from "../../shared/diff/mode";
+import { nulTokens } from "../repository/status";
 import { extensionOf, isSafeRelativePath } from "../paths";
 import { isBinaryContent } from "./rename-pairing";
 import type {
   ChangeFile,
-  ChangeTotals,
   FileStatus,
   Hunk,
   HunkLine,
-} from "../types";
+} from "../../shared/types";
 
 const SHA1_EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const SHA256_EMPTY_TREE =
@@ -73,14 +73,6 @@ interface NumstatRecord {
   readonly additions: number;
   readonly deletions: number;
   readonly binary: boolean;
-}
-
-function nulTokens(output: string): string[] {
-  const tokens = output.split("\0");
-  if (tokens.at(-1) === "") {
-    tokens.pop();
-  }
-  return tokens;
 }
 
 function statusFromCode(code: string): FileStatus {
@@ -162,51 +154,6 @@ function parseNumstat(output: string): Map<string, NumstatRecord> {
   }
 
   return records;
-}
-
-interface StatusEntry {
-  readonly code: string;
-  readonly path: string;
-}
-
-function parseStatusEntries(statusOutput: string): StatusEntry[] {
-  const tokens = nulTokens(statusOutput);
-  const entries: StatusEntry[] = [];
-  let index = 0;
-
-  while (index < tokens.length) {
-    const entry = tokens[index++] ?? "";
-    if (entry.length < 4) {
-      continue;
-    }
-
-    const code = entry.slice(0, 2);
-    const path = entry.slice(3);
-
-    if (code[0] === "R" || code[0] === "C") {
-      index++;
-    }
-
-    entries.push({ code, path });
-  }
-
-  return entries;
-}
-
-export function parseUntracked(statusOutput: string): string[] {
-  return parseStatusEntries(statusOutput)
-    .filter((entry) => entry.code === "??")
-    .map((entry) => entry.path);
-}
-
-export function parseUnstagedDeletions(statusOutput: string): string[] {
-  return parseStatusEntries(statusOutput)
-    .filter((entry) => entry.code[1] === "D")
-    .map((entry) => entry.path);
-}
-
-export function countPendingFiles(statusOutput: string): number {
-  return parseStatusEntries(statusOutput).length;
 }
 
 export function looksBinary(diff: string): boolean {
@@ -1104,16 +1051,5 @@ export async function buildChangeFilesForRange(
     range,
     await listChangeRecords(git, range),
     options,
-  );
-}
-
-export function changeSetTotals(files: readonly ChangeFile[]): ChangeTotals {
-  return files.reduce(
-    (sum, file) => ({
-      files: sum.files + 1,
-      additions: sum.additions + file.additions,
-      deletions: sum.deletions + file.deletions,
-    }),
-    { files: 0, additions: 0, deletions: 0 },
   );
 }

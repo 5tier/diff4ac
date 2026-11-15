@@ -6,7 +6,7 @@ import { UnknownBranchError } from "../../repository/branches";
 import { UnknownCommitError } from "../../repository/commits";
 import { openWorktree, UnknownWorktreeError } from "../../repository/worktrees";
 import { annotateChangeSet } from "../../review/marks";
-import type { ChangeSet } from "../../types";
+import type { ChangeSet } from "../../../shared/types";
 import type { RequestContext } from "../context";
 import { json, text } from "../http";
 import { parseFilterSettings } from "../query";

@@ -5,9 +5,9 @@ import type {
   ChangeFile,
   CommitSummary,
   WorktreeSummary,
-} from "../../src/types";
+} from "../../shared/types";
 import { fetchConfig } from "../api";
-import type { KeybindingOverrides } from "../keymap";
+import type { KeybindingOverrides } from "../../shared/keymap";
 import {
   applyTheme,
   readThemePreference,

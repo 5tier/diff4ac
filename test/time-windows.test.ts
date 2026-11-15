@@ -5,7 +5,7 @@ import { listCommitsInWindow } from "../src/repository/commits";
 import {
   createCustomTimeWindow,
   createPresetTimeWindow,
-} from "../src/time-windows";
+} from "../shared/time-windows";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 
 const repos: FixtureRepo[] = [];

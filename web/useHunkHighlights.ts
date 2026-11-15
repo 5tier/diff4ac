@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { ChangeFile } from "../src/types";
-import type { HunkHighlight } from "../src/diff/rows";
+import type { ChangeFile } from "../shared/types";
+import type { HunkHighlight } from "../shared/diff/rows";
 import { highlightHunks, languageForPath } from "./highlight";
 
 interface HighlightEntry {

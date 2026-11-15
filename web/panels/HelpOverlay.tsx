@@ -3,7 +3,7 @@ import {
   PANEL_LABELS,
   type KeyBinding,
   type PanelId,
-} from "../keymap";
+} from "../../shared/keymap";
 
 export function HelpOverlay({
   panel,

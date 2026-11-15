@@ -6,14 +6,14 @@ import type {
   ChangeSet,
   ChangeTotals,
   CommitSummary,
-} from "../types";
+} from "../../shared/types";
 import {
   buildChangeFilesForRange,
-  changeSetTotals,
   emptyTreeRef,
   type ChangeFileOptions,
   type DiffRange,
 } from "./files";
+import { changeSetTotals } from "./totals";
 
 export interface CommitFiles {
   readonly files: readonly ChangeFile[];

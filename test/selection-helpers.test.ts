@@ -7,7 +7,7 @@ import type {
   CommitSummary,
   Selection,
   TimeWindow,
-} from "../src/types";
+} from "../shared/types";
 import {
   activeFilterSummary,
   emptyFilesMessage,
@@ -15,7 +15,6 @@ import {
   hiddenFilesLabel,
   isNotFoundError,
   missingSelectionLabel,
-  modeLabel,
   modeStatusLabel,
   replaceChangeFile,
   sameTimeWindowSelection,
@@ -31,6 +30,7 @@ import {
   stackFileIndices,
   stackFileKey,
 } from "../web/state/selection";
+import { modeLabel } from "../shared/changeset/selection";
 
 function makeCommit(
   hash: string,

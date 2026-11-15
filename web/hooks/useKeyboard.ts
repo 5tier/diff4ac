@@ -7,7 +7,7 @@ import {
   type KeyAction,
   type KeyBinding,
   type PanelId,
-} from "../keymap";
+} from "../../shared/keymap";
 
 export interface UseKeyboardParams {
   readonly keymap: readonly KeyBinding[];

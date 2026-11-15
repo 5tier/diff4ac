@@ -9,7 +9,7 @@ import type {
   Selection,
   TimeWindow,
   WorktreeList,
-} from "../src/types";
+} from "../shared/types";
 import { ApiError } from "./api-error";
 
 const TOKEN_KEY = "diff4ac-token";

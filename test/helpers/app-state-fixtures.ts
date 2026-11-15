@@ -1,4 +1,4 @@
-import type { CommitSummary, TimeWindow } from "../../src/types";
+import type { CommitSummary, TimeWindow } from "../../shared/types";
 import {
   appReducer,
   createInitialAppState,

@@ -1,4 +1,4 @@
-import type { SessionInfo } from "../../types";
+import type { SessionInfo } from "../../../shared/types";
 import { VERSION } from "../../version";
 import { SECURITY_HEADERS, json } from "../http";
 import type { RouteRequest } from "./types";

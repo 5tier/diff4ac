@@ -77,7 +77,7 @@ function lineWeights(
   return weights;
 }
 
-function lineSimilarity(left: string, right: string): number {
+function renameLineSimilarity(left: string, right: string): number {
   const oldLines = left.split("\n");
   const newLines = right.split("\n");
   const weights = lineWeights(left);
@@ -122,7 +122,7 @@ export function similarityRatio(
     return edgeSimilarity(oldContent, newContent);
   }
 
-  return lineSimilarity(left, right);
+  return renameLineSimilarity(left, right);
 }
 
 function comparePaths(left: string, right: string): number {

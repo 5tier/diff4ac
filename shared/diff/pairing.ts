@@ -1,5 +1,5 @@
 import type { Hunk } from "../types";
-import { lineSimilarity, wordDiff, type WordDiff } from "./word-diff";
+import { tokenSimilarity, wordDiff, type WordDiff } from "./word-diff";
 
 export interface LinePair {
   readonly deleted?: number;
@@ -53,7 +53,7 @@ export function alignChangeLines(
     for (let j = m - 1; j >= 0; j--) {
       const pair =
         PAIR_BIAS +
-        lineSimilarity(deleted[i] ?? "", added[j] ?? "") +
+        tokenSimilarity(deleted[i] ?? "", added[j] ?? "") +
         (table[i + 1]?.[j + 1] ?? 0);
       table[i]![j] = Math.max(
         pair,
@@ -70,7 +70,7 @@ export function alignChangeLines(
   while (i < n && j < m) {
     const pair =
       PAIR_BIAS +
-      lineSimilarity(deleted[i] ?? "", added[j] ?? "") +
+      tokenSimilarity(deleted[i] ?? "", added[j] ?? "") +
       (table[i + 1]?.[j + 1] ?? 0);
     const best = table[i]?.[j] ?? 0;
 

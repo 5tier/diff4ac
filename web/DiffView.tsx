@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
-import type { ChangeFile } from "../src/types";
+import type { ChangeFile } from "../shared/types";
 import { fileContentUrl, type FileRequestContext } from "./api";
 import {
   buildDiffRows,
@@ -10,17 +10,17 @@ import {
   type HighlightRange,
   type SplitCell,
   type TokenSpan,
-} from "../src/diff/rows";
+} from "../shared/diff/rows";
 import {
   groupMatchesByRow,
   type SearchMatch,
   type RowSearchMatches,
-} from "../src/diff/search";
+} from "../shared/diff/search";
 import {
   describeModeChange,
   isModeOnlyChange,
   modeChangeFor,
-} from "../src/diff/mode";
+} from "../shared/diff/mode";
 import { useHunkHighlights } from "./useHunkHighlights";
 
 export const ROW_HEIGHT = 20;

@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ToolbarGroup, ToolbarItem } from "../src/toolbar";
+import type { ToolbarGroup, ToolbarItem } from "../shared/toolbar";
 
 interface CommandToolbarProps {
   readonly groups: readonly ToolbarGroup[];

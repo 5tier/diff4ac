@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject } from "react";
-import type { CommitChangeGroup } from "../../src/types";
-import type { DiffViewMode } from "../../src/diff/rows";
+import type { CommitChangeGroup } from "../../shared/types";
+import type { DiffViewMode } from "../../shared/diff/rows";
 import type { DiffJump } from "../DiffView";
 import { ROW_HEIGHT } from "../DiffView";
 import {
   buildChangeOverview,
   type OverviewFile,
-} from "../../src/diff/overview";
+} from "../../shared/diff/overview";
 import {
   findSearchMatches,
   type SearchFile,
   type SearchMatch,
-} from "../../src/diff/search";
-import { hunkAtRow, type HunkLocation } from "../../src/diff/navigation";
-import type { ChangeFile } from "../../src/types";
+} from "../../shared/diff/search";
+import { hunkAtRow, type HunkLocation } from "../../shared/diff/navigation";
+import type { ChangeFile } from "../../shared/types";
 import type { AppAction } from "../state/app-state";
 import { stackFileIndices, stackFileKey } from "../state/selection";
 

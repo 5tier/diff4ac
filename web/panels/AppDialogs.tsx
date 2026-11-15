@@ -1,5 +1,5 @@
 import type { Dispatch } from "react";
-import type { KeyBinding } from "../keymap";
+import type { KeyBinding } from "../../shared/keymap";
 import type { AppAction, AppState } from "../state/app-state";
 import type { ActionDispatcher } from "../hooks/useActions";
 import { FiltersDialog } from "../FiltersDialog";
