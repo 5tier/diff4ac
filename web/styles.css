@@ -569,6 +569,12 @@ button {
   white-space: nowrap;
 }
 
+.commit-more {
+  padding: 4px 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .commit-meta {
   display: block;
   padding-left: 0;
@@ -1219,6 +1225,17 @@ button {
 }
 
 .time-window-option-description {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.time-window-option-count {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+}
+
+.time-window-count {
   color: var(--muted);
   font-size: 12px;
 }

@@ -1,4 +1,10 @@
-import { TIME_WINDOW_OPTIONS } from "../../shared/time-windows";
+import {
+  createCustomTimeWindow,
+  createPresetTimeWindow,
+  filterCommitsInTimeWindow,
+  TIME_WINDOW_OPTIONS,
+} from "../../shared/time-windows";
+import type { CommitSummary, TimeWindow } from "../../shared/types";
 
 export interface TimeWindowDialogProps {
   readonly cursor: number;
@@ -6,6 +12,8 @@ export interface TimeWindowDialogProps {
   readonly error: string | null;
   readonly customStart: string;
   readonly customEnd: string;
+  readonly commits: readonly CommitSummary[];
+  readonly hasMore: boolean;
   readonly onChooseOption: (index: number) => void;
   readonly onCustomStartChange: (value: string) => void;
   readonly onCustomEndChange: (value: string) => void;
@@ -20,6 +28,8 @@ export function TimeWindowDialog({
   error,
   customStart,
   customEnd,
+  commits,
+  hasMore,
   onChooseOption,
   onCustomStartChange,
   onCustomEndChange,
@@ -27,6 +37,31 @@ export function TimeWindowDialog({
   onBack,
   onClose,
 }: TimeWindowDialogProps) {
+  const oldestLoaded = commits.reduce((oldest, commit) => {
+    const committedAt = Date.parse(commit.committedAt);
+    return Number.isNaN(committedAt)
+      ? oldest
+      : Math.min(oldest, committedAt);
+  }, Number.POSITIVE_INFINITY);
+
+  let customWindow: TimeWindow | null = null;
+  if (mode === "custom") {
+    try {
+      customWindow = createCustomTimeWindow(customStart, customEnd);
+    } catch {
+      customWindow = null;
+    }
+  }
+  const customCount =
+    customWindow === null
+      ? null
+      : filterCommitsInTimeWindow(commits, customWindow).length;
+  const customApproximate =
+    customWindow !== null &&
+    hasMore &&
+    commits.length > 0 &&
+    Date.parse(customWindow.start) < oldestLoaded;
+
   return (
     <div
       className="time-window-overlay"
@@ -50,27 +85,52 @@ export function TimeWindowDialog({
 
         {mode === "list" ? (
           <ul className="time-window-options">
-            {TIME_WINDOW_OPTIONS.map((option, index) => (
-              <li key={option.preset}>
-                <button
-                  type="button"
-                  className={
-                    cursor === index
-                      ? "time-window-option time-window-option-cursor"
-                      : "time-window-option"
-                  }
-                  data-preset={option.preset}
-                  onClick={() => onChooseOption(index)}
-                >
-                  <span className="time-window-option-label">
-                    {option.label}
-                  </span>
-                  <span className="time-window-option-description">
-                    {option.description}
-                  </span>
-                </button>
-              </li>
-            ))}
+            {TIME_WINDOW_OPTIONS.map((option, index) => {
+              const window =
+                option.preset === "custom"
+                  ? null
+                  : createPresetTimeWindow(option.preset);
+              const count = window
+                ? filterCommitsInTimeWindow(commits, window).length
+                : null;
+              const approximate =
+                window !== null &&
+                hasMore &&
+                commits.length > 0 &&
+                Date.parse(window.start) < oldestLoaded;
+
+              return (
+                <li key={option.preset}>
+                  <button
+                    type="button"
+                    className={
+                      cursor === index
+                        ? "time-window-option time-window-option-cursor"
+                        : "time-window-option"
+                    }
+                    data-preset={option.preset}
+                    onClick={() => onChooseOption(index)}
+                  >
+                    <span className="time-window-option-label">
+                      {option.label}
+                    </span>
+                    <span className="time-window-option-description">
+                      {option.description}
+                    </span>
+                    {count !== null ? (
+                      <span
+                        className="time-window-option-count"
+                        data-testid={`time-window-count-${option.preset}`}
+                      >
+                        {count}
+                        {approximate ? "+" : ""} commit
+                        {count === 1 && !approximate ? "" : "s"}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <form
@@ -99,6 +159,13 @@ export function TimeWindowDialog({
                 onChange={(event) => onCustomEndChange(event.target.value)}
               />
             </label>
+            {customCount !== null ? (
+              <div className="time-window-count" data-testid="time-window-custom-count">
+                {customCount}
+                {customApproximate ? "+" : ""} commit
+                {customCount === 1 && !customApproximate ? "" : "s"}
+              </div>
+            ) : null}
             {error ? <div className="time-window-error">{error}</div> : null}
             <div className="time-window-actions">
               <button type="button" onClick={onBack}>

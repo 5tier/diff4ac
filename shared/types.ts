@@ -90,6 +90,8 @@ export interface CommitSummary {
 export interface CommitList {
   readonly worktree: WorktreeInfo;
   readonly commits: readonly CommitSummary[];
+  /** More commits exist after this page. */
+  readonly hasMore: boolean;
 }
 
 export interface BranchSummary {

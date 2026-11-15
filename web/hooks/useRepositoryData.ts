@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type {
   BaseBranch,
@@ -23,6 +23,9 @@ export interface RepositoryData {
   readonly selectedWorktreePath: string | null;
   readonly setSelectedWorktreePath: Dispatch<SetStateAction<string | null>>;
   readonly allCommits: readonly CommitSummary[];
+  readonly hasMoreCommits: boolean;
+  readonly loadingMoreCommits: boolean;
+  readonly loadMoreCommits: () => void;
   readonly commitsError: string | null;
   readonly branches: readonly BranchSummary[];
   readonly baseBranch: BaseBranch | null;
@@ -45,7 +48,15 @@ export function useRepositoryData(): RepositoryData {
     string | null
   >(null);
   const [allCommits, setAllCommits] = useState<readonly CommitSummary[]>([]);
+  const [hasMoreCommits, setHasMoreCommits] = useState(false);
+  const [loadingMoreCommits, setLoadingMoreCommits] = useState(false);
   const [commitsError, setCommitsError] = useState<string | null>(null);
+  const allCommitsRef = useRef<readonly CommitSummary[]>(allCommits);
+  const hasMoreCommitsRef = useRef(hasMoreCommits);
+  const loadingMoreRef = useRef(false);
+  const loadMoreControllerRef = useRef<AbortController | null>(null);
+  allCommitsRef.current = allCommits;
+  hasMoreCommitsRef.current = hasMoreCommits;
   const [branches, setBranches] = useState<readonly BranchSummary[]>([]);
   const [baseBranch, setBaseBranch] = useState<BaseBranch | null>(null);
   const [branchesError, setBranchesError] = useState<string | null>(null);
@@ -55,11 +66,17 @@ export function useRepositoryData(): RepositoryData {
   const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
+    loadMoreControllerRef.current?.abort();
+    loadMoreControllerRef.current = null;
+    loadingMoreRef.current = false;
+    setLoadingMoreCommits(false);
+
     const controller = new AbortController();
 
     fetchCommits(controller.signal, selectedWorktreePath)
       .then((list) => {
         setAllCommits(list.commits);
+        setHasMoreCommits(list.hasMore);
         setWorktree(list.worktree);
         setCommitsError(null);
       })
@@ -72,6 +89,44 @@ export function useRepositoryData(): RepositoryData {
 
     return () => controller.abort();
   }, [selectedWorktreePath, refreshVersion]);
+
+  const loadMoreCommits = useCallback(() => {
+    if (loadingMoreRef.current || !hasMoreCommitsRef.current) {
+      return;
+    }
+
+    const skip = allCommitsRef.current.length;
+    const controller = new AbortController();
+    loadMoreControllerRef.current = controller;
+    loadingMoreRef.current = true;
+    setLoadingMoreCommits(true);
+
+    fetchCommits(controller.signal, selectedWorktreePath, skip)
+      .then((list) => {
+        setAllCommits((current) => {
+          const seen = new Set(current.map((commit) => commit.hash));
+          return [
+            ...current,
+            ...list.commits.filter((commit) => !seen.has(commit.hash)),
+          ];
+        });
+        setHasMoreCommits(list.hasMore);
+        setCommitsError(null);
+      })
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") {
+          return;
+        }
+        setCommitsError(reason instanceof Error ? reason.message : String(reason));
+      })
+      .finally(() => {
+        if (loadMoreControllerRef.current === controller) {
+          loadMoreControllerRef.current = null;
+        }
+        loadingMoreRef.current = false;
+        setLoadingMoreCommits(false);
+      });
+  }, [selectedWorktreePath]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -134,6 +189,9 @@ export function useRepositoryData(): RepositoryData {
     selectedWorktreePath,
     setSelectedWorktreePath,
     allCommits,
+    hasMoreCommits,
+    loadingMoreCommits,
+    loadMoreCommits,
     commitsError,
     branches,
     baseBranch,

@@ -62,6 +62,9 @@ export function App() {
   const repository = useRepositoryData();
   const {
     allCommits,
+    hasMoreCommits,
+    loadingMoreCommits,
+    loadMoreCommits,
     worktrees,
     branches,
     baseBranch,
@@ -183,6 +186,8 @@ export function App() {
     setMarkError,
     commits,
     allCommits,
+    hasMoreCommits,
+    loadMoreCommits,
     agentNames,
     branches,
     baseBranch,
@@ -317,6 +322,8 @@ export function App() {
           }
           commits={commits}
           commitsError={repository.commitsError}
+          hasMoreCommits={hasMoreCommits}
+          loadingMoreCommits={loadingMoreCommits}
           agentFilter={agentFilter}
           commitCursor={commitCursor}
           onSelectCommit={(index, commit) =>
@@ -381,6 +388,8 @@ export function App() {
         keymap={keymap}
         noisePatterns={noisePatterns}
         availableExtensions={filterInfo?.availableExtensions ?? []}
+        commits={commits}
+        hasMoreCommits={hasMoreCommits}
         actions={actions}
       />
     </div>

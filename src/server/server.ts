@@ -10,6 +10,7 @@ import { localBranchExists } from "../repository/branches";
 import { repositoryIdentity } from "../repository/identity";
 import { RepositoryWatcher } from "../repository/watcher";
 import { primaryWorktreeRoot } from "../repository/worktrees";
+import { COMMIT_PAGE_SIZE } from "../repository/commits";
 import { ReviewMarkStore } from "../review/marks";
 import type { ConfigInfo } from "../../shared/types";
 import type { EventHub, RequestContext } from "./context";
@@ -34,6 +35,8 @@ export interface StartServerOptions {
   readonly stateDir?: string;
   readonly watchDebounceMs?: number;
   readonly homeDir?: string;
+  /** Test seam; Commits paging defaults to COMMIT_PAGE_SIZE. */
+  readonly commitPageSize?: number;
 }
 
 export interface RunningServer {
@@ -167,6 +170,7 @@ export async function startServer(
     ...BUILT_IN_AGENT_PATTERNS,
     ...config.agents,
   ]);
+  const commitPageSize = options.commitPageSize ?? COMMIT_PAGE_SIZE;
   const reviewMarks = new ReviewMarkStore(
     options.stateDir ?? join(homeDir, ".diff4ac"),
   );
@@ -192,6 +196,7 @@ export async function startServer(
         events,
         config,
         agentPatterns,
+        commitPageSize,
       }),
   });
 

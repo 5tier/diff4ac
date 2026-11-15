@@ -1561,3 +1561,60 @@ test(
   },
   30_000,
 );
+
+test(
+  "loads the next Commits page when the cursor reaches the last loaded row",
+  async () => {
+    const stateDir = mkdtempSync(join(tmpdir(), "diff4ac-paging-state-"));
+    const paged = await startServer({
+      repoPath: repo.root,
+      homeDir: home.path,
+      stateDir,
+      commitPageSize: 2,
+    });
+    const pagedPage = await browser.newPage({
+      viewport: { width: 1200, height: 800 },
+    });
+
+    try {
+      await pagedPage.goto(paged.url);
+      await pagedPage.waitForSelector(".commit-row");
+      await pagedPage.keyboard.press("3");
+
+      await pagedPage.waitForFunction(
+        () => document.querySelectorAll(".commit-row").length === 2,
+      );
+      const more = pagedPage.locator('[data-testid="commit-more"]');
+      await more.waitFor();
+      const firstPage = await pagedPage
+        .locator(".commit-row .commit-message")
+        .allTextContents();
+
+      await pagedPage.keyboard.press("j");
+      await pagedPage.waitForFunction(
+        () => document.querySelectorAll(".commit-row").length > 2,
+      );
+
+      const all = await pagedPage
+        .locator(".commit-row .commit-message")
+        .allTextContents();
+      expect(all.slice(0, 2)).toEqual(firstPage);
+
+      await pagedPage.keyboard.press("j");
+      await pagedPage.keyboard.press("Enter");
+      await pagedPage.waitForFunction(() =>
+        document
+          .querySelector(".top-bar-mode")
+          ?.textContent?.startsWith("Commit"),
+      );
+      expect(await pagedPage.locator(".status-selection").textContent()).toBe(
+        all[2]!,
+      );
+    } finally {
+      await pagedPage.close();
+      paged.stop();
+      rmSync(stateDir, { recursive: true, force: true });
+    }
+  },
+  30_000,
+);

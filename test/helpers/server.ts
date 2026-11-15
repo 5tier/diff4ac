@@ -22,6 +22,7 @@ export interface StartFixtureServerOptions {
   readonly webDir?: string;
   readonly stateDir?: string;
   readonly watchDebounceMs?: number;
+  readonly commitPageSize?: number;
 }
 
 const active: FixtureServer[] = [];
@@ -52,6 +53,9 @@ export async function startFixtureServer(
     ...(options.webDir ? { webDir: options.webDir } : {}),
     ...(options.watchDebounceMs !== undefined
       ? { watchDebounceMs: options.watchDebounceMs }
+      : {}),
+    ...(options.commitPageSize !== undefined
+      ? { commitPageSize: options.commitPageSize }
       : {}),
   });
 

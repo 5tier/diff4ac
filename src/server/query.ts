@@ -154,6 +154,20 @@ export function parseBranchScope(
     : fail("Bad request: a branch name is required");
 }
 
+export function parseCommitSkip(url: URL): ParseResult<number> {
+  const raw = url.searchParams.get("skip");
+  if (raw === null) {
+    return ok(0);
+  }
+  if (!/^\d+$/.test(raw) || raw.length > 15) {
+    return fail("Bad request: skip must be a non-negative integer");
+  }
+  const skip = Number(raw);
+  return Number.isSafeInteger(skip)
+    ? ok(skip)
+    : fail("Bad request: skip must be a non-negative integer");
+}
+
 export function parseScope(url: URL): ParseResult<ChangeSetScope> {
   const selection = url.searchParams.get("selection");
   if (!selection) {

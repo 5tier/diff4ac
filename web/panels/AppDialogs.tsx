@@ -1,5 +1,6 @@
 import type { Dispatch } from "react";
 import type { KeyBinding } from "../../shared/keymap";
+import type { CommitSummary } from "../../shared/types";
 import type { AppAction, AppState } from "../state/app-state";
 import type { ActionDispatcher } from "../hooks/useActions";
 import { FiltersDialog } from "../FiltersDialog";
@@ -12,6 +13,8 @@ export function AppDialogs({
   keymap,
   noisePatterns,
   availableExtensions,
+  commits,
+  hasMoreCommits,
   actions,
 }: {
   readonly state: AppState;
@@ -19,6 +22,8 @@ export function AppDialogs({
   readonly keymap: readonly KeyBinding[];
   readonly noisePatterns: readonly string[];
   readonly availableExtensions: readonly string[];
+  readonly commits: readonly CommitSummary[];
+  readonly hasMoreCommits: boolean;
   readonly actions: ActionDispatcher;
 }) {
   const {
@@ -54,6 +59,8 @@ export function AppDialogs({
           error={timeWindowError}
           customStart={timeWindowStart}
           customEnd={timeWindowEnd}
+          commits={commits}
+          hasMore={hasMoreCommits}
           onChooseOption={actions.chooseTimeWindowOption}
           onCustomStartChange={(value) =>
             appDispatch({ type: "time-window-start", value })

@@ -17,5 +17,6 @@ export interface RequestContext {
   readonly reviewMarks: ReviewMarkStore;
   readonly config: ConfigInfo;
   readonly agentPatterns: readonly CompiledAgentPattern[];
+  readonly commitPageSize: number;
   readonly events: EventHub;
 }

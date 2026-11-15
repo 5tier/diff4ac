@@ -46,6 +46,8 @@ export interface UseActionsParams {
   readonly setMarkError: Dispatch<SetStateAction<string | null>>;
   readonly commits: readonly CommitSummary[];
   readonly allCommits: readonly CommitSummary[];
+  readonly hasMoreCommits: boolean;
+  readonly loadMoreCommits: () => void;
   readonly agentNames: readonly string[];
   readonly branches: readonly BranchSummary[];
   readonly baseBranch: BaseBranch | null;
@@ -83,6 +85,8 @@ export function useActions({
   setMarkError,
   commits,
   allCommits,
+  hasMoreCommits,
+  loadMoreCommits,
   agentNames,
   branches,
   baseBranch,
@@ -189,6 +193,14 @@ export function useActions({
               direction: action.direction,
               commits,
             });
+            if (
+              action.direction > 0 &&
+              commits.length > 0 &&
+              hasMoreCommits &&
+              state.commitCursor >= commits.length - 2
+            ) {
+              loadMoreCommits();
+            }
           } else if (panel === "files") {
             appDispatch({
               type: "move",
@@ -451,8 +463,10 @@ export function useActions({
       diffRef,
       fileContext,
       files,
+      hasMoreCommits,
       jumpToMatch,
       jumpToTarget,
+      loadMoreCommits,
       markPreserve,
       refreshRepository,
       searchFiles,

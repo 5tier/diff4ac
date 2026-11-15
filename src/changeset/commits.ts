@@ -1,10 +1,10 @@
 import type { CompiledAgentPattern } from "../agents";
 import type { GitGateway } from "../git/gateway";
 import {
-  assertCommitsExist,
+  commitPositions,
   firstParent,
-  listCommits,
   listCommitsInWindow,
+  readCommitsByHash,
   UnknownCommitError,
 } from "../repository/commits";
 import type {
@@ -141,15 +141,15 @@ export async function resolveSelectedCommits(
     throw new Error("commit Selection is empty");
   }
 
-  await assertCommitsExist(git, hashes);
+  const positions = await commitPositions(git);
+  const missing = hashes.find((hash) => !positions.has(hash));
+  if (missing) {
+    throw new UnknownCommitError(missing);
+  }
 
-  const list = await listCommits(git, {
+  const byHash = await readCommitsByHash(git, hashes, {
     agentPatterns: options.agentPatterns,
   });
-  const positions = new Map(
-    list.commits.map((commit, index) => [commit.hash, index] as const),
-  );
-  const byHash = new Map(list.commits.map((commit) => [commit.hash, commit] as const));
 
   const selected: CommitSummary[] = [];
   const seen = new Set<string>();
@@ -180,7 +180,14 @@ export async function resolveSelectedCommits(
     contiguous,
   };
 
-  return { selection, worktree: list.worktree, selected };
+  return {
+    selection,
+    worktree: {
+      path: git.worktreeRoot,
+      branch: await git.currentBranch(),
+    },
+    selected,
+  };
 }
 
 export async function buildCommitsChangeSet(

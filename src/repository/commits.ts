@@ -5,7 +5,12 @@ import {
 } from "../agents";
 import type { GitGateway } from "../git/gateway";
 import { filterCommitsInTimeWindow } from "../../shared/time-windows";
-import type { CommitList, CommitSummary, TimeWindow } from "../../shared/types";
+import type {
+  CommitList,
+  CommitSummary,
+  TimeWindow,
+  WorktreeInfo,
+} from "../../shared/types";
 
 export class UnknownCommitError extends Error {
   constructor(readonly hash: string) {
@@ -149,43 +154,90 @@ function parseCommitLog(
   return commits;
 }
 
+export const COMMIT_PAGE_SIZE = 500;
+
+const WINDOW_MARGIN_MS = 24 * 60 * 60 * 1000;
+
+let sinceAsFilterSupport: boolean | null = null;
+
+/**
+ * Test-only seam for old git builds; pass null to restore probing.
+ * `--since-as-filter` exists from git 2.37.
+ */
+export function setSinceAsFilterSupport(supported: boolean | null): void {
+  sinceAsFilterSupport = supported;
+}
+
+async function supportsSinceAsFilter(git: GitGateway): Promise<boolean> {
+  if (sinceAsFilterSupport !== null) {
+    return sinceAsFilterSupport;
+  }
+
+  try {
+    await git.run([
+      "log",
+      "-1",
+      "--since-as-filter=1970-01-01T00:00:00Z",
+      "--format=%H",
+    ]);
+    sinceAsFilterSupport = true;
+  } catch {
+    // An unknown option fails before producing output; old git is the likely
+    // cause, and falling back preserves the old unbounded behaviour.
+    sinceAsFilterSupport = false;
+  }
+  return sinceAsFilterSupport;
+}
+
 export interface ListCommitsOptions {
   readonly limit?: number;
+  readonly skip?: number;
   readonly now?: Date;
   readonly agentPatterns?: readonly CompiledAgentPattern[];
   readonly agent?: string;
+}
+
+async function commitHeader(
+  git: GitGateway,
+): Promise<{ worktree: WorktreeInfo; hasHead: boolean }> {
+  const worktree = {
+    path: git.worktreeRoot,
+    branch: await git.currentBranch(),
+  };
+  return { worktree, hasHead: await git.hasHead() };
 }
 
 export async function listCommits(
   git: GitGateway,
   options: ListCommitsOptions = {},
 ): Promise<CommitList> {
-  const worktree = {
-    path: git.worktreeRoot,
-    branch: await git.currentBranch(),
-  };
-
-  if (!(await git.hasHead())) {
-    return { worktree, commits: [] };
+  const { worktree, hasHead } = await commitHeader(git);
+  if (!hasHead) {
+    return { worktree, commits: [], hasMore: false };
   }
 
+  const pageSize = Math.max(1, options.limit ?? COMMIT_PAGE_SIZE);
+  const skip = Math.max(0, options.skip ?? 0);
   const args = ["log", `--format=${COMMIT_FORMAT}`];
-  if (options.limit !== undefined) {
-    args.push("-n", String(options.limit));
+  if (skip > 0) {
+    args.push("--skip", String(skip));
   }
+  // One extra record tells us whether another page exists.
+  args.push("-n", String(pageSize + 1));
 
   const output = await git.text(args);
-  const commits = parseCommitLog(
+  const parsed = parseCommitLog(
     output,
     options.now ?? new Date(),
     options.agentPatterns ?? DEFAULT_AGENT_PATTERNS,
   );
-  return {
-    worktree,
-    commits: options.agent
-      ? commits.filter((commit) => commit.agent === options.agent)
-      : commits,
-  };
+  const hasMore = parsed.length > pageSize;
+  const page = hasMore ? parsed.slice(0, pageSize) : parsed;
+  const commits = options.agent
+    ? page.filter((commit) => commit.agent === options.agent)
+    : page;
+
+  return { worktree, commits, hasMore };
 }
 
 export async function listCommitsInWindow(
@@ -193,11 +245,93 @@ export async function listCommitsInWindow(
   window: Pick<TimeWindow, "start" | "end">,
   options: ListCommitsOptions = {},
 ): Promise<CommitList> {
-  const list = await listCommits(git, options);
-  return {
-    worktree: list.worktree,
-    commits: filterCommitsInTimeWindow(list.commits, window),
-  };
+  const { worktree, hasHead } = await commitHeader(git);
+  if (!hasHead) {
+    return { worktree, commits: [], hasMore: false };
+  }
+
+  const startMs = Date.parse(window.start);
+  const endMs = Date.parse(window.end);
+  const args = ["log", `--format=${COMMIT_FORMAT}`];
+  const sinceFilter = await supportsSinceAsFilter(git);
+  if (sinceFilter) {
+    if (!Number.isNaN(startMs)) {
+      args.push(
+        `--since-as-filter=${new Date(startMs - WINDOW_MARGIN_MS).toISOString()}`,
+      );
+    }
+    if (!Number.isNaN(endMs)) {
+      args.push(
+        `--until=${new Date(endMs + WINDOW_MARGIN_MS).toISOString()}`,
+      );
+    }
+  }
+
+  const output = await git.text(args);
+  let commits = parseCommitLog(
+    output,
+    options.now ?? new Date(),
+    options.agentPatterns ?? DEFAULT_AGENT_PATTERNS,
+  );
+  if (options.agent) {
+    commits = commits.filter((commit) => commit.agent === options.agent);
+  }
+  // --since-as-filter keeps walking past older commits (a merge tip can be
+  // older than the window); the exact in-memory filter keeps results equal.
+  commits = filterCommitsInTimeWindow(commits, window);
+
+  return { worktree, commits, hasMore: false };
+}
+
+export async function readCommitsByHash(
+  git: GitGateway,
+  hashes: readonly string[],
+  options: {
+    readonly now?: Date;
+    readonly agentPatterns?: readonly CompiledAgentPattern[];
+  } = {},
+): Promise<Map<string, CommitSummary>> {
+  const unique = [...new Set(hashes)];
+  if (unique.length === 0) {
+    return new Map();
+  }
+
+  const output = await git.text([
+    "log",
+    "--no-walk=unsorted",
+    `--format=${COMMIT_FORMAT}`,
+    ...unique,
+  ]);
+  const commits = parseCommitLog(
+    output,
+    options.now ?? new Date(),
+    options.agentPatterns ?? DEFAULT_AGENT_PATTERNS,
+  );
+  return new Map(commits.map((commit) => [commit.hash, commit]));
+}
+
+/** Hash-only walk of `rev` (HEAD by default), newest first. */
+export async function commitPositions(
+  git: GitGateway,
+  rev = "HEAD",
+): Promise<Map<string, number>> {
+  const result = await git.run(["rev-list", rev], {
+    allowExitCodes: [0, 128],
+  });
+  const positions = new Map<string, number>();
+  if (result.exitCode === 128) {
+    return positions;
+  }
+
+  result.stdout
+    .toString("utf8")
+    .split("\n")
+    .forEach((hash, index) => {
+      if (hash) {
+        positions.set(hash, index);
+      }
+    });
+  return positions;
 }
 
 export async function readCommit(

@@ -180,10 +180,18 @@ function worktreeQuery(worktreePath: string | null | undefined): string {
 export function fetchCommits(
   signal?: AbortSignal,
   worktreePath?: string | null,
+  skip = 0,
 ): Promise<CommitList> {
-  const query = worktreeQuery(worktreePath);
+  const query = new URLSearchParams();
+  if (worktreePath) {
+    query.set("worktree", worktreePath);
+  }
+  if (skip > 0) {
+    query.set("skip", String(skip));
+  }
+  const suffix = query.toString();
   return getJson<CommitList>(
-    `/api/commits${query ? `?${query}` : ""}`,
+    `/api/commits${suffix ? `?${suffix}` : ""}`,
     signal,
   );
 }

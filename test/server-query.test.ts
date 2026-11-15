@@ -6,6 +6,7 @@ import {
   parseChangeViewMode,
   parseCommitHash,
   parseCommitScope,
+  parseCommitSkip,
   parseCommitsScope,
   parseFileContentRequest,
   parseFileDiffRequest,
@@ -241,6 +242,31 @@ describe("Time Window parsing", () => {
       parseTimeWindowScope(url(`${window}&mode=nope`)),
       "Bad request: mode must be auto, net or stack",
     );
+  });
+});
+
+describe("Commits paging parsing", () => {
+  test("defaults to zero and accepts non-negative integers", () => {
+    expect(expectValue(parseCommitSkip(url("")))).toBe(0);
+    expect(expectValue(parseCommitSkip(url("skip=0")))).toBe(0);
+    expect(expectValue(parseCommitSkip(url("skip=12")))).toBe(12);
+    expect(expectValue(parseCommitSkip(url("skip=500")))).toBe(500);
+  });
+
+  test("rejects negative, fractional, empty and oversized skips", () => {
+    for (const query of [
+      "skip=-1",
+      "skip=1.5",
+      "skip=",
+      "skip=abc",
+      "skip=%201",
+      "skip=99999999999999999999",
+    ]) {
+      expectFailure(
+        parseCommitSkip(url(query)),
+        "Bad request: skip must be a non-negative integer",
+      );
+    }
   });
 });
 

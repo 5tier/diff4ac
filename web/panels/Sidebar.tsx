@@ -32,6 +32,8 @@ export interface SidebarProps {
   readonly onSelectBranch: (index: number, branch: BranchSummary) => void;
   readonly commits: readonly CommitSummary[];
   readonly commitsError: string | null;
+  readonly hasMoreCommits: boolean;
+  readonly loadingMoreCommits: boolean;
   readonly agentFilter: string | null;
   readonly commitCursor: number;
   readonly onSelectCommit: (index: number, commit: CommitSummary) => void;
@@ -62,6 +64,8 @@ export function Sidebar({
   onSelectBranch,
   commits,
   commitsError,
+  hasMoreCommits,
+  loadingMoreCommits,
   agentFilter,
   commitCursor,
   onSelectCommit,
@@ -182,6 +186,11 @@ export function Sidebar({
                 />
               ))}
             </ul>
+            {hasMoreCommits ? (
+              <div className="commit-more" data-testid="commit-more">
+                {loadingMoreCommits ? "loading more…" : "… more"}
+              </div>
+            ) : null}
           </>
         )}
       </Panel>
