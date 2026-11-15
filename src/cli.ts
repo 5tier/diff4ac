@@ -1,17 +1,37 @@
 #!/usr/bin/env bun
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { join, sep } from "node:path";
 import { parseArgs, UsageError, USAGE } from "./args";
 import { GitGateway, NotAGitRepositoryError } from "./git/gateway";
 import { startServer } from "./server/server";
 import { VERSION } from "./version";
 
-const PROJECT_ROOT = join(import.meta.dir, "..");
+// Overridable so tests can simulate an installed diff4ac rooted elsewhere.
+const PROJECT_ROOT =
+  process.env.DIFF4AC_PROJECT_ROOT?.trim() || join(import.meta.dir, "..");
 const WEB_INDEX = join(PROJECT_ROOT, "dist", "web", "index.html");
 
-async function ensureWebBuilt(): Promise<boolean> {
+function isInside(path: string, root: string): boolean {
+  const resolvedPath = realpathSync(path);
+  const resolvedRoot = realpathSync(root);
+  return (
+    resolvedPath === resolvedRoot ||
+    resolvedPath.startsWith(`${resolvedRoot}${sep}`)
+  );
+}
+
+async function ensureWebBuilt(git: GitGateway): Promise<boolean> {
   if (existsSync(WEB_INDEX)) {
     return true;
+  }
+
+  // Building writes into PROJECT_ROOT. If that is the Repository being
+  // reviewed (diff4ac run from its own checkout), refuse instead.
+  if (isInside(PROJECT_ROOT, git.worktreeRoot)) {
+    console.error(
+      `diff4ac: the SPA is not built; run "bun run build" in ${PROJECT_ROOT} first`,
+    );
+    return false;
   }
 
   console.error("diff4ac: building the SPA for first use…");
@@ -100,7 +120,7 @@ async function main(): Promise<number> {
     throw error;
   }
 
-  if (!(await ensureWebBuilt())) {
+  if (!(await ensureWebBuilt(git))) {
     return 1;
   }
 

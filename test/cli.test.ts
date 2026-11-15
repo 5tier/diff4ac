@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFixtureRepo } from "./helpers/fixture";
@@ -183,6 +183,50 @@ describe("diff4ac CLI", () => {
         proc.kill("SIGTERM");
       }
       await proc.exited;
+      repo.dispose();
+      home.dispose();
+    }
+  });
+
+  test("refuses to build the SPA inside the reviewed Repository", async () => {
+    const repo = createFixtureRepo();
+    repo.write("src/app.ts", "one\n");
+    repo.commit("initial");
+    const home = createTempHome();
+
+    try {
+      const before = repo.git([
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+      ]);
+
+      const proc = Bun.spawn({
+        cmd: [process.execPath, CLI, repo.root, "--no-open", "--port", "0"],
+        cwd: PROJECT_ROOT,
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+        env: {
+          ...process.env,
+          HOME: home.path,
+          DIFF4AC_PROJECT_ROOT: repo.root,
+        },
+      });
+
+      const exitCode = await proc.exited;
+      const stderr = await new Response(proc.stderr).text();
+
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain(
+        `diff4ac: the SPA is not built; run "bun run build" in ${repo.root} first`,
+      );
+      expect(existsSync(join(repo.root, "dist"))).toBe(false);
+      expect(
+        repo.git(["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
+      ).toBe(before);
+    } finally {
       repo.dispose();
       home.dispose();
     }

@@ -1,17 +1,8 @@
 import { createHash } from "node:crypto";
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  lstatSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve, sep } from "node:path";
-import { runGit, type GitGateway } from "../git/gateway";
+import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { join, resolve, sep } from "node:path";
+import type { GitGateway } from "../git/gateway";
+import { diffTempFiles } from "../git/temp-diff";
 import { parseModeChange } from "../diff/mode";
 import { extensionOf, isSafeRelativePath } from "../paths";
 import { isBinaryContent } from "./rename-pairing";
@@ -635,10 +626,7 @@ async function diffFor(
   options: ChangeFileOptions,
 ): Promise<string> {
   if (record.status === "untracked") {
-    const { stdout } = await git.run(
-      ["diff", "--no-index", "--no-color", "--no-ext-diff", "--", "/dev/null", record.path],
-      { allowExitCodes: [0, 1] },
-    );
+    const { stdout } = await git.diffUntracked(record.path);
     return stdout.toString("utf8");
   }
 
@@ -695,32 +683,15 @@ async function pairedRenameDiff(
   if (binary && !oldContent.equals(newContent)) {
     body = `Binary files a/${oldPath} and b/${newPath} differ`;
   } else if (!binary && !oldContent.equals(newContent)) {
-    const directory = mkdtempSync(join(tmpdir(), "diff4ac-rename-"));
-    try {
-      const oldFile = join(directory, "old", oldPath);
-      const newFile = join(directory, "new", record.path);
-      mkdirSync(dirname(oldFile), { recursive: true });
-      mkdirSync(dirname(newFile), { recursive: true });
-      writeFileSync(oldFile, oldContent);
-      writeFileSync(newFile, newContent);
-
-      const result = await runGit(
-        [
-          "diff",
-          "--no-index",
-          "--no-color",
-          "--no-ext-diff",
-          ...contextArgs(options),
-          "--",
-          join("old", oldPath),
-          join("new", record.path),
-        ],
-        { cwd: directory, allowExitCodes: [0, 1] },
-      );
-      body = bodyFromNoIndexDiff(result.stdout.toString("utf8"));
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
-    }
+    const output = await diffTempFiles(
+      git,
+      oldPath,
+      oldContent,
+      record.path,
+      newContent,
+      contextArgs(options),
+    );
+    body = bodyFromNoIndexDiff(output);
   }
 
   const percentage = Math.min(
