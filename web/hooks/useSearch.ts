@@ -3,7 +3,6 @@ import type { Dispatch, MutableRefObject } from "react";
 import type { CommitChangeGroup } from "../../shared/types";
 import type { DiffViewMode } from "../../shared/diff/rows";
 import type { DiffJump } from "../DiffView";
-import { ROW_HEIGHT } from "../DiffView";
 import {
   buildChangeOverview,
   type OverviewFile,
@@ -14,11 +13,14 @@ import {
   type SearchMatch,
 } from "../../shared/diff/search";
 import { hunkAtRow, type HunkLocation } from "../../shared/diff/navigation";
+import {
+  fileKeyAtOffset,
+  rowAtOffset,
+} from "../../shared/diff/layout";
+import { measureDiffLayout } from "../diff-layout";
 import type { ChangeFile } from "../../shared/types";
 import type { AppAction } from "../state/app-state";
 import { stackFileIndices, stackFileKey } from "../state/selection";
-
-const VIEWPORT_TOP_ROWS = 2;
 
 export interface UseSearchParams {
   readonly files: readonly ChangeFile[];
@@ -222,62 +224,29 @@ export function useSearch({
     if (!pane) {
       return null;
     }
-    const views = Array.from(
-      pane.querySelectorAll<HTMLElement>(".diff-view"),
-    );
-    if (views.length === 0) {
-      return null;
-    }
-
-    const paneTop = pane.getBoundingClientRect().top;
-    let key = views[0]?.dataset.fileKey ?? null;
-    for (const view of views) {
-      if (view.getBoundingClientRect().top <= paneTop + 1) {
-        key = view.dataset.fileKey ?? key;
-      } else {
-        break;
-      }
-    }
-    return key;
+    const layout = measureDiffLayout(pane);
+    return fileKeyAtOffset(layout, pane.scrollTop + layout.stickyHeight);
   }, [diffRef, isStack, selectedPath]);
-
-  const paneRowForFile = useCallback(
-    (fileKey: string): number => {
-      const pane = diffRef.current;
-      if (!pane) {
-        return 0;
-      }
-
-      const view = Array.from(
-        pane.querySelectorAll<HTMLElement>(".diff-view"),
-      ).find((candidate) => candidate.dataset.fileKey === fileKey);
-      const target = view?.querySelector<HTMLElement>(".diff-lines") ?? view;
-      if (!target) {
-        return 0;
-      }
-
-      const paneRect = pane.getBoundingClientRect();
-      const targetRect = target.getBoundingClientRect();
-      const offset = targetRect.top - paneRect.top + pane.scrollTop;
-      const row = Math.floor((pane.scrollTop - offset) / ROW_HEIGHT);
-      return Math.max(0, row + VIEWPORT_TOP_ROWS);
-    },
-    [diffRef],
-  );
 
   const currentHunkLocation = useCallback((): HunkLocation | null => {
     const fileKey = currentDiffFileKey();
-    if (!fileKey) {
+    const pane = diffRef.current;
+    if (!fileKey || !pane) {
       return null;
     }
-
+    const layout = measureDiffLayout(pane);
+    const file = layout.files.get(fileKey);
+    if (!file) {
+      return null;
+    }
+    const row = rowAtOffset(file, pane.scrollTop + layout.stickyHeight);
     return (
-      hunkAtRow(searchFiles, diffView, fileKey, paneRowForFile(fileKey)) ?? {
+      hunkAtRow(searchFiles, diffView, fileKey, row) ?? {
         fileKey,
         hunkIndex: -1,
       }
     );
-  }, [currentDiffFileKey, diffView, paneRowForFile, searchFiles]);
+  }, [currentDiffFileKey, diffView, diffRef, searchFiles]);
 
   return {
     searchFiles,

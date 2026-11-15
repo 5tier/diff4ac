@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
 import type { ChangeFile } from "../shared/types";
-import { fileContentUrl, type FileRequestContext } from "./api";
+import type { FileRequestContext } from "./api";
 import {
   buildDiffRows,
   highlightSegments,
@@ -22,6 +22,9 @@ import {
   modeChangeFor,
 } from "../shared/diff/mode";
 import { useHunkHighlights } from "./useHunkHighlights";
+import { measureDiffLayout } from "./diff-layout";
+import { binarySummary, ImagePreview } from "./panels/FilePreview";
+import { offsetForRow } from "../shared/diff/layout";
 
 export const ROW_HEIGHT = 20;
 export const VIRTUAL_ROW_THRESHOLD = 300;
@@ -210,15 +213,21 @@ function SplitCellView({
 
 function RowView({
   row,
+  rowIndex,
   matches,
   currentMatch,
 }: {
   readonly row: DiffRow;
+  readonly rowIndex: number;
   readonly matches?: RowSearchMatches;
   readonly currentMatch: SearchMatch | null;
 }) {
   if (row.kind === "hunk") {
-    return <div className="diff-line diff-hunk">{row.header}</div>;
+    return (
+      <div className="diff-line diff-hunk" data-diff-row={rowIndex}>
+        {row.header}
+      </div>
+    );
   }
 
   if (row.kind === "line") {
@@ -226,7 +235,10 @@ function RowView({
     const tone =
       row.type === "delete" ? "delete" : row.type === "add" ? "add" : "context";
     return (
-      <div className={`diff-line diff-${row.type}`}>
+      <div
+        className={`diff-line diff-${row.type}`}
+        data-diff-row={rowIndex}
+      >
         <HighlightedContent
           content={row.content}
           tokens={row.tokens}
@@ -240,7 +252,7 @@ function RowView({
   }
 
   return (
-    <div className="diff-line diff-split-row">
+    <div className="diff-line diff-split-row" data-diff-row={rowIndex}>
       {row.left ? (
         <SplitCellView
           cell={row.left}
@@ -259,71 +271,6 @@ function RowView({
       ) : (
         <div className="diff-split-cell diff-split-empty" />
       )}
-    </div>
-  );
-}
-
-function formatBytes(size: number | undefined): string {
-  if (size === undefined) {
-    return "unknown size";
-  }
-  if (size < 1024) {
-    return `${size} B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(1)} KB`;
-  }
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function binarySummary(file: ChangeFile): string {
-  if (file.status === "added") {
-    return `Binary file added · ${formatBytes(file.newSize)}`;
-  }
-  if (file.status === "deleted") {
-    return `Binary file deleted · ${formatBytes(file.oldSize)}`;
-  }
-  return `Binary file changed · old ${formatBytes(
-    file.oldSize,
-  )} → new ${formatBytes(file.newSize)}`;
-}
-
-function ImagePreview({
-  file,
-  context,
-}: {
-  readonly file: ChangeFile;
-  readonly context: FileRequestContext;
-}) {
-  const before = file.oldRev
-    ? fileContentUrl(context, file.path, file.oldRev)
-    : null;
-  const after = file.newRev
-    ? fileContentUrl(context, file.path, file.newRev)
-    : null;
-
-  if (!before && !after) {
-    return null;
-  }
-
-  return (
-    <div className="image-preview" data-testid="image-preview">
-      {before ? (
-        <figure className="image-preview-side">
-          <figcaption>Before · {file.oldPath ?? file.path}</figcaption>
-          <img
-            src={before}
-            alt={`${file.oldPath ?? file.path} before`}
-            loading="lazy"
-          />
-        </figure>
-      ) : null}
-      {after ? (
-        <figure className="image-preview-side">
-          <figcaption>After · {file.path}</figcaption>
-          <img src={after} alt={`${file.path} after`} loading="lazy" />
-        </figure>
-      ) : null}
     </div>
   );
 }
@@ -375,22 +322,33 @@ export function DiffView({
 
     const root = rootRef.current;
     const pane = root?.closest(".diff-pane") as HTMLElement | null;
-    const target = ref.current ?? root;
-    if (!pane || !target) {
+    if (!pane) {
       return;
     }
 
-    const paneRect = pane.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    const offset = targetRect.top - paneRect.top + pane.scrollTop;
-    const row = Math.max(0, jump.row);
-    const top = offset + row * ROW_HEIGHT - (row > 0 ? ROW_HEIGHT * 2 : 0);
-    pane.scrollTo({ top: Math.max(0, top) });
-  }, [fileKey, jump, ref]);
+    const scrollToRow = () => {
+      const layout = measureDiffLayout(pane);
+      const file = layout.files.get(fileKey);
+      if (!file) {
+        return;
+      }
+      const top =
+        offsetForRow(file, Math.max(0, jump.row)) - layout.stickyHeight;
+      pane.scrollTo({ top: Math.max(0, top) });
+    };
+
+    scrollToRow();
+    const frame = requestAnimationFrame(scrollToRow);
+    return () => cancelAnimationFrame(frame);
+  }, [fileKey, jump]);
 
   return (
     <div className="diff-view" id={id} ref={rootRef} data-file-key={fileKey}>
-      <div className="diff-heading">
+      <div
+        className="diff-heading"
+        data-layout-block="file-heading"
+        data-file-key={fileKey}
+      >
         <span className="diff-heading-path">
           {file.oldPath ? (
             <>
@@ -409,17 +367,35 @@ export function DiffView({
       </div>
 
       {modeChange ? (
-        <div className="diff-mode" data-testid="mode-change">
+        <div
+          className="diff-mode"
+          data-testid="mode-change"
+          data-layout-block="file-mode"
+          data-file-key={fileKey}
+        >
           {describeModeChange(modeChange)}
         </div>
       ) : null}
 
-      {file.image ? <ImagePreview file={file} context={context} /> : null}
+      {file.image ? (
+        <ImagePreview file={file} fileKey={fileKey} context={context} />
+      ) : null}
 
       {file.binary ? (
-        <div className="diff-empty">{binarySummary(file)}</div>
+        <div
+          className="diff-empty"
+          data-layout-block="file-binary"
+          data-file-key={fileKey}
+        >
+          {binarySummary(file)}
+        </div>
       ) : file.collapsed ? (
-        <div className="diff-empty diff-collapsed" data-testid="collapsed-diff">
+        <div
+          className="diff-empty diff-collapsed"
+          data-testid="collapsed-diff"
+          data-layout-block="file-collapsed"
+          data-file-key={fileKey}
+        >
           Large diff · {file.additions + file.deletions} changed lines. Press{" "}
           <kbd>x</kbd> to load it.
         </div>
@@ -429,6 +405,10 @@ export function DiffView({
           className={
             virtualized ? "diff-lines diff-lines-virtual" : "diff-lines"
           }
+          data-layout-rows="true"
+          data-file-key={fileKey}
+          data-row-height={ROW_HEIGHT}
+          data-row-count={rows.length}
           style={
             virtualized
               ? { height: rows.length * ROW_HEIGHT, position: "relative" }
@@ -449,6 +429,7 @@ export function DiffView({
                 <RowView
                   key={row.key}
                   row={row}
+                  rowIndex={range.start + index}
                   matches={rowMatches.get(range.start + index)}
                   currentMatch={currentMatch}
                 />
@@ -459,6 +440,7 @@ export function DiffView({
               <RowView
                 key={row.key}
                 row={row}
+                rowIndex={index}
                 matches={rowMatches.get(index)}
                 currentMatch={currentMatch}
               />

@@ -90,6 +90,7 @@ export function useChangeSet({
   const [markError, setMarkError] = useState<string | null>(null);
   const [diffError, setDiffError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const loadingRef = useRef(true);
 
   const diffRef = useRef<HTMLElement | null>(null);
   const selectedPathRef = useRef<string | null>(null);
@@ -108,6 +109,7 @@ export function useChangeSet({
     const previousPath = selectedPathRef.current;
     const previousScroll = diffRef.current?.scrollTop ?? null;
 
+    loadingRef.current = true;
     setError(null);
     appDispatch({ type: "load-start", preserve });
     if (!preserve) {
@@ -158,6 +160,7 @@ export function useChangeSet({
 
     request
       .then((loaded) => {
+        loadingRef.current = false;
         setChangeSet(loaded);
         setWorktree(loaded.worktree);
         if (loaded.selection.kind === "pending") {
@@ -198,6 +201,7 @@ export function useChangeSet({
         }
 
         if (preserve && isNotFoundError(reason)) {
+          loadingRef.current = false;
           setRepositoryChanged(false);
           setError(null);
           setLoading(false);
@@ -211,6 +215,7 @@ export function useChangeSet({
           return;
         }
 
+        loadingRef.current = false;
         setError(reason instanceof Error ? reason.message : String(reason));
         setLoading(false);
       });
@@ -294,7 +299,7 @@ export function useChangeSet({
   const selected = files.find((file) => file.path === selectedPath) ?? null;
 
   useEffect(() => {
-    if (!fullFile || isStack || !changeSet || !selected) {
+    if (loadingRef.current || !fullFile || isStack || !changeSet || !selected) {
       return;
     }
     if (selected.binary || selected.collapsed) {

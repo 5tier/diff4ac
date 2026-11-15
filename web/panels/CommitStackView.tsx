@@ -37,7 +37,11 @@ export function CommitStackView({
     <div className="commit-stack">
       {groups.map((group) => (
         <section className="commit-stack-group" key={group.commit.hash}>
-          <header className="commit-stack-heading">
+          <header
+            className="commit-stack-heading"
+            data-layout-block="commit-heading"
+            data-commit-hash={group.commit.hash}
+          >
             <span className="commit-hash">{group.commit.shortHash}</span>
             <span className="commit-stack-message">{group.commit.message}</span>
             <span className="file-counts">

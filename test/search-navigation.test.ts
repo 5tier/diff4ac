@@ -13,6 +13,13 @@ import {
   nextFileTarget,
   nextHunkTarget,
 } from "../shared/diff/navigation";
+import {
+  fileKeyAtOffset,
+  offsetForRow,
+  rowAtOffset,
+  type LayoutFile,
+  type PaneLayout,
+} from "../shared/diff/layout";
 
 function line(
   type: HunkLine["type"],
@@ -246,5 +253,79 @@ describe("diff navigation", () => {
         hunkIndex: 1,
       });
     }
+  });
+});
+
+function layoutFile(
+  fileKey: string,
+  top: number,
+  rowsTop: number | null,
+  rowCount: number,
+  bottom: number,
+  rowStart = 0,
+): LayoutFile {
+  return { fileKey, top, rowsTop, rowHeight: 20, rowCount, bottom, rowStart };
+}
+
+function layout(files: readonly LayoutFile[]): PaneLayout {
+  return {
+    scrollHeight: 1000,
+    clientHeight: 200,
+    stickyHeight: 34,
+    blocks: [],
+    files: new Map(files.map((entry) => [entry.fileKey, entry])),
+    fileOrder: files.map((entry) => entry.fileKey),
+  };
+}
+
+const pane = layout([
+  layoutFile("src/a.ts", 0, 34, 5, 500, 0),
+  layoutFile("src/b.ts", 500, 534, 3, 900, 5),
+  layoutFile("empty.ts", 900, null, 0, 1000, 8),
+]);
+
+describe("pane layout", () => {
+  test("maps an offset to the current file", () => {
+    expect(fileKeyAtOffset(pane, 0)).toBe("src/a.ts");
+    expect(fileKeyAtOffset(pane, 33)).toBe("src/a.ts");
+    expect(fileKeyAtOffset(pane, 34)).toBe("src/a.ts");
+    expect(fileKeyAtOffset(pane, 499)).toBe("src/a.ts");
+    expect(fileKeyAtOffset(pane, 500)).toBe("src/b.ts");
+    expect(fileKeyAtOffset(pane, 950)).toBe("empty.ts");
+  });
+
+  test("maps an offset to a row and back", () => {
+    const first = pane.files.get("src/a.ts");
+    if (!first) {
+      throw new Error("missing first file");
+    }
+    expect(rowAtOffset(first, 34)).toBe(0);
+    expect(rowAtOffset(first, 53)).toBe(0);
+    expect(rowAtOffset(first, 54)).toBe(1);
+    expect(rowAtOffset(first, -10)).toBe(0);
+    expect(rowAtOffset(first, 500)).toBe(4);
+
+    expect(offsetForRow(first, 0)).toBe(34);
+    expect(offsetForRow(first, 2)).toBe(74);
+    expect(offsetForRow(first, 99)).toBe(114);
+  });
+
+  test("falls back to the file heading for files without rows", () => {
+    const empty = pane.files.get("empty.ts");
+    if (!empty) {
+      throw new Error("missing empty file");
+    }
+    expect(rowAtOffset(empty, 950)).toBe(0);
+    expect(offsetForRow(empty, 0)).toBe(900);
+    expect(offsetForRow(empty, 3)).toBe(900);
+  });
+
+  test("uses the sticky heading height for jump offsets", () => {
+    const first = pane.files.get("src/a.ts");
+    if (!first) {
+      throw new Error("missing first file");
+    }
+    const target = offsetForRow(first, 2) - pane.stickyHeight;
+    expect(target).toBe(40);
   });
 });
