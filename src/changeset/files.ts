@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
-import type { GitGateway } from "../git/gateway";
+import {
+  GIT_HEAVY_TIMEOUT_MS,
+  type GitGateway,
+} from "../git/gateway";
 import { diffTempFiles } from "../git/temp-diff";
 import { parseModeChange } from "../../shared/diff/mode";
 import { nulTokens } from "../repository/status";
@@ -280,7 +283,7 @@ async function blobHashAt(
 ): Promise<string | null> {
   const result = await git.run(
     ["rev-parse", "--verify", "--quiet", `${rev}:${path}`],
-    { allowExitCodes: [0, 1] },
+    { allowExitCodes: [0, 1], retryOnEmpty: true },
   );
   if (result.exitCode !== 0) {
     return null;
@@ -430,6 +433,7 @@ async function gitBlobSize(
 ): Promise<number | null> {
   const result = await git.run(["cat-file", "-s", hash], {
     allowExitCodes: [0, 128],
+    retryOnEmpty: true,
   });
   if (result.exitCode !== 0) {
     return null;
@@ -490,7 +494,11 @@ async function resolveBlobInfo(
     const input = entries
       .map(([, request]) => `${request.rev}:${request.path}\n`)
       .join("");
-    const { stdout } = await git.run(["cat-file", "--batch-check"], { input });
+    const { stdout } = await git.run(["cat-file", "--batch-check"], {
+      input,
+      retryOnEmpty: true,
+      timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+    });
     const lines = stdout.toString("utf8").split("\n");
 
     entries.forEach(([key], index) => {

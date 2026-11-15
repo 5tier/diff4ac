@@ -5,7 +5,10 @@ import {
   watch,
 } from "node:fs";
 import { dirname, isAbsolute, join, relative as relativePath } from "node:path";
-import { GitGateway } from "../git/gateway";
+import {
+  GIT_HEAVY_TIMEOUT_MS,
+  GitGateway,
+} from "../git/gateway";
 import { repositoryIdentity } from "./identity";
 import { listWorktrees } from "./worktrees";
 import type { WatchMode, WatchStatus } from "../../shared/types";
@@ -606,6 +609,7 @@ export class RepositoryWatcher {
       const result = await git.run(["check-ignore", "--stdin", "-z"], {
         input: `${[...paths, ...newDirectories].join("\0")}\0`,
         allowExitCodes: [0, 1],
+        timeoutMs: GIT_HEAVY_TIMEOUT_MS,
       });
       if (result.exitCode !== 0) {
         return new Set();
@@ -730,7 +734,9 @@ export class RepositoryWatcher {
 
   private async fingerprint(git: GitGateway): Promise<string> {
     const [status, refs, head] = await Promise.all([
-      git.text(["status", "--porcelain=v2", "-z"]),
+      git.text(["status", "--porcelain=v2", "-z"], {
+        timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+      }),
       git.text(["for-each-ref", "--format=%(refname) %(objectname)"]),
       git.run(["rev-parse", "--verify", "HEAD"], {
         allowExitCodes: [0, 128],

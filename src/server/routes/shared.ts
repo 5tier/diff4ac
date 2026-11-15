@@ -14,6 +14,13 @@ import type { RequestContext } from "../context";
 import { json, text } from "../http";
 import { parseFilterSettings } from "../query";
 
+function logGitFailure(error: unknown): void {
+  console.error(
+    "diff4ac: request failed",
+    error instanceof Error ? (error.stack ?? error.message) : String(error),
+  );
+}
+
 export function gitApiFailure(error: unknown): Response {
   if (error instanceof UnknownWorktreeError) {
     return text(error.message, 404);
@@ -33,6 +40,7 @@ export function gitApiFailure(error: unknown): Response {
   if (error instanceof NoMergeBaseError) {
     return text(error.message, 409);
   }
+  logGitFailure(error);
   return json(
     {
       error: error instanceof Error ? error.message : String(error),
@@ -46,6 +54,7 @@ export function gitApiFailure(error: unknown): Response {
  * Only Worktrees uses this today.
  */
 export function jsonGitFailure(error: unknown): Response {
+  logGitFailure(error);
   return json(
     {
       error: error instanceof Error ? error.message : String(error),

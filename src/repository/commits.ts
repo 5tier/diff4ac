@@ -3,7 +3,10 @@ import {
   DEFAULT_AGENT_PATTERNS,
   type CompiledAgentPattern,
 } from "../agents";
-import type { GitGateway } from "../git/gateway";
+import {
+  GIT_HEAVY_TIMEOUT_MS,
+  type GitGateway,
+} from "../git/gateway";
 import { filterCommitsInTimeWindow } from "../../shared/time-windows";
 import type {
   CommitList,
@@ -35,7 +38,11 @@ export async function assertCommitsExist(
   }
 
   const input = unique.map((rev) => `${rev}^{commit}\n`).join("");
-  const { stdout } = await git.run(["cat-file", "--batch-check"], { input });
+  const { stdout } = await git.run(["cat-file", "--batch-check"], {
+    input,
+    retryOnEmpty: true,
+    timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+  });
   const lines = stdout.toString("utf8").split("\n");
 
   unique.forEach((rev, index) => {
@@ -225,7 +232,9 @@ export async function listCommits(
   // One extra record tells us whether another page exists.
   args.push("-n", String(pageSize + 1));
 
-  const output = await git.text(args);
+  const output = await git.text(args, {
+    timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+  });
   const parsed = parseCommitLog(
     output,
     options.now ?? new Date(),
@@ -267,7 +276,9 @@ export async function listCommitsInWindow(
     }
   }
 
-  const output = await git.text(args);
+  const output = await git.text(args, {
+    timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+  });
   let commits = parseCommitLog(
     output,
     options.now ?? new Date(),
@@ -296,12 +307,15 @@ export async function readCommitsByHash(
     return new Map();
   }
 
-  const output = await git.text([
-    "log",
-    "--no-walk=unsorted",
+  const output = await git.text(
+    [
+      "log",
+      "--no-walk=unsorted",
     `--format=${COMMIT_FORMAT}`,
-    ...unique,
-  ]);
+      ...unique,
+    ],
+    { timeoutMs: GIT_HEAVY_TIMEOUT_MS },
+  );
   const commits = parseCommitLog(
     output,
     options.now ?? new Date(),
@@ -317,6 +331,7 @@ export async function commitPositions(
 ): Promise<Map<string, number>> {
   const result = await git.run(["rev-list", rev], {
     allowExitCodes: [0, 128],
+    timeoutMs: GIT_HEAVY_TIMEOUT_MS,
   });
   const positions = new Map<string, number>();
   if (result.exitCode === 128) {
@@ -344,13 +359,10 @@ export async function readCommit(
 ): Promise<CommitSummary> {
   await assertCommitsExist(git, [rev]);
 
-  const output = await git.text([
-    "log",
-    "-1",
-    `--format=${COMMIT_FORMAT}`,
-    rev,
-    "--",
-  ]);
+  const output = await git.text(
+    ["log", "-1", `--format=${COMMIT_FORMAT}`, rev, "--"],
+    { timeoutMs: GIT_HEAVY_TIMEOUT_MS },
+  );
   const commit = parseCommitLog(
     output,
     options.now ?? new Date(),

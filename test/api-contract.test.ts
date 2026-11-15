@@ -424,5 +424,5 @@ describe("live API contract", () => {
 
     // Feature branch hash is reachable but not on main: still a valid commit.
     expect(feature).not.toBe(initial);
-  }, 60_000);
+  }, 30_000);
 });

@@ -1,4 +1,7 @@
-import type { GitGateway } from "../git/gateway";
+import {
+  GIT_HEAVY_TIMEOUT_MS,
+  type GitGateway,
+} from "../git/gateway";
 import type { ChangeSet } from "../../shared/types";
 import {
   buildChangeFiles,
@@ -49,7 +52,9 @@ export async function resolvePendingScope(
       "--no-color",
       "--no-ext-diff",
     ]),
-    git.text(["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
+    git.text(["status", "--porcelain=v1", "-z", "--untracked-files=all"], {
+      timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+    }),
   ]);
 
   const records = parseNameStatus(nameStatusOutput);
