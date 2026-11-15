@@ -213,3 +213,43 @@ export interface ConfigInfo {
   /** Present on the server's live config; how each Worktree is watched. */
   readonly watch?: readonly WatchStatus[];
 }
+
+export type SnapshotSide = "after" | "before";
+
+export type SnapshotEntryKind = "dir" | "file" | "symlink" | "submodule";
+
+export type SnapshotChangeStatus =
+  | "added"
+  | "modified"
+  | "deleted"
+  | "renamed";
+
+export interface SnapshotTreeEntry {
+  readonly name: string;
+  readonly path: string;
+  readonly kind: SnapshotEntryKind;
+  readonly status?: SnapshotChangeStatus;
+  readonly oldPath?: string;
+  readonly renamedTo?: string;
+  readonly containsChanges?: boolean;
+  readonly noise?: boolean;
+}
+
+export interface SnapshotFile {
+  readonly path: string;
+  readonly kind: SnapshotEntryKind;
+  readonly size: number;
+  readonly binary: boolean;
+  readonly image: boolean;
+  readonly text?: string;
+  readonly truncated?: boolean;
+  readonly totalLines?: number;
+  readonly status?: SnapshotChangeStatus;
+  readonly deleted?: boolean;
+  readonly submoduleOid?: string;
+}
+
+export interface SnapshotPathMatch {
+  readonly path: string;
+  readonly status?: SnapshotChangeStatus;
+}

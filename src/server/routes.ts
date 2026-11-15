@@ -11,6 +11,12 @@ import {
   handleFileDiff,
 } from "./routes/files";
 import {
+  handleSnapshotFile,
+  handleSnapshotPaths,
+  handleSnapshotRaw,
+  handleSnapshotTree,
+} from "./routes/snapshot";
+import {
   handleBranches,
   handleCommits,
   handleWorktrees,
@@ -31,6 +37,10 @@ export const routes: readonly Route[] = [
   { path: "/api/branch", handler: handleBranch },
   { path: "/api/file-diff", handler: handleFileDiff },
   { path: "/api/file-content", handler: handleFileContent },
+  { path: "/api/snapshot/tree", handler: handleSnapshotTree },
+  { path: "/api/snapshot/file", handler: handleSnapshotFile },
+  { path: "/api/snapshot/raw", handler: handleSnapshotRaw },
+  { path: "/api/snapshot/paths", handler: handleSnapshotPaths },
   { path: "/api/worktrees", handler: handleWorktrees },
   { path: "/api/branches", handler: handleBranches },
   { path: "/api/commits", handler: handleCommits },

@@ -9,6 +9,9 @@ import {
   guardReviewMarkResponse,
   guardSelection,
   guardSessionInfo,
+  guardSnapshotFile,
+  guardSnapshotPathMatches,
+  guardSnapshotTree,
   guardWorktreeList,
   isArrayOf,
   isOptional,
@@ -176,6 +179,33 @@ describe("API contract guards", () => {
       contentHash: CHANGE_FILE.contentHash,
       reviewed: true,
     });
+    expectGuard(guardSnapshotTree, [
+      {
+        name: "app.ts",
+        path: "src/app.ts",
+        kind: "file",
+        status: "modified",
+      },
+      {
+        name: "src",
+        path: "src",
+        kind: "dir",
+        containsChanges: true,
+        noise: false,
+      },
+    ]);
+    expectGuard(guardSnapshotFile, {
+      path: "src/app.ts",
+      kind: "file",
+      size: 3,
+      binary: false,
+      image: false,
+      text: "one",
+      totalLines: 1,
+    });
+    expectGuard(guardSnapshotPathMatches, [
+      { path: "src/app.ts", status: "modified" },
+    ]);
   });
 
   test("reports the first failing field path", () => {
@@ -238,6 +268,18 @@ describe("API contract guards", () => {
       { path: "a", reviewed: true },
       "contentHash",
       "a string",
+    );
+    expectFailure(
+      guardSnapshotFile,
+      { path: "a", kind: "file", binary: false, image: false },
+      "size",
+      "a number",
+    );
+    expectFailure(
+      guardSnapshotTree,
+      [{ name: "a", path: "a", kind: "wat" }],
+      "[0].kind",
+      "one of dir, file, symlink, submodule",
     );
   });
 
@@ -358,6 +400,22 @@ describe("live API contract", () => {
     await checkJson("/api/commits?skip=1", guardCommitList);
     await checkJson("/api/config", guardConfigInfo);
     await checkJson("/api/session", guardSessionInfo);
+    await checkJson(
+      "/api/snapshot/tree?selection=pending&side=after&dir=src",
+      guardSnapshotTree,
+    );
+    await checkJson(
+      `/api/snapshot/tree?selection=commit&hash=${second}&side=before`,
+      guardSnapshotTree,
+    );
+    await checkJson(
+      "/api/snapshot/file?selection=pending&side=after&path=src%2Fbase.ts",
+      guardSnapshotFile,
+    );
+    await checkJson(
+      "/api/snapshot/paths?selection=pending&side=after&q=base&limit=5",
+      guardSnapshotPathMatches,
+    );
     const file = await checkJson(
       "/api/file-diff?selection=pending&path=src%2Fbase.ts&rev=worktree",
       guardChangeFile,

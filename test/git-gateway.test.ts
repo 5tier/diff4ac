@@ -198,6 +198,21 @@ describe("read-only option guard", () => {
     expect(await git.currentBranch()).toBe("main");
   });
 
+  test("allows read-only ls-tree without opening the write-tree family", async () => {
+    const repo = fixture();
+    repo.write("a.txt", "a\n");
+    repo.commit("initial");
+    const git = await GitGateway.open(repo.root);
+
+    const output = await git.text(["ls-tree", "-z", "HEAD"]);
+    expect(output).toContain("a.txt");
+
+    for (const subcommand of ["write-tree", "mktree", "read-tree"]) {
+      const message = await rejectionMessage(git, [subcommand]);
+      expect(message).toContain("refuses to run non-read-only git command");
+    }
+  });
+
   test("allows callers that already pass --no-ext-diff", async () => {
     const repo = fixture();
     repo.write("a.txt", "one\n");

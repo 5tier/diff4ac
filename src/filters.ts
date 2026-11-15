@@ -128,6 +128,25 @@ function compileMatchers(patterns: readonly string[]): Matcher {
 }
 
 
+/** Whether a path matches the configured Noise patterns. */
+export function isNoisePath(
+  path: string,
+  patterns: readonly string[],
+): boolean {
+  if (patterns.length === 0) {
+    return false;
+  }
+  return compileMatchers(patterns)(path) === "positive";
+}
+
+/** Whether a directory itself matches a Noise pattern such as a build folder. */
+export function isNoiseDirectory(
+  path: string,
+  patterns: readonly string[],
+): boolean {
+  return isNoisePath(`${path.replace(/\/+$/, "")}/`, patterns);
+}
+
 function uniqueFiles(changeSet: ChangeSet): ChangeFile[] {
   const byPath = new Map<string, ChangeFile>();
   for (const file of changeSet.files) {

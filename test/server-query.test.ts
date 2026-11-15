@@ -12,6 +12,10 @@ import {
   parseFileDiffRequest,
   parseFilterSettings,
   parseScope,
+  parseSnapshotFileRequest,
+  parseSnapshotPathsRequest,
+  parseSnapshotSide,
+  parseSnapshotTreeRequest,
   parseTimeWindowMode,
   parseTimeWindowRequest,
   parseTimeWindowScope,
@@ -265,6 +269,96 @@ describe("Commits paging parsing", () => {
       expectFailure(
         parseCommitSkip(url(query)),
         "Bad request: skip must be a non-negative integer",
+      );
+    }
+  });
+});
+
+describe("Snapshot query parsing", () => {
+  test("requires side=after or side=before", () => {
+    expect(expectValue(parseSnapshotSide(url("side=after")))).toBe("after");
+    expect(expectValue(parseSnapshotSide(url("side=before")))).toBe("before");
+    for (const query of ["", "side=nope", "side="]) {
+      expectFailure(
+        parseSnapshotSide(url(query)),
+        "Bad request: side must be after or before",
+      );
+    }
+  });
+
+  test("parses a tree request with a safe relative dir", () => {
+    expect(
+      expectValue(
+        parseSnapshotTreeRequest(
+          url("selection=pending&side=after&dir=src%2Fcomponents%2F"),
+        ),
+      ),
+    ).toMatchObject({
+      scope: { kind: "pending" },
+      side: "after",
+      dir: "src/components",
+    });
+    expect(
+      expectValue(parseSnapshotTreeRequest(url("selection=pending&side=after"))),
+    ).toMatchObject({ dir: "" });
+
+    for (const dir of ["..%2Fescape", "%2Fetc", "src%2F..%2F..%2Fx"]) {
+      expectFailure(
+        parseSnapshotTreeRequest(
+          url(`selection=pending&side=after&dir=${dir}`),
+        ),
+        "Bad request: a safe directory path is required",
+      );
+    }
+  });
+
+  test("parses file and raw requests, including full", () => {
+    const base = "selection=pending&side=after&path=src%2Fapp.ts";
+    expect(expectValue(parseSnapshotFileRequest(url(base)))).toMatchObject({
+      path: "src/app.ts",
+      full: false,
+    });
+    expect(
+      expectValue(parseSnapshotFileRequest(url(`${base}&full=1`))),
+    ).toMatchObject({ full: true });
+    expectFailure(
+      parseSnapshotFileRequest(url(`${base}&full=yes`)),
+      "Bad request: full must be 1",
+    );
+    for (const path of ["", "..%2Fescape", "%2Fetc%2Fpasswd"]) {
+      expectFailure(
+        parseSnapshotFileRequest(
+          url(`selection=pending&side=after&path=${path}`),
+        ),
+        "Bad request: a safe file path is required",
+      );
+    }
+  });
+
+  test("parses path search with q and a bounded limit", () => {
+    expect(
+      expectValue(
+        parseSnapshotPathsRequest(
+          url("selection=pending&side=after&q=app&limit=10"),
+        ),
+      ),
+    ).toMatchObject({ query: "app", limit: 10 });
+    expect(
+      expectValue(parseSnapshotPathsRequest(url("selection=pending&side=after"))),
+    ).toMatchObject({ query: "", limit: 50 });
+
+    expectFailure(
+      parseSnapshotPathsRequest(
+        url(`selection=pending&side=after&q=${"x".repeat(257)}`),
+      ),
+      "Bad request: q must be at most 256 characters",
+    );
+    for (const limit of ["0", "201", "abc", "1.5", ""]) {
+      expectFailure(
+        parseSnapshotPathsRequest(
+          url(`selection=pending&side=after&limit=${limit}`),
+        ),
+        "Bad request: limit must be between 1 and 200",
       );
     }
   });

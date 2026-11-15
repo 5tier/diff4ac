@@ -13,7 +13,7 @@ import {
 import { withGit } from "./shared";
 import type { RouteRequest } from "./types";
 
-function imageResponse(
+export function imageResponse(
   bytes: Buffer,
   contentType: string,
   method: string,

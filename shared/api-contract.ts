@@ -17,6 +17,11 @@ import type {
   HunkLine,
   Selection,
   SessionInfo,
+  SnapshotEntryKind,
+  SnapshotChangeStatus,
+  SnapshotFile,
+  SnapshotPathMatch,
+  SnapshotTreeEntry,
   TimeWindow,
   WorktreeInfo,
   WorktreeList,
@@ -201,6 +206,15 @@ const TIME_WINDOW_PRESETS = [
 ] as const;
 
 const THEMES = ["system", "light", "dark"] as const;
+
+const SNAPSHOT_KINDS = ["dir", "file", "symlink", "submodule"] as const;
+
+const SNAPSHOT_STATUSES = [
+  "added",
+  "modified",
+  "deleted",
+  "renamed",
+] as const;
 
 export const guardWorktreeInfo: Guard<WorktreeInfo> = (value, path) =>
   object(value, path, (record, at) => {
@@ -996,6 +1010,194 @@ export const guardConfigInfo: Guard<ConfigInfo> = (value, path) =>
       diagnostics: diagnostics.value,
     });
   });
+
+export const guardSnapshotTreeEntry: Guard<SnapshotTreeEntry> = (
+  value,
+  path,
+) =>
+  object(value, path, (record, at) => {
+    const name = guardString(record.name, at("name"));
+    if (!name.ok) {
+      return name;
+    }
+    const entryPath = guardString(record.path, at("path"));
+    if (!entryPath.ok) {
+      return entryPath;
+    }
+    const kind = guardOneOf(SNAPSHOT_KINDS, record.kind, at("kind"));
+    if (!kind.ok) {
+      return kind;
+    }
+    const status = guardOptional(
+      (item, statusPath) =>
+        guardOneOf(SNAPSHOT_STATUSES, item, statusPath),
+      record.status,
+      at("status"),
+    );
+    if (!status.ok) {
+      return status;
+    }
+    const oldPath = guardOptional(guardString, record.oldPath, at("oldPath"));
+    if (!oldPath.ok) {
+      return oldPath;
+    }
+    const renamedTo = guardOptional(
+      guardString,
+      record.renamedTo,
+      at("renamedTo"),
+    );
+    if (!renamedTo.ok) {
+      return renamedTo;
+    }
+    const containsChanges = guardOptional(
+      guardBoolean,
+      record.containsChanges,
+      at("containsChanges"),
+    );
+    if (!containsChanges.ok) {
+      return containsChanges;
+    }
+    const noise = guardOptional(guardBoolean, record.noise, at("noise"));
+    if (!noise.ok) {
+      return noise;
+    }
+    return succeed({
+      name: name.value,
+      path: entryPath.value,
+      kind: kind.value as SnapshotEntryKind,
+      ...(status.value !== undefined ? { status: status.value } : {}),
+      ...(oldPath.value !== undefined ? { oldPath: oldPath.value } : {}),
+      ...(renamedTo.value !== undefined
+        ? { renamedTo: renamedTo.value }
+        : {}),
+      ...(containsChanges.value !== undefined
+        ? { containsChanges: containsChanges.value }
+        : {}),
+      ...(noise.value !== undefined ? { noise: noise.value } : {}),
+    });
+  });
+
+export const guardSnapshotTree: Guard<readonly SnapshotTreeEntry[]> = (
+  value,
+  path,
+) => guardArray(guardSnapshotTreeEntry, value, path);
+
+export const guardSnapshotFile: Guard<SnapshotFile> = (value, path) =>
+  object(value, path, (record, at) => {
+    const filePath = guardString(record.path, at("path"));
+    if (!filePath.ok) {
+      return filePath;
+    }
+    const kind = guardOneOf(SNAPSHOT_KINDS, record.kind, at("kind"));
+    if (!kind.ok) {
+      return kind;
+    }
+    const size = guardNumber(record.size, at("size"));
+    if (!size.ok) {
+      return size;
+    }
+    const binary = guardBoolean(record.binary, at("binary"));
+    if (!binary.ok) {
+      return binary;
+    }
+    const image = guardBoolean(record.image, at("image"));
+    if (!image.ok) {
+      return image;
+    }
+    const text = guardOptional(guardString, record.text, at("text"));
+    if (!text.ok) {
+      return text;
+    }
+    const truncated = guardOptional(
+      guardBoolean,
+      record.truncated,
+      at("truncated"),
+    );
+    if (!truncated.ok) {
+      return truncated;
+    }
+    const totalLines = guardOptional(
+      guardNumber,
+      record.totalLines,
+      at("totalLines"),
+    );
+    if (!totalLines.ok) {
+      return totalLines;
+    }
+    const status = guardOptional(
+      (item, statusPath) =>
+        guardOneOf(SNAPSHOT_STATUSES, item, statusPath),
+      record.status,
+      at("status"),
+    );
+    if (!status.ok) {
+      return status;
+    }
+    const deleted = guardOptional(
+      guardBoolean,
+      record.deleted,
+      at("deleted"),
+    );
+    if (!deleted.ok) {
+      return deleted;
+    }
+    const submoduleOid = guardOptional(
+      guardString,
+      record.submoduleOid,
+      at("submoduleOid"),
+    );
+    if (!submoduleOid.ok) {
+      return submoduleOid;
+    }
+    return succeed({
+      path: filePath.value,
+      kind: kind.value as SnapshotEntryKind,
+      size: size.value,
+      binary: binary.value,
+      image: image.value,
+      ...(text.value !== undefined ? { text: text.value } : {}),
+      ...(truncated.value !== undefined
+        ? { truncated: truncated.value }
+        : {}),
+      ...(totalLines.value !== undefined
+        ? { totalLines: totalLines.value }
+        : {}),
+      ...(status.value !== undefined ? { status: status.value } : {}),
+      ...(deleted.value !== undefined ? { deleted: deleted.value } : {}),
+      ...(submoduleOid.value !== undefined
+        ? { submoduleOid: submoduleOid.value }
+        : {}),
+    });
+  });
+
+export const guardSnapshotPathMatches: Guard<readonly SnapshotPathMatch[]> = (
+  value,
+  path,
+) =>
+  guardArray(
+    (item, itemPath) =>
+      object(item, itemPath, (record, at) => {
+        const matchPath = guardString(record.path, at("path"));
+        if (!matchPath.ok) {
+          return matchPath;
+        }
+        const status = guardOptional(
+          (statusValue, statusPath) =>
+            guardOneOf(SNAPSHOT_STATUSES, statusValue, statusPath),
+          record.status,
+          at("status"),
+        );
+        if (!status.ok) {
+          return status;
+        }
+        return succeed({
+          path: matchPath.value,
+          ...(status.value !== undefined ? { status: status.value } : {}),
+        });
+      }),
+    value,
+    path,
+  );
 
 export const guardSessionInfo: Guard<SessionInfo> = (value, path) =>
   object(value, path, (record, at) => {

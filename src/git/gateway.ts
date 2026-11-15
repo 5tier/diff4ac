@@ -51,6 +51,7 @@ const READ_ONLY_SUBCOMMANDS = new Set([
   "for-each-ref",
   "log",
   "ls-files",
+  "ls-tree",
   "merge-base",
   "rev-list",
   "rev-parse",

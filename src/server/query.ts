@@ -11,6 +11,7 @@ import {
 } from "../../shared/time-windows";
 import type {
   ChangeViewMode,
+  SnapshotSide,
   TimeWindow,
 } from "../../shared/types";
 
@@ -152,6 +153,143 @@ export function parseBranchScope(
   return name
     ? ok({ kind: "branch", name })
     : fail("Bad request: a branch name is required");
+}
+
+export function parseSnapshotSide(url: URL): ParseResult<SnapshotSide> {
+  const side = url.searchParams.get("side");
+  return side === "after" || side === "before"
+    ? ok(side)
+    : fail("Bad request: side must be after or before");
+}
+
+function parseSnapshotDir(url: URL): ParseResult<string> {
+  const raw = url.searchParams.get("dir");
+  if (raw === null || raw === "") {
+    return ok("");
+  }
+  if (!isSafeRelativePath(raw)) {
+    return fail("Bad request: a safe directory path is required");
+  }
+  return ok(raw.replace(/\/+$/, ""));
+}
+
+function parseSnapshotPath(url: URL): ParseResult<string> {
+  const path = url.searchParams.get("path");
+  if (!path || !isSafeRelativePath(path)) {
+    return fail("Bad request: a safe file path is required");
+  }
+  return ok(path);
+}
+
+function parseSnapshotFull(url: URL): ParseResult<boolean> {
+  const full = url.searchParams.get("full");
+  if (full === null || full === "0") {
+    return ok(false);
+  }
+  return full === "1"
+    ? ok(true)
+    : fail("Bad request: full must be 1");
+}
+
+export interface SnapshotBaseRequest {
+  readonly scope: ChangeSetScope;
+  readonly side: SnapshotSide;
+}
+
+function parseSnapshotBase(url: URL): ParseResult<SnapshotBaseRequest> {
+  const scope = parseScope(url);
+  if (!scope.ok) {
+    return scope;
+  }
+  const side = parseSnapshotSide(url);
+  return side.ok ? ok({ scope: scope.value, side: side.value }) : side;
+}
+
+export interface SnapshotTreeRequest extends SnapshotBaseRequest {
+  readonly dir: string;
+}
+
+export function parseSnapshotTreeRequest(
+  url: URL,
+): ParseResult<SnapshotTreeRequest> {
+  const base = parseSnapshotBase(url);
+  if (!base.ok) {
+    return base;
+  }
+  const dir = parseSnapshotDir(url);
+  return dir.ok
+    ? ok({ ...base.value, dir: dir.value })
+    : dir;
+}
+
+export interface SnapshotFileRequest extends SnapshotBaseRequest {
+  readonly path: string;
+  readonly full: boolean;
+}
+
+export function parseSnapshotFileRequest(
+  url: URL,
+): ParseResult<SnapshotFileRequest> {
+  const base = parseSnapshotBase(url);
+  if (!base.ok) {
+    return base;
+  }
+  const path = parseSnapshotPath(url);
+  if (!path.ok) {
+    return path;
+  }
+  const full = parseSnapshotFull(url);
+  return full.ok
+    ? ok({ ...base.value, path: path.value, full: full.value })
+    : full;
+}
+
+export interface SnapshotRawRequest extends SnapshotBaseRequest {
+  readonly path: string;
+}
+
+export function parseSnapshotRawRequest(
+  url: URL,
+): ParseResult<SnapshotRawRequest> {
+  const base = parseSnapshotBase(url);
+  if (!base.ok) {
+    return base;
+  }
+  const path = parseSnapshotPath(url);
+  return path.ok ? ok({ ...base.value, path: path.value }) : path;
+}
+
+export interface SnapshotPathsRequest extends SnapshotBaseRequest {
+  readonly query: string;
+  readonly limit: number;
+}
+
+export function parseSnapshotPathsRequest(
+  url: URL,
+): ParseResult<SnapshotPathsRequest> {
+  const base = parseSnapshotBase(url);
+  if (!base.ok) {
+    return base;
+  }
+
+  const query = url.searchParams.get("q") ?? "";
+  if (query.length > 256) {
+    return fail("Bad request: q must be at most 256 characters");
+  }
+
+  const rawLimit = url.searchParams.get("limit");
+  let limit = 50;
+  if (rawLimit !== null) {
+    if (!/^\d+$/.test(rawLimit)) {
+      return fail("Bad request: limit must be between 1 and 200");
+    }
+    limit = Number(rawLimit);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
+      return fail("Bad request: limit must be between 1 and 200");
+    }
+  }
+
+  return ok({ ...base.value, query, limit });
 }
 
 export function parseCommitSkip(url: URL): ParseResult<number> {

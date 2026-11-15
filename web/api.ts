@@ -7,6 +7,10 @@ import type {
   ConfigInfo,
   FilterRequest,
   Selection,
+  SnapshotFile,
+  SnapshotPathMatch,
+  SnapshotSide,
+  SnapshotTreeEntry,
   TimeWindow,
   WorktreeList,
 } from "../shared/types";
@@ -17,6 +21,9 @@ import {
   guardCommitList,
   guardConfigInfo,
   guardReviewMarkResponse,
+  guardSnapshotFile,
+  guardSnapshotPathMatches,
+  guardSnapshotTree,
   guardWorktreeList,
   type Guard,
   type ReviewMarkResponse,
@@ -316,6 +323,84 @@ export function fetchTimeWindow(
   }
   appendFilters(query, filters);
   return getJson(`/api/time-window?${query.toString()}`, guardChangeSet, signal);
+}
+
+function snapshotQuery(
+  target: FileRequestContext,
+  side: SnapshotSide,
+): URLSearchParams {
+  const params = appendSelection(new URLSearchParams(), target.selection);
+  params.set("side", side);
+  if (target.worktreePath) {
+    params.set("worktree", target.worktreePath);
+  }
+  if (target.agent) {
+    params.set("agent", target.agent);
+  }
+  return params;
+}
+
+export function fetchSnapshotTree(
+  target: FileRequestContext,
+  side: SnapshotSide,
+  dir: string,
+  signal?: AbortSignal,
+): Promise<readonly SnapshotTreeEntry[]> {
+  const params = snapshotQuery(target, side);
+  if (dir) {
+    params.set("dir", dir);
+  }
+  return getJson(
+    `/api/snapshot/tree?${params.toString()}`,
+    guardSnapshotTree,
+    signal,
+  );
+}
+
+export function fetchSnapshotFile(
+  target: FileRequestContext,
+  side: SnapshotSide,
+  path: string,
+  full = false,
+  signal?: AbortSignal,
+): Promise<SnapshotFile> {
+  const params = snapshotQuery(target, side);
+  params.set("path", path);
+  if (full) {
+    params.set("full", "1");
+  }
+  return getJson(
+    `/api/snapshot/file?${params.toString()}`,
+    guardSnapshotFile,
+    signal,
+  );
+}
+
+export function snapshotRawUrl(
+  target: FileRequestContext,
+  side: SnapshotSide,
+  path: string,
+): string {
+  const params = snapshotQuery(target, side);
+  params.set("path", path);
+  return `/api/snapshot/raw?${params.toString()}`;
+}
+
+export function searchSnapshotPaths(
+  target: FileRequestContext,
+  side: SnapshotSide,
+  query: string,
+  limit = 50,
+  signal?: AbortSignal,
+): Promise<readonly SnapshotPathMatch[]> {
+  const params = snapshotQuery(target, side);
+  params.set("q", query);
+  params.set("limit", String(limit));
+  return getJson(
+    `/api/snapshot/paths?${params.toString()}`,
+    guardSnapshotPathMatches,
+    signal,
+  );
 }
 
 export async function setReviewMark(
