@@ -841,6 +841,11 @@ test(
 
     const status = page.locator('[data-testid="status-view"]');
     expect(await status.textContent()).toContain("side-by-side · full file");
+    await page.waitForFunction(() =>
+      Array.from(document.querySelectorAll(".diff-content")).some(
+        (cell) => cell.textContent?.trim() === "line 1",
+      ),
+    );
     const fullRows = await page.locator(".diff-split-row").count();
 
     await page.keyboard.press("c");
@@ -1478,6 +1483,49 @@ test(
       await page.emulateMedia({ colorScheme: null });
       await page.reload().catch(() => {});
     }
+  },
+  30_000,
+);
+
+test(
+  "falls back to Pending when the selected commit is rewritten away",
+  async () => {
+    await page.reload();
+    await page.waitForSelector(".file-row");
+
+    repo.write("src/rewrite.ts", "one\n");
+    repo.stage("src/rewrite.ts");
+    repo.commit("rewrite me", { addAll: false });
+
+    const banner = page.locator('[data-testid="repository-banner"]');
+    await banner.waitFor({ timeout: 5000 });
+    await page.keyboard.press("r");
+    await banner.waitFor({ state: "detached" });
+
+    await page.keyboard.press("3");
+    await page.locator(".commit-row", { hasText: "rewrite me" }).click();
+    await page.waitForFunction(() =>
+      document
+        .querySelector(".top-bar-mode")
+        ?.textContent?.startsWith("Commit"),
+    );
+
+    repo.write("src/rewrite.ts", "two\n");
+    repo.stage("src/rewrite.ts");
+    repo.git(["commit", "--amend", "--no-edit", "-m", "rewritten away"]);
+    repo.git(["reflog", "expire", "--expire=now", "--all"]);
+    repo.git(["gc", "--prune=now", "--quiet"]);
+
+    await banner.waitFor({ timeout: 5000 });
+    await page.keyboard.press("r");
+    await banner.waitFor({ state: "detached" });
+    await page.waitForFunction(
+      () => document.querySelector(".top-bar-mode")?.textContent === "Pending",
+    );
+
+    const notice = page.locator('[data-testid="refresh-notice"]');
+    await notice.waitFor();
+    expect(await notice.textContent()).toContain("no longer exists");
   },
   30_000,
 );

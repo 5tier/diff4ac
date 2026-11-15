@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { ApiError } from "../web/api-error";
 import type {
   BranchSummary,
   ChangeFile,
@@ -469,8 +470,9 @@ describe("filter and list helpers", () => {
   });
 
   test("isNotFoundError recognises 404 responses", () => {
-    expect(isNotFoundError(new Error("404: gone"))).toBe(true);
-    expect(isNotFoundError(new Error("500: nope"))).toBe(false);
+    expect(isNotFoundError(new ApiError(404, "gone"))).toBe(true);
+    expect(isNotFoundError(new ApiError(500, "nope"))).toBe(false);
+    expect(isNotFoundError(new Error("404: gone"))).toBe(false);
     expect(isNotFoundError("404: gone")).toBe(false);
   });
 });

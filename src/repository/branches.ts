@@ -59,6 +59,30 @@ export async function detectBaseBranch(
   return null;
 }
 
+/**
+ * The Base Branch a Change Set must use: a configured override that no longer
+ * exists is an error, unlike the display-only fallback in `detectBaseBranch`.
+ */
+export async function requireBaseBranch(
+  git: GitGateway,
+  override: string | null = null,
+): Promise<BaseBranch> {
+  if (override) {
+    if (await localBranchExists(git, override)) {
+      return { name: override, ref: `refs/heads/${override}` };
+    }
+    throw new UnknownBranchError(override);
+  }
+
+  const detected = await detectBaseBranch(git);
+  if (!detected) {
+    throw new Error(
+      "could not detect a Base Branch (origin/HEAD, main or master)",
+    );
+  }
+  return detected;
+}
+
 function parseBranches(output: string): BranchSummary[] {
   const branches: BranchSummary[] = [];
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { buildBranchChangeSet } from "../src/changeset/branch";
+import { buildBranchChangeSet, NoMergeBaseError } from "../src/changeset/branch";
 import { GitGateway } from "../src/git/gateway";
 import { UnknownBranchError } from "../src/repository/branches";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
@@ -100,5 +100,38 @@ describe("Branch Change Set", () => {
     await expect(
       buildBranchChangeSet(await GitGateway.open(repo.root), "nope"),
     ).rejects.toBeInstanceOf(UnknownBranchError);
+  });
+
+  test("rejects an unknown Base Branch override", async () => {
+    const { repo } = divergedRepo();
+
+    await expect(
+      buildBranchChangeSet(
+        await GitGateway.open(repo.root),
+        "agent/feature-x",
+        "missing",
+      ),
+    ).rejects.toBeInstanceOf(UnknownBranchError);
+  });
+
+  test("reports a branch with unrelated history as a typed error", async () => {
+    const repo = fixture();
+    repo.write("base.txt", "base\n");
+    repo.commit("initial");
+    repo.git(["checkout", "-q", "--orphan", "orphan"]);
+    repo.git(["rm", "-rf", "."]);
+    repo.write("orphan.txt", "orphan\n");
+    repo.commit("orphan root");
+    repo.git(["checkout", "-q", "main"]);
+
+    const error = await buildBranchChangeSet(
+      await GitGateway.open(repo.root),
+      "orphan",
+    ).catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(NoMergeBaseError);
+    expect((error as Error).message).toBe(
+      "branch orphan shares no history with main",
+    );
   });
 });

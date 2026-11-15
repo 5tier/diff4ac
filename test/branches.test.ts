@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { GitGateway } from "../src/git/gateway";
-import { detectBaseBranch, listBranches } from "../src/repository/branches";
+import {
+  detectBaseBranch,
+  listBranches,
+  requireBaseBranch,
+  UnknownBranchError,
+} from "../src/repository/branches";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 
 const repos: FixtureRepo[] = [];
@@ -97,5 +102,28 @@ describe("Branches and Base Branch", () => {
     const base = await detectBaseBranch(await GitGateway.open(repo.root));
 
     expect(base).toBeNull();
+  });
+
+  test("falls back when the configured Base Branch is missing", async () => {
+    const repo = fixture();
+    repo.write("README.md", "hello\n");
+    repo.commit("initial");
+
+    const base = await detectBaseBranch(
+      await GitGateway.open(repo.root),
+      "missing",
+    );
+
+    expect(base).toEqual({ name: "main", ref: "main" });
+  });
+
+  test("requireBaseBranch rejects a missing configured Base Branch", async () => {
+    const repo = fixture();
+    repo.write("README.md", "hello\n");
+    repo.commit("initial");
+
+    await expect(
+      requireBaseBranch(await GitGateway.open(repo.root), "missing"),
+    ).rejects.toBeInstanceOf(UnknownBranchError);
   });
 });

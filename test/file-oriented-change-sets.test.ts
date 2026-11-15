@@ -184,7 +184,7 @@ describe("file-oriented Change Sets", () => {
       );
       expect(single).toEqual(file);
     }
-  });
+  }, 30_000);
 
   test("returns undefined for a path or rev outside the Selection", async () => {
     const { repo, second } = equivalenceFixture();

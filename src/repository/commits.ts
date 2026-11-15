@@ -7,6 +7,40 @@ import type { GitGateway } from "../git/gateway";
 import { filterCommitsInTimeWindow } from "../time-windows";
 import type { CommitList, CommitSummary, TimeWindow } from "../types";
 
+export class UnknownCommitError extends Error {
+  constructor(readonly hash: string) {
+    super(
+      `commit ${hash.slice(0, 7)} was not found in this Repository`,
+    );
+    this.name = "UnknownCommitError";
+  }
+}
+
+/**
+ * Reject revisions that do not resolve to a commit in one `cat-file` call.
+ * `^{commit}` also rejects blobs, trees and tags that do not peel to a commit.
+ */
+export async function assertCommitsExist(
+  git: GitGateway,
+  revs: readonly string[],
+): Promise<void> {
+  const unique = [...new Set(revs)];
+  if (unique.length === 0) {
+    return;
+  }
+
+  const input = unique.map((rev) => `${rev}^{commit}\n`).join("");
+  const { stdout } = await git.run(["cat-file", "--batch-check"], { input });
+  const lines = stdout.toString("utf8").split("\n");
+
+  unique.forEach((rev, index) => {
+    const line = lines[index] ?? "";
+    if (!line || line.endsWith(" missing")) {
+      throw new UnknownCommitError(rev);
+    }
+  });
+}
+
 const FIELD = "\x1f";
 const RECORD = "\x1e";
 const COMMIT_FORMAT = [
@@ -174,6 +208,8 @@ export async function readCommit(
     readonly agentPatterns?: readonly CompiledAgentPattern[];
   } = {},
 ): Promise<CommitSummary> {
+  await assertCommitsExist(git, [rev]);
+
   const output = await git.text([
     "log",
     "-1",
@@ -188,7 +224,7 @@ export async function readCommit(
   )[0];
 
   if (!commit) {
-    throw new Error(`commit "${rev}" was not found`);
+    throw new UnknownCommitError(rev);
   }
 
   return commit;
@@ -198,7 +234,13 @@ export async function firstParent(
   git: GitGateway,
   rev: string,
 ): Promise<string | null> {
-  const output = await git.text(["rev-list", "--parents", "-n", "1", rev]);
-  const fields = output.trim().split(/\s+/);
+  const result = await git.run(["rev-list", "--parents", "-n", "1", rev], {
+    allowExitCodes: [0, 128],
+  });
+  if (result.exitCode === 128) {
+    throw new UnknownCommitError(rev);
+  }
+
+  const fields = result.stdout.toString("utf8").trim().split(/\s+/);
   return fields[1] ?? null;
 }

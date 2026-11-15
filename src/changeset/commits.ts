@@ -1,9 +1,11 @@
 import type { CompiledAgentPattern } from "../agents";
 import type { GitGateway } from "../git/gateway";
 import {
+  assertCommitsExist,
   firstParent,
   listCommits,
   listCommitsInWindow,
+  UnknownCommitError,
 } from "../repository/commits";
 import type {
   ChangeSet,
@@ -139,6 +141,8 @@ export async function resolveSelectedCommits(
     throw new Error("commit Selection is empty");
   }
 
+  await assertCommitsExist(git, hashes);
+
   const list = await listCommits(git, {
     agentPatterns: options.agentPatterns,
   });
@@ -152,7 +156,7 @@ export async function resolveSelectedCommits(
   for (const hash of hashes) {
     const commit = byHash.get(hash);
     if (!commit) {
-      throw new Error(`commit "${hash}" was not found`);
+      throw new UnknownCommitError(hash);
     }
     if (!seen.has(hash)) {
       seen.add(hash);

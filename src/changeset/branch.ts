@@ -1,7 +1,7 @@
 import type { GitGateway } from "../git/gateway";
 import {
-  detectBaseBranch,
   readBranch,
+  requireBaseBranch,
   UnknownBranchError,
 } from "../repository/branches";
 import type { ChangeSet, Selection } from "../types";
@@ -11,6 +11,13 @@ import {
   type ChangeFileOptions,
   type DiffRange,
 } from "./files";
+
+export class NoMergeBaseError extends Error {
+  constructor(branch: string, base: string) {
+    super(`branch ${branch} shares no history with ${base}`);
+    this.name = "NoMergeBaseError";
+  }
+}
 
 export interface BranchScope {
   readonly selection: Selection;
@@ -28,16 +35,16 @@ export async function resolveBranchScope(
     throw new UnknownBranchError(branchName);
   }
 
-  const baseBranch = await detectBaseBranch(git, baseBranchOverride);
-  if (!baseBranch) {
-    throw new Error(
-      "could not detect a Base Branch (origin/HEAD, main or master)",
-    );
-  }
+  const baseBranch = await requireBaseBranch(git, baseBranchOverride);
 
-  const mergeBase = (
-    await git.text(["merge-base", baseBranch.ref, `refs/heads/${branch.name}`])
-  ).trim();
+  const mergeBaseResult = await git.run(
+    ["merge-base", baseBranch.ref, `refs/heads/${branch.name}`],
+    { allowExitCodes: [0, 1] },
+  );
+  if (mergeBaseResult.exitCode !== 0) {
+    throw new NoMergeBaseError(branch.name, baseBranch.name);
+  }
+  const mergeBase = mergeBaseResult.stdout.toString("utf8").trim();
 
   return {
     selection: { kind: "branch", branch, baseBranch },

@@ -10,6 +10,7 @@ import type {
 } from "../../src/types";
 import { isContiguousCommitSelection } from "../../src/changeset/selection";
 import { filterCommitsInTimeWindow } from "../../src/time-windows";
+import { ApiError } from "../api-error";
 
 export function selectionLabel(selection: Selection): string {
   switch (selection.kind) {
@@ -177,7 +178,7 @@ export function sameTimeWindowSelection(
 }
 
 export function isNotFoundError(reason: unknown): boolean {
-  return reason instanceof Error && reason.message.startsWith("404:");
+  return reason instanceof ApiError && reason.status === 404;
 }
 
 export function missingSelectionLabel(selection: Selection): string {

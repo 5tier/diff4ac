@@ -1,7 +1,9 @@
 import { NonContiguousNetDiffError } from "../../changeset/commits";
+import { NoMergeBaseError } from "../../changeset/branch";
 import { applyFilters } from "../../filters";
 import type { GitGateway } from "../../git/gateway";
 import { UnknownBranchError } from "../../repository/branches";
+import { UnknownCommitError } from "../../repository/commits";
 import { openWorktree, UnknownWorktreeError } from "../../repository/worktrees";
 import { annotateChangeSet } from "../../review/marks";
 import type { ChangeSet } from "../../types";
@@ -16,8 +18,14 @@ export function gitApiFailure(error: unknown): Response {
   if (error instanceof UnknownBranchError) {
     return text(error.message, 404);
   }
+  if (error instanceof UnknownCommitError) {
+    return text(error.message, 404);
+  }
   if (error instanceof NonContiguousNetDiffError) {
     return text(error.message, 400);
+  }
+  if (error instanceof NoMergeBaseError) {
+    return text(error.message, 409);
   }
   return json(
     {

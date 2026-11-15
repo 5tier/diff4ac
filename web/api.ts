@@ -10,6 +10,7 @@ import type {
   TimeWindow,
   WorktreeList,
 } from "../src/types";
+import { ApiError } from "./api-error";
 
 const TOKEN_KEY = "diff4ac-token";
 
@@ -35,7 +36,7 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`${response.status}: ${await response.text()}`);
+    throw new ApiError(response.status, await response.text());
   }
 
   return (await response.json()) as T;
@@ -308,7 +309,7 @@ export async function setReviewMark(
   });
 
   if (!response.ok) {
-    throw new Error(`${response.status}: ${await response.text()}`);
+    throw new ApiError(response.status, await response.text());
   }
 
   return (await response.json()) as ReviewMarkResponse;
