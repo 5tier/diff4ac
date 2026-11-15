@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cleanupFixtureServers } from "./helpers/server";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { createTempDirectory } from "./helpers/cleanup";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { buildPendingChangeSet } from "../src/changeset/pending";
 import { GitGateway } from "../src/git/gateway";
@@ -25,13 +24,12 @@ function fixture(): FixtureRepo {
 }
 
 function stateDir(): string {
-  const directory = mkdtempSync(join(tmpdir(), "diff4ac-state-"));
+  const directory = createTempDirectory("diff4ac-state-");
   stateDirs.push(directory);
   return directory;
 }
 
 afterEach(() => {
-  cleanupFixtureServers();
   for (const repo of repos.splice(0)) {
     repo.dispose();
   }

@@ -1,5 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { cleanupFixtureServers } from "./helpers/server";
+import { describe, expect, test } from "bun:test";
 
 import type { BranchList } from "../shared/types";
 import {
@@ -11,7 +10,6 @@ import {
   startFixtureServer,
 } from "./helpers/server";
 
-afterEach(cleanupFixtureServers);
 
 function repoWithCommits(): FixtureRepo {
   const repo = createFixtureRepo();

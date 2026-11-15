@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createTempDirectory } from "./helpers/cleanup";
 import {
   buildScopedChangeFile,
   buildScopedChangeSet,
@@ -16,7 +14,6 @@ import { createTempHome, type TempHome } from "./helpers/home";
 const repos: FixtureRepo[] = [];
 const homes: TempHome[] = [];
 const servers: RunningServer[] = [];
-const directories: string[] = [];
 
 function fixture(): FixtureRepo {
   const repo = createFixtureRepo();
@@ -25,9 +22,7 @@ function fixture(): FixtureRepo {
 }
 
 function tempDirectory(prefix: string): string {
-  const directory = mkdtempSync(join(tmpdir(), prefix));
-  directories.push(directory);
-  return directory;
+  return createTempDirectory(prefix);
 }
 
 function buffer(...values: readonly number[]): Uint8Array {
@@ -44,9 +39,6 @@ afterEach(() => {
   }
   for (const home of homes.splice(0)) {
     home.dispose();
-  }
-  for (const directory of directories.splice(0)) {
-    rmSync(directory, { recursive: true, force: true });
   }
 });
 

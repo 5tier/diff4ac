@@ -1,12 +1,6 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createTempDirectory, removeTempDirectory } from "./cleanup";
 
 export interface TempHome {
   readonly path: string;
@@ -17,7 +11,7 @@ export interface TempHome {
 }
 
 export function createTempHome(): TempHome {
-  const path = realpathSync(mkdtempSync(join(tmpdir(), "diff4ac-home-")));
+  const path = realpathSync(createTempDirectory("diff4ac-home-"));
   const configDirectory = join(path, ".diff4ac");
   const globalConfigPath = join(configDirectory, "config.json");
 
@@ -34,7 +28,7 @@ export function createTempHome(): TempHome {
       return globalConfigPath;
     },
     dispose() {
-      rmSync(path, { recursive: true, force: true });
+      removeTempDirectory(path);
     },
   };
 }

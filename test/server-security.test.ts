@@ -1,5 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { cleanupFixtureServers } from "./helpers/server";
+import { describe, expect, test } from "bun:test";
 
 import {
   mkdirSync,
@@ -19,7 +18,6 @@ interface HttpResponse {
   readonly headers: Record<string, string | string[] | undefined>;
 }
 
-afterEach(cleanupFixtureServers);
 
 function authedGet(
   running: RunningServer,

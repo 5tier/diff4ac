@@ -1,6 +1,3 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import {
   startServer,
   type RunningServer,
@@ -10,6 +7,7 @@ import type {
   WatchStrategy,
 } from "../../src/repository/watcher";
 import { createFixtureRepo, type FixtureRepo } from "./fixture";
+import { createTempDirectory, registerCleanup } from "./cleanup";
 import { createTempHome, type TempHome } from "./home";
 
 export interface FixtureServer {
@@ -32,7 +30,6 @@ export interface StartFixtureServerOptions {
 }
 
 const active: FixtureServer[] = [];
-const ownedDirectories: string[] = [];
 const originalRepoDispose = new WeakMap<FixtureRepo, () => void>();
 
 /**
@@ -55,9 +52,7 @@ function cleanupFixture(fixture: FixtureServer): void {
 
 /** A temp directory removed automatically after the current test file. */
 export function tempDirectory(prefix: string): string {
-  const directory = mkdtempSync(join(tmpdir(), prefix));
-  ownedDirectories.push(directory);
-  return directory;
+  return createTempDirectory(prefix);
 }
 
 /**
@@ -106,6 +101,7 @@ export async function startFixtureServer(
 
   const fixture = { repo, home, stateDir, running };
   active.push(fixture);
+  registerCleanup(() => cleanupFixture(fixture));
   return fixture;
 }
 
@@ -128,14 +124,4 @@ export function getRaw(running: RunningServer, path: string): Promise<Response> 
   return fetch(`http://127.0.0.1:${running.port}${path}`, {
     headers: { "x-diff4ac-token": running.token },
   });
-}
-
-/** Call from each test file's afterEach; Bun hooks are file-scoped. */
-export function cleanupFixtureServers(): void {
-  for (const fixture of [...active]) {
-    cleanupFixture(fixture);
-  }
-  for (const directory of ownedDirectories.splice(0)) {
-    rmSync(directory, { recursive: true, force: true });
-  }
 }

@@ -1,5 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { cleanupFixtureServers } from "./helpers/server";
+import { describe, expect, test } from "bun:test";
 
 import { chmodSync } from "node:fs";
 import type {
@@ -14,7 +13,6 @@ import {
   startFixtureServer,
 } from "./helpers/server";
 
-afterEach(cleanupFixtureServers);
 
 describe("Worktree HTTP API", () => {
   test("returns Worktrees and Pending changes for a selected Worktree", async () => {

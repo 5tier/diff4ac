@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { createTempDirectory } from "./helpers/cleanup";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
 import { startServer, type RunningServer } from "../src/server/server";
@@ -102,7 +102,7 @@ beforeAll(async () => {
     `${JSON.stringify({ keybindings: { "branches.moveDown": "b" } })}\n`,
   );
 
-  stateDir = mkdtempSync(join(tmpdir(), "diff4ac-playwright-state-"));
+  stateDir = createTempDirectory("diff4ac-playwright-state-");
   home = createTempHome();
   running = await startServer({
     repoPath: repo.root,
@@ -1633,7 +1633,7 @@ test(
 test(
   "loads the next Commits page when the cursor reaches the last loaded row",
   async () => {
-    const stateDir = mkdtempSync(join(tmpdir(), "diff4ac-paging-state-"));
+    const stateDir = createTempDirectory("diff4ac-paging-state-");
     const paged = await startServer({
       repoPath: repo.root,
       homeDir: home.path,

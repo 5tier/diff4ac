@@ -1,15 +1,13 @@
 import {
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   realpathSync,
   renameSync,
-  rmSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { createTempDirectory, removeTempDirectory } from "./cleanup";
 
 export interface FixtureAuthor {
   readonly name: string;
@@ -63,7 +61,7 @@ function dateAt(index: number): string {
 }
 
 export function createFixtureRepo(): FixtureRepo {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "diff4ac-fixture-")));
+  const root = realpathSync(createTempDirectory("diff4ac-fixture-"));
   let commitIndex = 0;
   let worktreesRoot: string | null = null;
 
@@ -190,7 +188,7 @@ export function createFixtureRepo(): FixtureRepo {
     addWorktree(name, options = {}) {
       if (!worktreesRoot) {
         worktreesRoot = realpathSync(
-          mkdtempSync(join(tmpdir(), "diff4ac-worktrees-")),
+          createTempDirectory("diff4ac-worktrees-"),
         );
       }
 
@@ -213,9 +211,9 @@ export function createFixtureRepo(): FixtureRepo {
     },
     dispose() {
       if (worktreesRoot) {
-        rmSync(worktreesRoot, { recursive: true, force: true });
+        removeTempDirectory(worktreesRoot);
       }
-      rmSync(root, { recursive: true, force: true });
+      removeTempDirectory(root);
     },
   };
 }

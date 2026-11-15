@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { createTempDirectory } from "./helpers/cleanup";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { createFixtureRepo } from "./helpers/fixture";
 import { createTempHome } from "./helpers/home";
@@ -65,7 +65,7 @@ function waitForOutput(
 
 describe("diff4ac CLI", () => {
   test("exits non-zero with a clear error outside a Repository", async () => {
-    const outside = mkdtempSync(join(tmpdir(), "diff4ac-not-a-repo-"));
+    const outside = createTempDirectory("diff4ac-not-a-repo-");
     const home = createTempHome();
     try {
       const proc = Bun.spawn({

@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cleanupFixtureServers } from "./helpers/server";
 import { isContiguousCommitSelection } from "../shared/changeset/selection";
 import {
   createCustomTimeWindow,
@@ -37,7 +36,6 @@ const CLAUDE = {
 const repos: FixtureRepo[] = [];
 
 afterEach(() => {
-  cleanupFixtureServers();
   setGitSpawnObserver(null);
   for (const repo of repos.splice(0)) {
     repo.dispose();

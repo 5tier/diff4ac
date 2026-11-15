@@ -1,13 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { createTempDirectory } from "./helpers/cleanup";
 import {
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GitGateway, NotAGitRepositoryError } from "../src/git/gateway";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
@@ -25,7 +24,7 @@ function fixture(): FixtureRepo {
 }
 
 function tempDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), "diff4ac-gateway-"));
+  const directory = createTempDirectory("diff4ac-gateway-");
   directories.push(directory);
   return directory;
 }
@@ -99,7 +98,7 @@ describe("Git Gateway", () => {
   });
 
   test("reports when a path is not inside a Repository", async () => {
-    const outside = mkdtempSync(join(tmpdir(), "diff4ac-outside-"));
+    const outside = createTempDirectory("diff4ac-outside-");
 
     try {
       let error: unknown;

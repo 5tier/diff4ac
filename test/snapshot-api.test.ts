@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cleanupFixtureServers } from "./helpers/server";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { createTempDirectory } from "./helpers/cleanup";
+import { rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { guardSnapshotPathMatches } from "../shared/api-contract";
 import type {
@@ -25,7 +24,6 @@ import { getJson, getRaw, startFixtureServer } from "./helpers/server";
 const repos: FixtureRepo[] = [];
 
 afterEach(() => {
-  cleanupFixtureServers();
   for (const repo of repos.splice(0)) {
     repo.dispose();
   }
@@ -499,7 +497,7 @@ describe("Snapshot file content", () => {
 
   test("does not follow symlinks outside the Worktree", async () => {
     const { repo } = snapshotFixture();
-    const outside = mkdtempSync(join(tmpdir(), "diff4ac-snapshot-outside-"));
+    const outside = createTempDirectory("diff4ac-snapshot-outside-");
     try {
       const secret = join(outside, "secret.txt");
       writeFileSync(secret, "outside\n");

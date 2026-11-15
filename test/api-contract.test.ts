@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cleanupFixtureServers } from "./helpers/server";
 import {
   guardBranchList,
   guardChangeFile,
@@ -40,7 +39,6 @@ import { getJson, startFixtureServer } from "./helpers/server";
 const repos: FixtureRepo[] = [];
 
 afterEach(() => {
-  cleanupFixtureServers();
   for (const repo of repos.splice(0)) {
     repo.dispose();
   }

@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createTempDirectory } from "./helpers/cleanup";
+import { rmSync } from "node:fs";
 import { buildPendingChangeSet } from "../src/changeset/pending";
 import { applyFilters } from "../src/filters";
 import { GitGateway } from "../src/git/gateway";
@@ -33,7 +32,7 @@ function tempHome(): TempHome {
 }
 
 function tempDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), "diff4ac-rename-state-"));
+  const directory = createTempDirectory("diff4ac-rename-state-");
   directories.push(directory);
   return directory;
 }

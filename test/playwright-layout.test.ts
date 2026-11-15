@@ -1,6 +1,6 @@
 import { beforeAll, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { createTempDirectory } from "./helpers/cleanup";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Browser, type Page } from "playwright";
 import { startServer, type RunningServer } from "../src/server/server";
@@ -650,7 +650,7 @@ test(
       repo.write("assets/logo.png", Buffer.from([9, 9, 9]));
       repo.commit("image tail commit");
 
-      stateDir = mkdtempSync(join(tmpdir(), "diff4ac-layout-state-"));
+      stateDir = createTempDirectory("diff4ac-layout-state-");
       home = createTempHome();
       server = await startServer({
         repoPath: repo.root,

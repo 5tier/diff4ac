@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { createTempDirectory } from "./helpers/cleanup";
 import {
-  mkdtempSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildCommitChangeSet } from "../src/changeset/commit";
 import { buildPendingChangeSet } from "../src/changeset/pending";
@@ -38,7 +37,7 @@ function tempHome(): TempHome {
 }
 
 function tempDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), "diff4ac-awkward-"));
+  const directory = createTempDirectory("diff4ac-awkward-");
   directories.push(directory);
   return directory;
 }

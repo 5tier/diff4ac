@@ -1,12 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { createTempDirectory } from "./helpers/cleanup";
 import {
-  mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ReviewMarkStore } from "../src/review/marks";
 
@@ -19,7 +18,7 @@ afterEach(() => {
 });
 
 function tempDirectory(): string {
-  const directory = mkdtempSync(join(tmpdir(), "diff4ac-marks-"));
+  const directory = createTempDirectory("diff4ac-marks-");
   directories.push(directory);
   return directory;
 }
