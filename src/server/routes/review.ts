@@ -2,6 +2,7 @@ import {
   isValidContentHash,
   isValidReviewPath,
 } from "../../review/marks";
+import { guardReviewMarkRequest } from "../../../shared/api-contract";
 import { json, text } from "../http";
 import type { RouteRequest } from "./types";
 
@@ -16,20 +17,11 @@ export async function handleReviewMark({
     return text("Bad request: a JSON body is required", 400);
   }
 
-  const record =
-    body && typeof body === "object"
-      ? (body as Record<string, unknown>)
-      : {};
-  const path = record.path;
-  const contentHash = record.contentHash;
-  const reviewed = record.reviewed;
-
+  const parsed = guardReviewMarkRequest(body, "");
   if (
-    typeof path !== "string" ||
-    !isValidReviewPath(path) ||
-    typeof contentHash !== "string" ||
-    !isValidContentHash(contentHash) ||
-    typeof reviewed !== "boolean"
+    !parsed.ok ||
+    !isValidReviewPath(parsed.value.path) ||
+    !isValidContentHash(parsed.value.contentHash)
   ) {
     return text(
       "Bad request: path, contentHash and reviewed are required",
@@ -37,6 +29,7 @@ export async function handleReviewMark({
     );
   }
 
+  const { path, contentHash, reviewed } = parsed.value;
   context.reviewMarks.setMarked(
     context.repositoryId,
     path,

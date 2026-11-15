@@ -10,9 +10,35 @@ import type {
   TimeWindow,
   WorktreeList,
 } from "../shared/types";
+import {
+  guardBranchList,
+  guardChangeFile,
+  guardChangeSet,
+  guardCommitList,
+  guardConfigInfo,
+  guardReviewMarkResponse,
+  guardWorktreeList,
+  type Guard,
+  type ReviewMarkResponse,
+} from "../shared/api-contract";
 import { ApiError } from "./api-error";
 
-async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+function contractFailure(
+  path: string,
+  failure: { readonly path: string; readonly expected: string },
+): ApiError {
+  return new ApiError(
+    0,
+    `${path}: ${failure.path || "response"} is not ${failure.expected}`,
+    "contract",
+  );
+}
+
+async function getJson<T>(
+  path: string,
+  guard: Guard<T>,
+  signal?: AbortSignal,
+): Promise<T> {
   const response = await fetch(path, {
     cache: "no-store",
     credentials: "same-origin",
@@ -23,11 +49,22 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
     throw new ApiError(response.status, await response.text());
   }
 
-  return (await response.json()) as T;
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new ApiError(0, `${path}: response is not valid JSON`, "contract");
+  }
+
+  const parsed = guard(body, "");
+  if (!parsed.ok) {
+    throw contractFailure(path, parsed);
+  }
+  return parsed.value;
 }
 
 export function fetchConfig(signal?: AbortSignal): Promise<ConfigInfo> {
-  return getJson<ConfigInfo>("/api/config", signal);
+  return getJson("/api/config", guardConfigInfo, signal);
 }
 
 function appendFilters(
@@ -140,8 +177,9 @@ export function fetchFileDiff(
   if (options.fullContext) {
     params.set("context", "full");
   }
-  return getJson<ChangeFile>(
+  return getJson(
     `/api/file-diff?${params.toString()}`,
+    guardChangeFile,
     options.signal,
   );
 }
@@ -151,8 +189,9 @@ export function fetchPending(
   filters?: FilterRequest,
 ): Promise<ChangeSet> {
   const query = appendFilters(new URLSearchParams(), filters).toString();
-  return getJson<ChangeSet>(
+  return getJson(
     `/api/pending${query ? `?${query}` : ""}`,
+    guardChangeSet,
     signal,
   );
 }
@@ -164,11 +203,11 @@ export function fetchWorktreePending(
 ): Promise<ChangeSet> {
   const query = new URLSearchParams({ worktree: path });
   appendFilters(query, filters);
-  return getJson<ChangeSet>(`/api/pending?${query.toString()}`, signal);
+  return getJson(`/api/pending?${query.toString()}`, guardChangeSet, signal);
 }
 
 export function fetchWorktrees(signal?: AbortSignal): Promise<WorktreeList> {
-  return getJson<WorktreeList>("/api/worktrees", signal);
+  return getJson("/api/worktrees", guardWorktreeList, signal);
 }
 
 function worktreeQuery(worktreePath: string | null | undefined): string {
@@ -190,8 +229,9 @@ export function fetchCommits(
     query.set("skip", String(skip));
   }
   const suffix = query.toString();
-  return getJson<CommitList>(
+  return getJson(
     `/api/commits${suffix ? `?${suffix}` : ""}`,
+    guardCommitList,
     signal,
   );
 }
@@ -207,7 +247,7 @@ export function fetchCommit(
     query.set("worktree", worktreePath);
   }
   appendFilters(query, filters);
-  return getJson<ChangeSet>(`/api/commit?${query.toString()}`, signal);
+  return getJson(`/api/commit?${query.toString()}`, guardChangeSet, signal);
 }
 
 export function fetchBranches(
@@ -215,8 +255,9 @@ export function fetchBranches(
   worktreePath?: string | null,
 ): Promise<BranchList> {
   const query = worktreeQuery(worktreePath);
-  return getJson<BranchList>(
+  return getJson(
     `/api/branches${query ? `?${query}` : ""}`,
+    guardBranchList,
     signal,
   );
 }
@@ -232,7 +273,7 @@ export function fetchBranch(
     query.set("worktree", worktreePath);
   }
   appendFilters(query, filters);
-  return getJson<ChangeSet>(`/api/branch?${query.toString()}`, signal);
+  return getJson(`/api/branch?${query.toString()}`, guardChangeSet, signal);
 }
 
 export function fetchCommitSet(
@@ -250,7 +291,7 @@ export function fetchCommitSet(
     query.set("worktree", worktreePath);
   }
   appendFilters(query, filters);
-  return getJson<ChangeSet>(`/api/commit-set?${query.toString()}`, signal);
+  return getJson(`/api/commit-set?${query.toString()}`, guardChangeSet, signal);
 }
 
 export function fetchTimeWindow(
@@ -274,13 +315,7 @@ export function fetchTimeWindow(
     query.set("agent", agent);
   }
   appendFilters(query, filters);
-  return getJson<ChangeSet>(`/api/time-window?${query.toString()}`, signal);
-}
-
-export interface ReviewMarkResponse {
-  readonly path: string;
-  readonly contentHash: string;
-  readonly reviewed: boolean;
+  return getJson(`/api/time-window?${query.toString()}`, guardChangeSet, signal);
 }
 
 export async function setReviewMark(
@@ -301,7 +336,22 @@ export async function setReviewMark(
     throw new ApiError(response.status, await response.text());
   }
 
-  return (await response.json()) as ReviewMarkResponse;
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new ApiError(
+      0,
+      "/api/review-mark: response is not valid JSON",
+      "contract",
+    );
+  }
+
+  const parsed = guardReviewMarkResponse(body, "");
+  if (!parsed.ok) {
+    throw contractFailure("/api/review-mark", parsed);
+  }
+  return parsed.value;
 }
 
 export function subscribeRepositoryChanges(
