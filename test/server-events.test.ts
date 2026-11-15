@@ -1,37 +1,12 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { startServer, type RunningServer } from "../src/server/server";
-import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
-
-const repos: FixtureRepo[] = [];
-const servers: RunningServer[] = [];
-const stateDirs: string[] = [];
+import { describe, expect, test } from "bun:test";
+import type { FixtureRepo } from "./helpers/fixture";
+import { createFixtureRepo } from "./helpers/fixture";
+import type { RunningServer } from "../src/server/server";
+import { startFixtureServer } from "./helpers/server";
 
 function fixture(): FixtureRepo {
-  const repo = createFixtureRepo();
-  repos.push(repo);
-  return repo;
+  return createFixtureRepo();
 }
-
-function stateDir(): string {
-  const directory = mkdtempSync(join(tmpdir(), "diff4ac-events-"));
-  stateDirs.push(directory);
-  return directory;
-}
-
-afterEach(() => {
-  for (const server of servers.splice(0)) {
-    server.stop();
-  }
-  for (const repo of repos.splice(0)) {
-    repo.dispose();
-  }
-  for (const directory of stateDirs.splice(0)) {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
 
 interface EventStream {
   readonly response: Response;
@@ -92,12 +67,9 @@ describe("Repository change events", () => {
     repo.write("src/app.ts", "one\n");
     repo.commit("initial");
 
-    const running = await startServer({
-      repoPath: repo.root,
-      stateDir: stateDir(),
-      watchDebounceMs: 200,
-    });
-    servers.push(running);
+    const running = (
+      await startFixtureServer({ repo, watchDebounceMs: 200 })
+    ).running;
 
     const stream = await openEventStream(running);
     expect(stream.response.status).toBe(200);
@@ -127,12 +99,9 @@ describe("Repository change events", () => {
     repo.write(".gitignore", "node_modules/\n");
     repo.commit("initial");
 
-    const running = await startServer({
-      repoPath: repo.root,
-      stateDir: stateDir(),
-      watchDebounceMs: 100,
-    });
-    servers.push(running);
+    const running = (
+      await startFixtureServer({ repo, watchDebounceMs: 100 })
+    ).running;
 
     const stream = await openEventStream(running);
     try {
@@ -158,11 +127,7 @@ describe("Repository change events", () => {
     repo.write("src/app.ts", "one\n");
     repo.commit("initial");
 
-    const running = await startServer({
-      repoPath: repo.root,
-      stateDir: stateDir(),
-    });
-    servers.push(running);
+    const running = (await startFixtureServer({ repo })).running;
 
     const unauthorized = await fetch(
       `http://127.0.0.1:${running.port}/api/events`,

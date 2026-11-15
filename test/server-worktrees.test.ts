@@ -1,62 +1,19 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { startServer, type RunningServer } from "../src/server/server";
+import { describe, expect, test } from "bun:test";
 import type {
   BranchList,
   ChangeSet,
   CommitList,
   WorktreeList,
 } from "../src/types";
-import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
-import { createTempHome, type TempHome } from "./helpers/home";
-
-const repos: FixtureRepo[] = [];
-const servers: RunningServer[] = [];
-const homes: TempHome[] = [];
-
-afterEach(() => {
-  for (const server of servers.splice(0)) {
-    server.stop();
-  }
-  for (const repo of repos.splice(0)) {
-    repo.dispose();
-  }
-  for (const home of homes.splice(0)) {
-    home.dispose();
-  }
-});
-
-async function startFixtureServer(repo: FixtureRepo): Promise<RunningServer> {
-  const home = createTempHome();
-  homes.push(home);
-  const running = await startServer({ repoPath: repo.root, homeDir: home.path });
-  servers.push(running);
-  return running;
-}
-
-async function getJson<T>(
-  running: RunningServer,
-  path: string,
-): Promise<{ status: number; body: T }> {
-  const response = await fetch(`http://127.0.0.1:${running.port}${path}`, {
-    headers: { "x-diff4ac-token": running.token },
-  });
-  const text = await response.text();
-  let body: unknown = text;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    body = text;
-  }
-  return {
-    status: response.status,
-    body: body as T,
-  };
-}
+import { createFixtureRepo } from "./helpers/fixture";
+import {
+  getJson,
+  startFixtureServer,
+} from "./helpers/server";
 
 describe("Worktree HTTP API", () => {
   test("returns Worktrees and Pending changes for a selected Worktree", async () => {
     const repo = createFixtureRepo();
-    repos.push(repo);
     repo.write("base.txt", "base\n");
     repo.commit("initial");
 
@@ -64,7 +21,7 @@ describe("Worktree HTTP API", () => {
     repo.write("main-pending.txt", "main\n");
     linked.write("linked-pending.ts", "linked\n");
 
-    const running = await startFixtureServer(repo);
+    const running = (await startFixtureServer({ repo })).running;
 
     const list = await getJson<WorktreeList>(running, "/api/worktrees");
     expect(list.status).toBe(200);
@@ -99,7 +56,6 @@ describe("Worktree HTTP API", () => {
 
   test("Commits, Branches and Selections follow the selected Worktree", async () => {
     const repo = createFixtureRepo();
-    repos.push(repo);
     repo.write("base.txt", "base\n");
     repo.commit("base");
 
@@ -112,7 +68,7 @@ describe("Worktree HTTP API", () => {
     repo.write("main.ts", "main\n");
     repo.commit("main only");
 
-    const running = await startFixtureServer(repo);
+    const running = (await startFixtureServer({ repo })).running;
     const linkedQuery = `worktree=${encodeURIComponent(linked.root)}`;
 
     const mainCommits = await getJson<CommitList>(running, "/api/commits");
@@ -214,11 +170,10 @@ describe("Worktree HTTP API", () => {
 
   test("rejects unknown Worktrees and invalid Time Window parameters", async () => {
     const repo = createFixtureRepo();
-    repos.push(repo);
     repo.write("base.txt", "base\n");
     repo.commit("base");
 
-    const running = await startFixtureServer(repo);
+    const running = (await startFixtureServer({ repo })).running;
 
     const missing = await getJson<{ error: string }>(
       running,
@@ -251,5 +206,35 @@ describe("Worktree HTTP API", () => {
       )}&preset=today&mode=side-by-side`,
     );
     expect(invalidMode.status).toBe(400);
+  });
+
+  test("ignores the worktree parameter only on the Worktrees endpoint", async () => {
+    const repo = createFixtureRepo();
+    repo.write("base.txt", "base\n");
+    repo.commit("initial");
+
+    const running = (await startFixtureServer({ repo })).running;
+
+    const plain = await getJson<WorktreeList>(running, "/api/worktrees");
+    expect(plain.status).toBe(200);
+
+    const withBogusWorktree = await getJson<WorktreeList>(
+      running,
+      "/api/worktrees?worktree=%2Fnope",
+    );
+    expect(withBogusWorktree.status).toBe(200);
+    expect(withBogusWorktree.body).toEqual(plain.body);
+
+    // Repository routes that took the worktree parameter on main still do.
+    const branches = await getJson<{ error: string }>(
+      running,
+      "/api/branches?worktree=%2Fnope",
+    );
+    expect(branches.status).toBe(404);
+    const commits = await getJson<{ error: string }>(
+      running,
+      "/api/commits?worktree=%2Fnope",
+    );
+    expect(commits.status).toBe(404);
   });
 });

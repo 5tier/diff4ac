@@ -1,18 +1,15 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
   mkdirSync,
-  mkdtempSync,
   realpathSync,
-  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { request } from "node:http";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startServer, type RunningServer } from "../src/server/server";
+import type { RunningServer } from "../src/server/server";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
-import { createTempHome, type TempHome } from "./helpers/home";
+import { startFixtureServer, tempDirectory } from "./helpers/server";
 
 interface HttpResponse {
   readonly status: number;
@@ -52,22 +49,16 @@ function httpGet(
   });
 }
 
-const repos: FixtureRepo[] = [];
-const servers: RunningServer[] = [];
-const homes: TempHome[] = [];
-const webDirs: string[] = [];
-
 function fixture(): FixtureRepo {
   const repo = createFixtureRepo();
   repo.write("src/app.ts", "one\n");
   repo.commit("initial");
   repo.write("src/app.ts", "one\ntwo\n");
-  repos.push(repo);
   return repo;
 }
 
 function webFixture(): string {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "diff4ac-web-")));
+  const dir = realpathSync(tempDirectory("diff4ac-web-"));
   const assets = join(dir, "assets");
   mkdirSync(assets, { recursive: true });
   writeFileSync(
@@ -76,7 +67,6 @@ function webFixture(): string {
   );
   writeFileSync(join(assets, "main.js"), "console.log('fixture asset');\n");
   writeFileSync(join(dir, "secret.txt"), "outside assets\n");
-  webDirs.push(dir);
   return dir;
 }
 
@@ -84,31 +74,10 @@ async function serverFor(
   repo: FixtureRepo,
   webDir?: string,
 ): Promise<RunningServer> {
-  const home = createTempHome();
-  homes.push(home);
-  const running = await startServer({
-    repoPath: repo.root,
-    homeDir: home.path,
-    ...(webDir ? { webDir } : {}),
-  });
-  servers.push(running);
-  return running;
+  return (
+    await startFixtureServer({ repo, ...(webDir ? { webDir } : {}) })
+  ).running;
 }
-
-afterEach(() => {
-  for (const server of servers.splice(0)) {
-    server.stop();
-  }
-  for (const repo of repos.splice(0)) {
-    repo.dispose();
-  }
-  for (const home of homes.splice(0)) {
-    home.dispose();
-  }
-  for (const dir of webDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
 
 describe("HTTP server security", () => {
   test("binds to 127.0.0.1 and wires the API to the Pending Change Set", async () => {
@@ -219,7 +188,6 @@ describe("HTTP server security", () => {
 
   test("wires the API to a multi-commit Change Set and its view modes", async () => {
     const repo = createFixtureRepo();
-    repos.push(repo);
     repo.write("a.txt", "one\n");
     repo.commit("first");
     repo.write("b.txt", "two\n");

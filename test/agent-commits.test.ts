@@ -1,48 +1,23 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { startServer, type RunningServer } from "../src/server/server";
+import { describe, expect, test } from "bun:test";
+import type { RunningServer } from "../src/server/server";
 import type { ChangeSet, CommitList } from "../src/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
-
-const repos: FixtureRepo[] = [];
-const servers: RunningServer[] = [];
-const homes: string[] = [];
+import {
+  getJson as getJsonResponse,
+  startFixtureServer,
+} from "./helpers/server";
 
 function fixture(): FixtureRepo {
-  const repo = createFixtureRepo();
-  repos.push(repo);
-  return repo;
+  return createFixtureRepo();
 }
-
-function home(): string {
-  const directory = mkdtempSync(join(tmpdir(), "diff4ac-agent-home-"));
-  homes.push(directory);
-  return directory;
-}
-
-afterEach(() => {
-  for (const server of servers.splice(0)) {
-    server.stop();
-  }
-  for (const repo of repos.splice(0)) {
-    repo.dispose();
-  }
-  for (const directory of homes.splice(0)) {
-    rmSync(directory, { recursive: true, force: true });
-  }
-});
 
 async function getJson<T>(
   running: RunningServer,
   path: string,
 ): Promise<T> {
-  const response = await fetch(`http://127.0.0.1:${running.port}${path}`, {
-    headers: { "x-diff4ac-token": running.token },
-  });
+  const response = await getJsonResponse<T>(running, path);
   expect(response.status).toBe(200);
-  return (await response.json()) as T;
+  return response.body;
 }
 
 describe("Agent Commit HTTP API", () => {
@@ -69,12 +44,7 @@ describe("Agent Commit HTTP API", () => {
     repo.write("five.txt", "five\n");
     repo.commit("human three");
 
-    const running = await startServer({
-      repoPath: repo.root,
-      homeDir: home(),
-      stateDir: join(home(), ".diff4ac"),
-    });
-    servers.push(running);
+    const running = (await startFixtureServer({ repo })).running;
 
     const all = await getJson<CommitList>(running, "/api/commits");
     expect(
@@ -130,7 +100,6 @@ describe("Agent Commit HTTP API", () => {
       trailers: ["Co-Authored-By: Helper <helper@example.com>"],
     });
 
-    const tempHome = home();
     repo.write(
       ".diff4ac.json",
       `${JSON.stringify({
@@ -142,12 +111,7 @@ describe("Agent Commit HTTP API", () => {
       })}\n`,
     );
 
-    const running = await startServer({
-      repoPath: repo.root,
-      homeDir: tempHome,
-      stateDir: join(tempHome, ".diff4ac"),
-    });
-    servers.push(running);
+    const running = (await startFixtureServer({ repo })).running;
 
     const list = await getJson<CommitList>(running, "/api/commits");
     expect(list.commits[0]?.agent).toBe("Helper");

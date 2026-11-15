@@ -1,63 +1,18 @@
-import { afterEach, describe, expect, test } from "bun:test";
-import { startServer, type RunningServer } from "../src/server/server";
+import { describe, expect, test } from "bun:test";
 import type { ChangeSet, CommitList } from "../src/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
-import { createTempHome, type TempHome } from "./helpers/home";
-
-const repos: FixtureRepo[] = [];
-const homes: TempHome[] = [];
-const servers: RunningServer[] = [];
+import {
+  getJson,
+  startFixtureServer,
+} from "./helpers/server";
 
 function fixture(): FixtureRepo {
-  const repo = createFixtureRepo();
-  repos.push(repo);
-  return repo;
+  return createFixtureRepo();
 }
 
-function tempHome(): TempHome {
-  const home = createTempHome();
-  homes.push(home);
-  return home;
+async function start(repo: FixtureRepo) {
+  return (await startFixtureServer({ repo })).running;
 }
-
-async function start(repo: FixtureRepo): Promise<RunningServer> {
-  const home = tempHome();
-  const running = await startServer({
-    repoPath: repo.root,
-    homeDir: home.path,
-  });
-  servers.push(running);
-  return running;
-}
-
-async function getJson<T>(
-  running: RunningServer,
-  path: string,
-): Promise<{ status: number; body: T }> {
-  const response = await fetch(`http://127.0.0.1:${running.port}${path}`, {
-    headers: { "x-diff4ac-token": running.token },
-  });
-  const text = await response.text();
-  let body: unknown = text;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    body = text;
-  }
-  return { status: response.status, body: body as T };
-}
-
-afterEach(() => {
-  for (const server of servers.splice(0)) {
-    server.stop();
-  }
-  for (const repo of repos.splice(0)) {
-    repo.dispose();
-  }
-  for (const home of homes.splice(0)) {
-    home.dispose();
-  }
-});
 
 describe("HTTP Filters", () => {
   test("filters Pending changes and reports hidden files", async () => {

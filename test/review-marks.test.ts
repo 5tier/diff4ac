@@ -9,12 +9,12 @@ import {
   annotateChangeSet,
   ReviewMarkStore,
 } from "../src/review/marks";
-import { startServer, type RunningServer } from "../src/server/server";
+import type { RunningServer } from "../src/server/server";
 import type { ChangeSet } from "../src/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
+import { startFixtureServer } from "./helpers/server";
 
 const repos: FixtureRepo[] = [];
-const servers: RunningServer[] = [];
 const stateDirs: string[] = [];
 
 function fixture(): FixtureRepo {
@@ -30,9 +30,6 @@ function stateDir(): string {
 }
 
 afterEach(() => {
-  for (const server of servers.splice(0)) {
-    server.stop();
-  }
   for (const repo of repos.splice(0)) {
     repo.dispose();
   }
@@ -173,12 +170,9 @@ describe("Review Marks HTTP API", () => {
     repo.write("src/app.ts", "two\n");
 
     const directory = stateDir();
-    const firstSession = await startServer({
-      repoPath: repo.root,
-      stateDir: directory,
-      homeDir: directory,
-    });
-    servers.push(firstSession);
+    const firstSession = (
+      await startFixtureServer({ repo, stateDir: directory })
+    ).running;
 
     const file = await pendingFile(firstSession);
     expect(file.reviewed).toBe(false);
@@ -198,14 +192,10 @@ describe("Review Marks HTTP API", () => {
     expect(existsSync(join(directory, "review-marks.json"))).toBe(true);
 
     firstSession.stop();
-    servers.splice(servers.indexOf(firstSession), 1);
 
-    const secondSession = await startServer({
-      repoPath: repo.root,
-      stateDir: directory,
-      homeDir: directory,
-    });
-    servers.push(secondSession);
+    const secondSession = (
+      await startFixtureServer({ repo, stateDir: directory })
+    ).running;
     expect(await pendingFile(secondSession)).toMatchObject({ reviewed: true });
 
     const unmarked = await request(secondSession, "/api/review-mark", {
@@ -227,11 +217,12 @@ describe("Review Marks HTTP API", () => {
     const commit = repo.commit("initial");
 
     const tempHome = stateDir();
-    const running = await startServer({
-      repoPath: repo.root,
-      stateDir: join(tempHome, ".diff4ac"),
-    });
-    servers.push(running);
+    const running = (
+      await startFixtureServer({
+        repo,
+        stateDir: join(tempHome, ".diff4ac"),
+      })
+    ).running;
 
     const commitResponse = await request(
       running,
@@ -285,12 +276,9 @@ describe("Review Marks HTTP API", () => {
     repo.write("src/app.ts", "two\n");
 
     const directory = stateDir();
-    const running = await startServer({
-      repoPath: repo.root,
-      stateDir: directory,
-      homeDir: directory,
-    });
-    servers.push(running);
+    const running = (
+      await startFixtureServer({ repo, stateDir: directory })
+    ).running;
     const file = await pendingFile(running);
 
     const invalid = [
