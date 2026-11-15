@@ -17,7 +17,8 @@ interface EventStream {
 
 async function openEventStream(running: RunningServer): Promise<EventStream> {
   const response = await fetch(
-    `http://127.0.0.1:${running.port}/api/events?token=${encodeURIComponent(running.token)}`,
+    `http://127.0.0.1:${running.port}/api/events`,
+    { headers: { "x-diff4ac-token": running.token } },
   );
   if (!response.body) {
     throw new Error("expected an SSE body");
@@ -135,7 +136,8 @@ describe("Repository change events", () => {
     expect(unauthorized.status).toBe(401);
 
     const authorized = await fetch(
-      `http://127.0.0.1:${running.port}/api/events?token=${encodeURIComponent(running.token)}`,
+      `http://127.0.0.1:${running.port}/api/events`,
+      { headers: { "x-diff4ac-token": running.token } },
     );
     expect(authorized.status).toBe(200);
     await authorized.body?.cancel();

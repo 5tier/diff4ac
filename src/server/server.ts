@@ -13,14 +13,16 @@ import { primaryWorktreeRoot } from "../repository/worktrees";
 import { ReviewMarkStore } from "../review/marks";
 import type { ConfigInfo } from "../../shared/types";
 import type { EventHub, RequestContext } from "./context";
-import { text } from "./http";
+import { SECURITY_HEADERS, text } from "./http";
 import { routeFor } from "./routes";
 import { DEFAULT_WEB_DIR, serveAsset } from "./static";
 import {
   generateToken,
   isAllowedHost,
   isAllowedOrigin,
+  requestCookieToken,
   requestToken,
+  sessionCookieName,
   tokenMatches,
 } from "./security";
 
@@ -72,7 +74,36 @@ async function handleRequest(
 
   const url = new URL(request.url);
   const isStaticAsset = url.pathname.startsWith("/assets/");
-  if (!isStaticAsset && !tokenMatches(requestToken(request, url), context.token)) {
+  const isBootstrap =
+    request.method === "GET" &&
+    url.pathname === "/" &&
+    url.searchParams.has("token");
+
+  if (isBootstrap) {
+    if (!tokenMatches(url.searchParams.get("token"), context.token)) {
+      return text("Unauthorized: missing or invalid session token", 401);
+    }
+
+    return new Response(null, {
+      status: 303,
+      headers: {
+        ...SECURITY_HEADERS,
+        Location: "/",
+        "Set-Cookie": `${sessionCookieName(context.port)}=${encodeURIComponent(
+          context.token,
+        )}; HttpOnly; SameSite=Strict; Path=/`,
+      },
+    });
+  }
+
+  if (
+    !isStaticAsset &&
+    !tokenMatches(
+      requestToken(request) ??
+        requestCookieToken(request, context.port),
+      context.token,
+    )
+  ) {
     return text("Unauthorized: missing or invalid session token", 401);
   }
 

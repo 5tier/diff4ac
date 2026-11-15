@@ -509,13 +509,9 @@ async function getRaw(
   readonly headers: Headers;
   readonly bytes: ArrayBuffer;
 }> {
-  const separator = path.includes("?") ? "&" : "?";
-  const response = await fetch(
-    `http://127.0.0.1:${running.port}${path}${separator}token=${encodeURIComponent(
-      running.token,
-    )}`,
-    { headers },
-  );
+  const response = await fetch(`http://127.0.0.1:${running.port}${path}`, {
+    headers: { ...headers, "x-diff4ac-token": running.token },
+  });
   return {
     status: response.status,
     headers: response.headers,
@@ -595,10 +591,11 @@ test("serves HEAD requests for images without a body", async () => {
 
   const running = await start(repo);
   const response = await fetch(
-    `http://127.0.0.1:${running.port}/api/file-content?selection=pending&path=assets%2Flogo.png&rev=worktree&token=${encodeURIComponent(
-      running.token,
-    )}`,
-    { method: "HEAD" },
+    `http://127.0.0.1:${running.port}/api/file-content?selection=pending&path=assets%2Flogo.png&rev=worktree`,
+    {
+      method: "HEAD",
+      headers: { "x-diff4ac-token": running.token },
+    },
   );
   expect(response.status).toBe(200);
   expect(await response.text()).toBe("");

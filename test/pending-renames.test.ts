@@ -340,12 +340,9 @@ async function getRaw(
   readonly headers: Headers;
   readonly bytes: ArrayBuffer;
 }> {
-  const separator = path.includes("?") ? "&" : "?";
-  const response = await fetch(
-    `http://127.0.0.1:${running.port}${path}${separator}token=${encodeURIComponent(
-      running.token,
-    )}`,
-  );
+  const response = await fetch(`http://127.0.0.1:${running.port}${path}`, {
+    headers: { "x-diff4ac-token": running.token },
+  });
   return {
     status: response.status,
     headers: response.headers,

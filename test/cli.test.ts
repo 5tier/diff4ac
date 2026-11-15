@@ -119,9 +119,9 @@ describe("diff4ac CLI", () => {
       expect(url.hostname).toBe("127.0.0.1");
       expect(token.length).toBeGreaterThan(20);
 
-      const response = await fetch(
-        `${url.origin}/api/pending?token=${encodeURIComponent(token)}`,
-      );
+      const response = await fetch(`${url.origin}/api/pending`, {
+        headers: { "x-diff4ac-token": token },
+      });
       expect(response.status).toBe(200);
 
       const changeSet = (await response.json()) as {
@@ -129,13 +129,20 @@ describe("diff4ac CLI", () => {
       };
       expect(changeSet.files[0]?.path).toBe("src/app.ts");
 
-      const index = await fetch(url);
+      const bootstrap = await fetch(url, { redirect: "manual" });
+      expect(bootstrap.status).toBe(303);
+      expect(bootstrap.headers.get("location")).toBe("/");
+      const setCookie = bootstrap.headers.get("set-cookie") ?? "";
+      expect(setCookie).toContain(`diff4ac_${url.port}=`);
+      const cookie = setCookie.split(";")[0] ?? "";
+
+      const index = await fetch(`${url.origin}/`, { headers: { cookie } });
       expect(index.status).toBe(200);
       const html = await index.text();
       expect(html).toContain('<div id="root"></div>');
       expect(html).not.toContain("__TOKEN__");
 
-      const asset = await fetch(`${url.origin}/assets/main.js?token=${encodeURIComponent(token)}`);
+      const asset = await fetch(`${url.origin}/assets/main.js`);
       expect(asset.status).toBe(200);
       expect(await asset.text()).toContain("diff4ac");
     } catch (error) {

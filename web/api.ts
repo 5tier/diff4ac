@@ -12,26 +12,10 @@ import type {
 } from "../shared/types";
 import { ApiError } from "./api-error";
 
-const TOKEN_KEY = "diff4ac-token";
-
-function readToken(): string {
-  const params = new URLSearchParams(window.location.search);
-  const fromUrl = params.get("token");
-
-  if (fromUrl) {
-    sessionStorage.setItem(TOKEN_KEY, fromUrl);
-    return fromUrl;
-  }
-
-  return sessionStorage.getItem(TOKEN_KEY) ?? "";
-}
-
-export const sessionToken = readToken();
-
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, {
-    headers: { "x-diff4ac-token": sessionToken },
     cache: "no-store",
+    credentials: "same-origin",
     signal,
   });
 
@@ -137,7 +121,6 @@ export function fileContentUrl(
   rev: string,
 ): string {
   const params = fileRequestQuery(target, path, rev);
-  params.set("token", sessionToken);
   return `/api/file-content?${params.toString()}`;
 }
 
@@ -300,10 +283,8 @@ export async function setReviewMark(
 ): Promise<ReviewMarkResponse> {
   const response = await fetch("/api/review-mark", {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-diff4ac-token": sessionToken,
-    },
+    headers: { "content-type": "application/json" },
+    credentials: "same-origin",
     body: JSON.stringify({ path, contentHash, reviewed }),
     signal,
   });
@@ -318,9 +299,7 @@ export async function setReviewMark(
 export function subscribeRepositoryChanges(
   onChange: () => void,
 ): () => void {
-  const source = new EventSource(
-    `/api/events?token=${encodeURIComponent(sessionToken)}`,
-  );
+  const source = new EventSource("/api/events");
   source.addEventListener("repository-changed", onChange);
   return () => source.close();
 }

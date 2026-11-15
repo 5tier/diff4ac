@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 
 const TOKEN_HEADER = "x-diff4ac-token";
+const COOKIE_PREFIX = "diff4ac_";
 
 export function generateToken(): string {
   const bytes = new Uint8Array(32);
@@ -8,13 +9,48 @@ export function generateToken(): string {
   return Buffer.from(bytes).toString("base64url");
 }
 
-export function requestToken(request: Request, url: URL): string | null {
+export function sessionCookieName(port: number): string {
+  return `${COOKIE_PREFIX}${port}`;
+}
+
+export function requestToken(request: Request): string | null {
+  const header = request.headers.get(TOKEN_HEADER);
+  if (header !== null) {
+    return header;
+  }
+
   const authorization = request.headers.get("authorization");
   if (authorization?.startsWith("Bearer ")) {
     return authorization.slice("Bearer ".length);
   }
 
-  return request.headers.get(TOKEN_HEADER) ?? url.searchParams.get("token");
+  return null;
+}
+
+export function requestCookieToken(
+  request: Request,
+  port: number,
+): string | null {
+  const header = request.headers.get("cookie");
+  if (!header) {
+    return null;
+  }
+
+  const name = sessionCookieName(port);
+  for (const part of header.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator < 0 || part.slice(0, separator).trim() !== name) {
+      continue;
+    }
+    const value = part.slice(separator + 1).trim();
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  }
+
+  return null;
 }
 
 export function tokenMatches(provided: string | null, expected: string): boolean {

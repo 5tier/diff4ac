@@ -160,12 +160,9 @@ async function getJson<T>(
   running: RunningServer,
   path: string,
 ): Promise<JsonResponse<T>> {
-  const separator = path.includes("?") ? "&" : "?";
-  const response = await fetch(
-    `http://127.0.0.1:${running.port}${path}${separator}token=${encodeURIComponent(
-      running.token,
-    )}`,
-  );
+  const response = await fetch(`http://127.0.0.1:${running.port}${path}`, {
+    headers: { "x-diff4ac-token": running.token },
+  });
   const text = await response.text();
   expect(response.status).toBe(200);
   return { status: response.status, body: JSON.parse(text) as T };

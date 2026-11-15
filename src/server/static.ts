@@ -19,10 +19,7 @@ export function serveIndex(
     );
   }
 
-  const html = readFileSync(indexPath, "utf8").replaceAll(
-    "__TOKEN__",
-    encodeURIComponent(context.token),
-  );
+  const html = readFileSync(indexPath, "utf8");
 
   return new Response(method === "HEAD" ? null : html, {
     status: 200,

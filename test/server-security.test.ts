@@ -17,6 +17,17 @@ interface HttpResponse {
   readonly headers: Record<string, string | string[] | undefined>;
 }
 
+function authedGet(
+  running: RunningServer,
+  path: string,
+  headers: Record<string, string> = {},
+): Promise<HttpResponse> {
+  return httpGet(running.port, path, {
+    "x-diff4ac-token": running.token,
+    ...headers,
+  });
+}
+
 function httpGet(
   port: number,
   path: string,
@@ -87,10 +98,7 @@ describe("HTTP server security", () => {
     expect(running.server.hostname).toBe("127.0.0.1");
     expect(running.url.startsWith("http://127.0.0.1:")).toBe(true);
 
-    const response = await httpGet(
-      running.port,
-      `/api/pending?token=${encodeURIComponent(running.token)}`,
-    );
+    const response = await authedGet(running, "/api/pending");
 
     expect(response.status).toBe(200);
     const changeSet = JSON.parse(response.body) as {
@@ -107,10 +115,7 @@ describe("HTTP server security", () => {
     const second = repo.commit("second");
     const running = await serverFor(repo);
 
-    const listResponse = await httpGet(
-      running.port,
-      `/api/commits?token=${encodeURIComponent(running.token)}`,
-    );
+    const listResponse = await authedGet(running, "/api/commits");
     expect(listResponse.status).toBe(200);
     const list = JSON.parse(listResponse.body) as {
       commits: { hash: string; message: string }[];
@@ -120,9 +125,9 @@ describe("HTTP server security", () => {
       "initial",
     ]);
 
-    const commitResponse = await httpGet(
-      running.port,
-      `/api/commit?hash=${second}&token=${encodeURIComponent(running.token)}`,
+    const commitResponse = await authedGet(
+      running,
+      `/api/commit?hash=${second}`,
     );
     expect(commitResponse.status).toBe(200);
     const changeSet = JSON.parse(commitResponse.body) as {
@@ -134,10 +139,7 @@ describe("HTTP server security", () => {
     expect(changeSet.files[0]?.path).toBe("src/app.ts");
     expect(changeSet.files[0]?.diff).toContain("+two");
 
-    const missing = await httpGet(
-      running.port,
-      `/api/commit?token=${encodeURIComponent(running.token)}`,
-    );
+    const missing = await authedGet(running, "/api/commit");
     expect(missing.status).toBe(400);
   });
 
@@ -148,10 +150,7 @@ describe("HTTP server security", () => {
     repo.commit("feature work");
     const running = await serverFor(repo);
 
-    const listResponse = await httpGet(
-      running.port,
-      `/api/branches?token=${encodeURIComponent(running.token)}`,
-    );
+    const listResponse = await authedGet(running, "/api/branches");
     expect(listResponse.status).toBe(200);
     const list = JSON.parse(listResponse.body) as {
       baseBranch: { name: string; ref: string };
@@ -166,9 +165,9 @@ describe("HTTP server security", () => {
       list.branches.find((branch) => branch.name === "feature")?.current,
     ).toBe(true);
 
-    const branchResponse = await httpGet(
-      running.port,
-      `/api/branch?name=feature&token=${encodeURIComponent(running.token)}`,
+    const branchResponse = await authedGet(
+      running,
+      "/api/branch?name=feature",
     );
     expect(branchResponse.status).toBe(200);
     const changeSet = JSON.parse(branchResponse.body) as {
@@ -179,10 +178,7 @@ describe("HTTP server security", () => {
     expect(changeSet.selection.branch.name).toBe("feature");
     expect(changeSet.files.map((file) => file.path)).toContain("feature.txt");
 
-    const missing = await httpGet(
-      running.port,
-      `/api/branch?name=nope&token=${encodeURIComponent(running.token)}`,
-    );
+    const missing = await authedGet(running, "/api/branch?name=nope");
     expect(missing.status).toBe(404);
   });
 
@@ -196,9 +192,9 @@ describe("HTTP server security", () => {
     const third = repo.commit("third");
     const running = await serverFor(repo);
 
-    const net = await httpGet(
-      running.port,
-      `/api/commit-set?hashes=${third},${second}&mode=net&token=${encodeURIComponent(running.token)}`,
+    const net = await authedGet(
+      running,
+      `/api/commit-set?hashes=${third},${second}&mode=net`,
     );
     expect(net.status).toBe(200);
     const netSet = JSON.parse(net.body) as {
@@ -212,9 +208,9 @@ describe("HTTP server security", () => {
     });
     expect(netSet.files.map((file) => file.path)).toEqual(["b.txt", "c.txt"]);
 
-    const stack = await httpGet(
-      running.port,
-      `/api/commit-set?hashes=${third},${second}&mode=stack&token=${encodeURIComponent(running.token)}`,
+    const stack = await authedGet(
+      running,
+      `/api/commit-set?hashes=${third},${second}&mode=stack`,
     );
     expect(stack.status).toBe(200);
     const stackSet = JSON.parse(stack.body) as {
@@ -224,9 +220,9 @@ describe("HTTP server security", () => {
       ["second", "third"],
     );
 
-    const missingMode = await httpGet(
-      running.port,
-      `/api/commit-set?hashes=${third},${second}&mode=sideways&token=${encodeURIComponent(running.token)}`,
+    const missingMode = await authedGet(
+      running,
+      `/api/commit-set?hashes=${third},${second}&mode=sideways`,
     );
     expect(missingMode.status).toBe(400);
   });
@@ -238,6 +234,14 @@ describe("HTTP server security", () => {
     expect((await httpGet(running.port, "/api/pending")).status).toBe(401);
     expect(
       (await httpGet(running.port, "/api/pending?token=wrong")).status,
+    ).toBe(401);
+    expect(
+      (
+        await httpGet(
+          running.port,
+          `/api/pending?token=${encodeURIComponent(running.token)}`,
+        )
+      ).status,
     ).toBe(401);
 
     const accepted = await httpGet(running.port, "/api/pending", {
@@ -262,14 +266,92 @@ describe("HTTP server security", () => {
   test("rejects requests with an unexpected Host header", async () => {
     const repo = fixture();
     const running = await serverFor(repo);
-    const path = `/api/pending?token=${encodeURIComponent(running.token)}`;
+    const path = "/api/pending";
 
-    const response = await httpGet(running.port, path, {
+    const response = await authedGet(running, path, {
       host: "evil.example",
     });
 
     expect(response.status).toBe(403);
     expect(response.body).toContain("Host");
+  });
+
+  test("bootstraps the session cookie from the launch URL", async () => {
+    const repo = fixture();
+    const webDir = webFixture();
+    const running = await serverFor(repo, webDir);
+    const cookieName = `diff4ac_${running.port}`;
+
+    const bootstrap = await httpGet(
+      running.port,
+      `/?token=${encodeURIComponent(running.token)}`,
+    );
+    expect(bootstrap.status).toBe(303);
+    expect(bootstrap.headers["location"]).toBe("/");
+    expect(bootstrap.body).toBe("");
+
+    const setCookie = bootstrap.headers["set-cookie"];
+    const raw = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+    expect(raw).toBeDefined();
+    expect(raw).toContain(`${cookieName}=${encodeURIComponent(running.token)}`);
+    expect(raw).toContain("HttpOnly");
+    expect(raw).toContain("SameSite=Strict");
+    expect(raw).toContain("Path=/");
+    expect(raw).not.toContain("Secure");
+
+    const cookie = raw?.split(";")[0] ?? "";
+    const index = await httpGet(running.port, "/", { cookie });
+    expect(index.status).toBe(200);
+    expect(index.body).toContain("diff4ac fixture index");
+
+    const pending = await httpGet(running.port, "/api/pending", { cookie });
+    expect(pending.status).toBe(200);
+    expect(pending.headers["set-cookie"]).toBeUndefined();
+
+    const events = await fetch(
+      `http://127.0.0.1:${running.port}/api/events`,
+      { headers: { cookie } },
+    );
+    expect(events.status).toBe(200);
+    await events.body?.cancel();
+
+    const wrong = await httpGet(running.port, "/?token=wrong");
+    expect(wrong.status).toBe(401);
+    expect(wrong.headers["set-cookie"]).toBeUndefined();
+  });
+
+  test("ignores ?token= on API requests and rejects wrong or foreign cookies", async () => {
+    const repo = fixture();
+    const running = await serverFor(repo);
+    const other = await serverFor(repo);
+
+    const viaQuery = await httpGet(
+      running.port,
+      `/api/pending?token=${encodeURIComponent(running.token)}`,
+    );
+    expect(viaQuery.status).toBe(401);
+
+    const wrongCookie = await httpGet(running.port, "/api/pending", {
+      cookie: `diff4ac_${running.port}=wrong`,
+    });
+    expect(wrongCookie.status).toBe(401);
+
+    const foreignName = await httpGet(running.port, "/api/pending", {
+      cookie: `diff4ac_${other.port}=${encodeURIComponent(running.token)}`,
+    });
+    expect(foreignName.status).toBe(401);
+
+    const bootstrap = await httpGet(
+      other.port,
+      `/?token=${encodeURIComponent(other.token)}`,
+    );
+    const setCookie = bootstrap.headers["set-cookie"];
+    const raw = Array.isArray(setCookie) ? setCookie[0] : setCookie;
+    const otherCookie = raw?.split(";")[0] ?? "";
+    expect(
+      (await httpGet(running.port, "/api/pending", { cookie: otherCookie }))
+        .status,
+    ).toBe(401);
   });
 
   test("serves static assets without a token or cookie", async () => {
@@ -288,21 +370,10 @@ describe("HTTP server security", () => {
     });
     expect(rejectedHost.status).toBe(403);
 
-    const index = await httpGet(
-      running.port,
-      `/?token=${encodeURIComponent(running.token)}`,
-    );
-    expect(index.status).toBe(200);
-    expect(index.body).toContain("diff4ac fixture index");
-    expect(index.headers["set-cookie"]).toBeUndefined();
-
     expect((await httpGet(running.port, "/")).status).toBe(401);
     expect((await httpGet(running.port, "/api/pending")).status).toBe(401);
 
-    const pending = await httpGet(
-      running.port,
-      `/api/pending?token=${encodeURIComponent(running.token)}`,
-    );
+    const pending = await authedGet(running, "/api/pending");
     expect(pending.status).toBe(200);
     expect(pending.headers["set-cookie"]).toBeUndefined();
   });
@@ -355,15 +426,15 @@ describe("HTTP server security", () => {
   test("rejects requests with an unexpected Origin header", async () => {
     const repo = fixture();
     const running = await serverFor(repo);
-    const path = `/api/pending?token=${encodeURIComponent(running.token)}`;
+    const path = "/api/pending";
 
-    const rejected = await httpGet(running.port, path, {
+    const rejected = await authedGet(running, path, {
       origin: "http://evil.example",
     });
     expect(rejected.status).toBe(403);
     expect(rejected.body).toContain("Origin");
 
-    const accepted = await httpGet(running.port, path, {
+    const accepted = await authedGet(running, path, {
       origin: `http://127.0.0.1:${running.port}`,
     });
     expect(accepted.status).toBe(200);
