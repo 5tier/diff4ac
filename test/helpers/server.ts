@@ -1,4 +1,3 @@
-import { afterEach } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,6 +33,25 @@ export interface StartFixtureServerOptions {
 
 const active: FixtureServer[] = [];
 const ownedDirectories: string[] = [];
+const originalRepoDispose = new WeakMap<FixtureRepo, () => void>();
+
+/**
+ * Stop a fixture before its Repository is removed: fs.watch callbacks firing
+ * on a deleted worktree can crash the Bun process.
+ */
+function cleanupFixture(fixture: FixtureServer): void {
+  const index = active.indexOf(fixture);
+  if (index !== -1) {
+    active.splice(index, 1);
+  }
+  try {
+    fixture.running.stop();
+  } catch {
+    // A test may already have stopped this server.
+  }
+  fixture.home.dispose();
+  originalRepoDispose.get(fixture.repo)?.();
+}
 
 /** A temp directory removed automatically after the current test file. */
 export function tempDirectory(prefix: string): string {
@@ -50,6 +68,21 @@ export async function startFixtureServer(
   options: StartFixtureServerOptions = {},
 ): Promise<FixtureServer> {
   const repo = options.repo ?? createFixtureRepo();
+  if (!originalRepoDispose.has(repo)) {
+    const dispose = repo.dispose.bind(repo);
+    originalRepoDispose.set(repo, dispose);
+    // Test files often dispose their Repository in their own afterEach, which
+    // Bun runs before hooks registered by this helper. Stop the server first.
+    repo.dispose = () => {
+      for (const fixture of [...active]) {
+        if (fixture.repo === repo) {
+          cleanupFixture(fixture);
+        }
+      }
+      dispose();
+    };
+  }
+
   const home = createTempHome();
   const stateDir = options.stateDir ?? tempDirectory("diff4ac-state-");
 
@@ -97,17 +130,12 @@ export function getRaw(running: RunningServer, path: string): Promise<Response> 
   });
 }
 
-afterEach(() => {
-  for (const fixture of active.splice(0)) {
-    try {
-      fixture.running.stop();
-    } catch {
-      // A test may already have stopped this server.
-    }
-    fixture.repo.dispose();
-    fixture.home.dispose();
+/** Call from each test file's afterEach; Bun hooks are file-scoped. */
+export function cleanupFixtureServers(): void {
+  for (const fixture of [...active]) {
+    cleanupFixture(fixture);
   }
   for (const directory of ownedDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
   }
-});
+}

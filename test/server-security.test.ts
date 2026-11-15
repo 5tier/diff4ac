@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { cleanupFixtureServers } from "./helpers/server";
+
 import {
   mkdirSync,
   realpathSync,
@@ -16,6 +18,8 @@ interface HttpResponse {
   readonly body: string;
   readonly headers: Record<string, string | string[] | undefined>;
 }
+
+afterEach(cleanupFixtureServers);
 
 function authedGet(
   running: RunningServer,

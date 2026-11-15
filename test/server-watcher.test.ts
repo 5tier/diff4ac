@@ -1,7 +1,11 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { cleanupFixtureServers } from "./helpers/server";
+
 import type { ConfigInfo, SessionInfo } from "../shared/types";
 import type { WatchFunction } from "../src/repository/watcher";
 import { getJson, startFixtureServer } from "./helpers/server";
+
+afterEach(cleanupFixtureServers);
 
 describe("server watcher diagnostics", () => {
   test("reports polling and its reason on /api/config", async () => {

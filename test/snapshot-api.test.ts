@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { cleanupFixtureServers } from "./helpers/server";
 import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,6 +25,7 @@ import { getJson, getRaw, startFixtureServer } from "./helpers/server";
 const repos: FixtureRepo[] = [];
 
 afterEach(() => {
+  cleanupFixtureServers();
   for (const repo of repos.splice(0)) {
     repo.dispose();
   }

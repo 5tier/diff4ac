@@ -1,8 +1,12 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { cleanupFixtureServers } from "./helpers/server";
+
 import type { FixtureRepo } from "./helpers/fixture";
 import { createFixtureRepo } from "./helpers/fixture";
 import type { RunningServer } from "../src/server/server";
 import { startFixtureServer } from "./helpers/server";
+
+afterEach(cleanupFixtureServers);
 
 function fixture(): FixtureRepo {
   return createFixtureRepo();

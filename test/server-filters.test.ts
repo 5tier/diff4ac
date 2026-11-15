@@ -1,10 +1,14 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { cleanupFixtureServers } from "./helpers/server";
+
 import type { ChangeSet, CommitList } from "../shared/types";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import {
   getJson,
   startFixtureServer,
 } from "./helpers/server";
+
+afterEach(cleanupFixtureServers);
 
 function fixture(): FixtureRepo {
   return createFixtureRepo();
