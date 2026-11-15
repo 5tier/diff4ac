@@ -128,7 +128,7 @@ export class ReviewMarkStore {
   }
 }
 
-function annotateFile(
+export function annotateFile(
   file: ChangeFile,
   store: ReviewMarkStore,
   repositoryId: string,

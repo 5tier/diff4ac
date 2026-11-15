@@ -868,6 +868,123 @@ test(
 );
 
 test(
+  "fetches full files per file outside Commit Stack mode",
+  async () => {
+    await page.evaluate(() => {
+      sessionStorage.setItem("diff4ac-full-file", "1");
+    });
+
+    const requested: string[] = [];
+    const record = (request: { url(): string }) => {
+      if (request.url().includes("/api/")) {
+        requested.push(request.url());
+      }
+    };
+    page.on("request", record);
+
+    try {
+      await page.reload();
+      await page.waitForSelector(".file-row");
+
+      await page.locator(".commit-row", { hasText: "second commit" }).click();
+      await page.waitForFunction(() =>
+        document
+          .querySelector(".top-bar-mode")
+          ?.textContent?.startsWith("Commit"),
+      );
+      await page.waitForSelector(".file-row");
+
+      await page.locator(".file-row", { hasText: "src/alpha.ts" }).click();
+      await page.waitForFunction(() =>
+        Array.from(
+          document.querySelectorAll(".diff-content, .diff-line"),
+        ).some((line) => line.textContent?.trim() === "line 1"),
+      );
+
+      const listRequests = requested.filter((url) =>
+        url.includes("/api/commit?"),
+      );
+      expect(listRequests.length).toBeGreaterThan(0);
+      expect(listRequests.some((url) => url.includes("context=full"))).toBe(
+        false,
+      );
+
+      const fileRequests = requested.filter((url) =>
+        url.includes("/api/file-diff?"),
+      );
+      expect(
+        fileRequests.some(
+          (url) =>
+            url.includes("context=full") && url.includes("src%2Falpha.ts"),
+        ),
+      ).toBe(true);
+    } finally {
+      page.off("request", record);
+    }
+  },
+  30_000,
+);
+
+test(
+  "Commit Stack mode still requests and renders whole files",
+  async () => {
+    await page.evaluate(() => {
+      sessionStorage.setItem("diff4ac-full-file", "1");
+    });
+
+    const requested: string[] = [];
+    const record = (request: { url(): string }) => {
+      if (request.url().includes("/api/")) {
+        requested.push(request.url());
+      }
+    };
+    page.on("request", record);
+
+    try {
+      await page.reload();
+      await page.waitForSelector(".file-row");
+
+      await page.keyboard.press("3");
+      await page.keyboard.press("j");
+      await page.keyboard.press("Space");
+      await page.keyboard.press("j");
+      await page.keyboard.press("Space");
+      await page.waitForFunction(
+        () => document.querySelectorAll(".commit-row-selected").length === 2,
+      );
+      await page.keyboard.press("t");
+      await page.waitForFunction(
+        () =>
+          document.querySelector(".status-mode")?.textContent ===
+          "Commit Stack",
+      );
+      await page.waitForFunction(
+        () => document.querySelectorAll(".commit-stack-group").length === 2,
+      );
+      await page.waitForFunction(() =>
+        Array.from(
+          document.querySelectorAll(".diff-content, .diff-line"),
+        ).some((line) => line.textContent?.trim() === "line 1"),
+      );
+
+      const setRequests = requested.filter((url) =>
+        url.includes("/api/commit-set?"),
+      );
+      const stackRequests = setRequests.filter((url) =>
+        url.includes("mode=stack"),
+      );
+      expect(stackRequests.length).toBeGreaterThan(0);
+      expect(
+        stackRequests.every((url) => url.includes("context=full")),
+      ).toBe(true);
+    } finally {
+      page.off("request", record);
+    }
+  },
+  30_000,
+);
+
+test(
   "searches the Change Set and jumps between hunks and files",
   async () => {
     await page.reload();

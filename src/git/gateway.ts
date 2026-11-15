@@ -24,6 +24,18 @@ export class GitError extends Error {
   }
 }
 
+export type GitSpawnObserver = (args: readonly string[]) => void;
+
+let spawnObserver: GitSpawnObserver | null = null;
+
+/**
+ * Test-only hook, e.g. to count git processes. Production code must never
+ * install one; pass null to remove it.
+ */
+export function setGitSpawnObserver(observer: GitSpawnObserver | null): void {
+  spawnObserver = observer;
+}
+
 export class NotAGitRepositoryError extends Error {
   constructor(path: string) {
     super(`"${path}" is not inside a git Repository`);
@@ -220,6 +232,7 @@ async function runGit(
   const safeArgs = withDiffSafetyFlags(args);
 
   const allowExitCodes = options.allowExitCodes ?? [0];
+  spawnObserver?.(safeArgs);
   let proc: Bun.Subprocess<"pipe", "pipe", "pipe">;
   try {
     proc = Bun.spawn({

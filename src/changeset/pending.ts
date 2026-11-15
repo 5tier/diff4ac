@@ -8,6 +8,7 @@ import {
   parseUnstagedDeletions,
   parseUntracked,
   type ChangeFileOptions,
+  type DiffRange,
   type FileStatusRecord,
 } from "./files";
 import { pairPendingRenames, type PendingRename } from "./pending-renames";
@@ -22,10 +23,14 @@ function renameRecord(rename: PendingRename): FileStatusRecord {
   };
 }
 
-export async function buildPendingChangeSet(
+export interface PendingScope {
+  readonly range: DiffRange;
+  readonly records: readonly FileStatusRecord[];
+}
+
+export async function resolvePendingScope(
   git: GitGateway,
-  options: ChangeFileOptions = {},
-): Promise<ChangeSet> {
+): Promise<PendingScope> {
   const hasHead = await git.hasHead();
   const baseRef = hasHead ? "HEAD" : await emptyTreeRef(git);
   const headRev = hasHead
@@ -78,10 +83,21 @@ export async function buildPendingChangeSet(
     byPath.set(rename.newPath, renameRecord(rename));
   }
 
+  return {
+    range: { baseRef, oldRev: headRev, newRev: "worktree" },
+    records: [...byPath.values()],
+  };
+}
+
+export async function buildPendingChangeSet(
+  git: GitGateway,
+  options: ChangeFileOptions = {},
+): Promise<ChangeSet> {
+  const scope = await resolvePendingScope(git);
   const files = await buildChangeFiles(
     git,
-    { baseRef, oldRev: headRev, newRev: "worktree" },
-    [...byPath.values()],
+    scope.range,
+    scope.records,
     options,
   );
 

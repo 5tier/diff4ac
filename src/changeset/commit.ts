@@ -12,6 +12,7 @@ import {
   changeSetTotals,
   emptyTreeRef,
   type ChangeFileOptions,
+  type DiffRange,
 } from "./files";
 
 export interface CommitFiles {
@@ -19,23 +20,26 @@ export interface CommitFiles {
   readonly totals: ChangeTotals;
 }
 
+export async function resolveCommitRange(
+  git: GitGateway,
+  hash: string,
+): Promise<DiffRange> {
+  const parent = await firstParent(git, hash);
+  return {
+    baseRef: parent ?? (await emptyTreeRef(git)),
+    targetRef: hash,
+    oldRev: parent,
+    newRev: hash,
+  };
+}
+
 export async function buildCommitFiles(
   git: GitGateway,
   commit: CommitSummary,
   options: ChangeFileOptions = {},
 ): Promise<CommitFiles> {
-  const parent = await firstParent(git, commit.hash);
-  const baseRef = parent ?? (await emptyTreeRef(git));
-  const files = await buildChangeFilesForRange(
-    git,
-    {
-      baseRef,
-      targetRef: commit.hash,
-      oldRev: parent,
-      newRev: commit.hash,
-    },
-    options,
-  );
+  const range = await resolveCommitRange(git, commit.hash);
+  const files = await buildChangeFilesForRange(git, range, options);
 
   return { files, totals: changeSetTotals(files) };
 }

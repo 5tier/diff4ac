@@ -855,6 +855,34 @@ function replaceChangeFile(
   return { ...changeSet, files: changeSet.files.map(replace) };
 }
 
+function selectionCacheKey(selection: Selection | undefined): string {
+  if (!selection) {
+    return "";
+  }
+  switch (selection.kind) {
+    case "pending":
+      return "pending";
+    case "commit":
+      return `commit:${selection.commit.hash}`;
+    case "commits":
+      return `commits:${selection.mode}:${selection.commits
+        .map((commit) => commit.hash)
+        .join(",")}`;
+    case "time-window":
+      return `time-window:${selection.window.start}:${selection.window.end}:${selection.mode}`;
+    case "branch":
+      return `branch:${selection.branch.name}`;
+  }
+}
+
+function fullFileCacheKey(
+  selectionKey: string,
+  path: string,
+  rev: string | undefined,
+): string {
+  return `${selectionKey}\u0000${path}\u0000${rev ?? ""}`;
+}
+
 export function App() {
   const [pending, setPending] = useState<ChangeSet | null>(null);
   const [worktrees, setWorktrees] = useState<readonly WorktreeSummary[]>([]);
@@ -871,6 +899,10 @@ export function App() {
   const [selection, setSelection] = useState<Selection>({ kind: "pending" });
   const [worktree, setWorktree] = useState<WorktreeInfo | null>(null);
   const [changeSet, setChangeSet] = useState<ChangeSet | null>(null);
+  /** Full-file versions fetched on demand, keyed by Selection + path + rev. */
+  const [fullFiles, setFullFiles] = useState<ReadonlyMap<string, ChangeFile>>(
+    () => new Map(),
+  );
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [markError, setMarkError] = useState<string | null>(null);
@@ -908,9 +940,18 @@ export function App() {
       includeGlobs: splitGlobLines(includeGlobs),
       excludeGlobs: splitGlobLines(excludeGlobs),
       hideNoise,
-      fullContext: fullFile,
     }),
-    [disabledExtensions, excludeGlobs, fullFile, hideNoise, includeGlobs],
+    [disabledExtensions, excludeGlobs, hideNoise, includeGlobs],
+  );
+  const selectionIsStack =
+    (selection.kind === "commits" || selection.kind === "time-window") &&
+    selection.mode === "stack";
+  const listFilterRequest = useMemo<FilterRequest>(
+    () =>
+      fullFile && selectionIsStack
+        ? { ...filterRequest, fullContext: true }
+        : filterRequest,
+    [filterRequest, fullFile, selectionIsStack],
   );
   const [helpOpen, setHelpOpen] = useState(false);
   const [diffView, setDiffView] = useState<DiffViewMode>(() => {
@@ -1091,6 +1132,7 @@ export function App() {
       setSelectedPath(null);
       setFileCursor(0);
     }
+    setFullFiles((current) => (current.size === 0 ? current : new Map()));
 
     const request =
       selection.kind === "pending"
@@ -1098,15 +1140,15 @@ export function App() {
           ? fetchWorktreePending(
               selectedWorktreePath,
               controller.signal,
-              filterRequest,
+              listFilterRequest,
             )
-          : fetchPending(controller.signal, filterRequest)
+          : fetchPending(controller.signal, listFilterRequest)
         : selection.kind === "commit"
           ? fetchCommit(
               selection.commit.hash,
               controller.signal,
               selectedWorktreePath,
-              filterRequest,
+              listFilterRequest,
             )
           : selection.kind === "commits"
             ? fetchCommitSet(
@@ -1114,7 +1156,7 @@ export function App() {
                 selection.mode,
                 controller.signal,
                 selectedWorktreePath,
-                filterRequest,
+                listFilterRequest,
               )
             : selection.kind === "time-window"
               ? fetchTimeWindow(
@@ -1123,13 +1165,13 @@ export function App() {
                   controller.signal,
                   selectedWorktreePath,
                   agentFilter,
-                  filterRequest,
+                  listFilterRequest,
                 )
               : fetchBranch(
                   selection.branch.name,
                   controller.signal,
                   selectedWorktreePath,
-                  filterRequest,
+                  listFilterRequest,
                 );
 
     request
@@ -1190,7 +1232,7 @@ export function App() {
       });
 
     return () => controller.abort();
-  }, [filterRequest, selection, selectedWorktreePath, refreshVersion]);
+  }, [listFilterRequest, selection, selectedWorktreePath, refreshVersion]);
 
   useEffect(() => {
     if (loading || pendingScrollTop.current === null) {
@@ -1203,7 +1245,43 @@ export function App() {
     });
   }, [changeSet, loading]);
 
-  const files = changeSet?.files ?? [];
+  const commitGroups = changeSet?.commitGroups ?? [];
+  const isStack =
+    (changeSet?.selection.kind === "commits" ||
+      changeSet?.selection.kind === "time-window") &&
+    changeSet.selection.mode === "stack";
+  const stackFileIndex = stackFileIndices(commitGroups);
+
+  const baselineFiles = changeSet?.files ?? [];
+  const files = useMemo<readonly ChangeFile[]>(() => {
+    if (!fullFile || isStack || fullFiles.size === 0) {
+      return baselineFiles;
+    }
+
+    const selectionKey = selectionCacheKey(changeSet?.selection);
+    let replaced = false;
+    const next = baselineFiles.map((file) => {
+      const rev = file.newRev ?? file.oldRev;
+      const cached = fullFiles.get(
+        fullFileCacheKey(selectionKey, file.path, rev),
+      );
+      if (!cached) {
+        return file;
+      }
+      replaced = true;
+      return cached.reviewed === file.reviewed
+        ? cached
+        : { ...cached, reviewed: file.reviewed };
+    });
+    return replaced ? next : baselineFiles;
+  }, [
+    baselineFiles,
+    changeSet?.selection,
+    fullFile,
+    fullFiles,
+    isStack,
+  ]);
+
   const fileContext = useMemo<FileRequestContext>(
     () => ({
       selection: changeSet?.selection ?? selection,
@@ -1247,12 +1325,44 @@ export function App() {
       setWorktreeCursor(currentIndex);
     }
   }, [selectedWorktreePath, worktrees]);
-  const commitGroups = changeSet?.commitGroups ?? [];
-  const isStack =
-    (changeSet?.selection.kind === "commits" ||
-      changeSet?.selection.kind === "time-window") &&
-    changeSet.selection.mode === "stack";
-  const stackFileIndex = stackFileIndices(commitGroups);
+
+  useEffect(() => {
+    if (!fullFile || isStack || !changeSet || !selected) {
+      return;
+    }
+    if (selected.binary || selected.collapsed) {
+      return;
+    }
+
+    const rev = selected.newRev ?? selected.oldRev;
+    const key = fullFileCacheKey(
+      selectionCacheKey(changeSet.selection),
+      selected.path,
+      rev,
+    );
+    if (fullFiles.has(key)) {
+      return;
+    }
+
+    const controller = new AbortController();
+    fetchFileDiff(fileContext, selected.path, rev, {
+      signal: controller.signal,
+      fullContext: true,
+    })
+      .then((file) => {
+        setFullFiles((current) =>
+          current.has(key) ? current : new Map(current).set(key, file),
+        );
+      })
+      .catch((reason: unknown) => {
+        if (reason instanceof DOMException && reason.name === "AbortError") {
+          return;
+        }
+        // Keep showing the hunks-only version; this is an optional upgrade.
+      });
+
+    return () => controller.abort();
+  }, [changeSet, fileContext, fullFile, fullFiles, isStack, selected]);
 
   const searchFiles = useMemo<SearchFile[]>(() => {
     if (isStack) {

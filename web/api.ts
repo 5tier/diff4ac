@@ -140,14 +140,26 @@ export function fileContentUrl(
   return `/api/file-content?${params.toString()}`;
 }
 
+export interface FileDiffOptions {
+  readonly signal?: AbortSignal;
+  /** Ask for the whole file (`context=full`) instead of changed hunks only. */
+  readonly fullContext?: boolean;
+}
+
 export function fetchFileDiff(
   target: FileRequestContext,
   path: string,
   rev: string | undefined,
-  signal?: AbortSignal,
+  options: FileDiffOptions = {},
 ): Promise<ChangeFile> {
   const params = fileRequestQuery(target, path, rev);
-  return getJson<ChangeFile>(`/api/file-diff?${params.toString()}`, signal);
+  if (options.fullContext) {
+    params.set("context", "full");
+  }
+  return getJson<ChangeFile>(
+    `/api/file-diff?${params.toString()}`,
+    options.signal,
+  );
 }
 
 export function fetchPending(

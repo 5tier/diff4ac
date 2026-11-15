@@ -19,11 +19,16 @@ import {
 } from "../changeset/files";
 import { buildPendingChangeSet } from "../changeset/pending";
 import {
-  buildScopedChangeSet,
+  buildScopedChangeFile,
   type ChangeSetScope,
 } from "../changeset/scope";
 import { loadConfig } from "../config/loader";
-import { applyFilters, isValidGlob, type FilterSettings } from "../filters";
+import {
+  applyFilters,
+  isFileVisible,
+  isValidGlob,
+  type FilterSettings,
+} from "../filters";
 import { GitGateway } from "../git/gateway";
 import { isSafeRelativePath } from "../paths";
 import {
@@ -47,12 +52,12 @@ import {
 } from "../time-windows";
 import {
   annotateChangeSet,
+  annotateFile,
   isValidContentHash,
   isValidReviewPath,
   ReviewMarkStore,
 } from "../review/marks";
 import type {
-  ChangeFile,
   ChangeSet,
   ChangeViewMode,
   ConfigInfo,
@@ -284,33 +289,6 @@ function parseScope(url: URL): ParsedScope {
     default:
       return { error: "Bad request: unknown Selection" };
   }
-}
-
-function changeFileFor(
-  changeSet: ChangeSet,
-  scope: ChangeSetScope,
-  path: string,
-  rev: string | null,
-): ChangeFile | undefined {
-  const matches = changeSet.files.filter((file) => file.path === path);
-  if (matches.length === 0) {
-    return undefined;
-  }
-
-  if (!rev) {
-    return matches[0];
-  }
-
-  if (
-    (rev === "index" || rev === "worktree") &&
-    scope.kind === "pending"
-  ) {
-    return matches[0];
-  }
-
-  return matches.find(
-    (file) => file.oldRev === rev || file.newRev === rev,
-  );
 }
 
 function imageResponse(
@@ -648,30 +626,36 @@ async function handleRequest(
 
     try {
       const git = await gitForRequest(context, url);
-      const changeSet = annotateChangeSet(
-        applyFilters(
-          await buildScopedChangeSet(git, parsed.scope, {
-            agentPatterns: context.agentPatterns,
-            baseBranch: context.config.baseBranch,
-            includeLargeDiffs: url.pathname === "/api/file-diff",
-            fullContext: wantsFullContext(url),
-          }),
-          filters,
-        ),
-        context.reviewMarks,
-        context.repositoryId,
+      const file = await buildScopedChangeFile(
+        git,
+        parsed.scope,
+        path,
+        rev,
+        {
+          agentPatterns: context.agentPatterns,
+          baseBranch: context.config.baseBranch,
+          includeLargeDiffs: url.pathname === "/api/file-diff",
+          fullContext: wantsFullContext(url),
+        },
       );
-      const file = changeFileFor(changeSet, parsed.scope, path, rev);
-      if (!file) {
+      if (!file || !isFileVisible(file, filters)) {
         return text("Not found", 404);
       }
 
+      const annotated = annotateFile(
+        file,
+        context.reviewMarks,
+        context.repositoryId,
+      );
+
       if (url.pathname === "/api/file-diff") {
-        return json(file);
+        return json(annotated);
       }
 
       const sidePath =
-        rev === file.oldRev ? (file.oldPath ?? file.path) : file.path;
+        rev === annotated.oldRev
+          ? (annotated.oldPath ?? annotated.path)
+          : annotated.path;
       const contentType = imageContentType(sidePath);
       if (!contentType) {
         return text("Not found", 404);

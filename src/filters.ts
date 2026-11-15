@@ -136,10 +136,9 @@ function uniqueFiles(changeSet: ChangeSet): ChangeFile[] {
   return [...byPath.values()];
 }
 
-export function applyFilters(
-  changeSet: ChangeSet,
+function compileVisibility(
   settings: FilterSettings,
-): ChangeSet {
+): (path: string) => boolean {
   const disabled = new Set(
     settings.disabledExtensions.map((extension) => extension.toLowerCase()),
   );
@@ -148,21 +147,37 @@ export function applyFilters(
   const noise = compileMatchers(settings.noisePatterns);
   const hasIncludes = settings.includeGlobs.some(isValidGlob);
 
-  const visible = (file: ChangeFile): boolean => {
-    if (disabled.has(extensionOf(file.path))) {
+  return (path) => {
+    if (disabled.has(extensionOf(path))) {
       return false;
     }
-    if (hasIncludes && include(file.path) !== "positive") {
+    if (hasIncludes && include(path) !== "positive") {
       return false;
     }
-    if (exclude(file.path) === "positive") {
+    if (exclude(path) === "positive") {
       return false;
     }
-    if (settings.hideNoise && noise(file.path) === "positive") {
+    if (settings.hideNoise && noise(path) === "positive") {
       return false;
     }
     return true;
   };
+}
+
+/** Whether a single file survives the request's Filters. */
+export function isFileVisible(
+  file: ChangeFile,
+  settings: FilterSettings,
+): boolean {
+  return compileVisibility(settings)(file.path);
+}
+
+export function applyFilters(
+  changeSet: ChangeSet,
+  settings: FilterSettings,
+): ChangeSet {
+  const visiblePath = compileVisibility(settings);
+  const visible = (file: ChangeFile): boolean => visiblePath(file.path);
 
   const hiddenPaths = new Set<string>();
   const keep = (file: ChangeFile): boolean => {
@@ -176,6 +191,10 @@ export function applyFilters(
   const availableExtensions = [
     ...new Set(uniqueFiles(changeSet).map((file) => extensionOf(file.path))),
   ].sort((left, right) => left.localeCompare(right));
+
+  const disabled = new Set(
+    settings.disabledExtensions.map((extension) => extension.toLowerCase()),
+  );
 
   const filter: FilterInfo = {
     availableExtensions,

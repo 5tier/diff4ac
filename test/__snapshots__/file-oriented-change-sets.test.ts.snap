@@ -1,0 +1,1459 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`file-oriented Change Sets the full Change Set output matches the batching snapshot: pending files 1`] = `
+[
+  {
+    "additions": 0,
+    "binary": true,
+    "contentHash": "75218e894e32342684e832bb24ab81135eac8900",
+    "deletions": 0,
+    "diff": 
+"diff --git a/assets/icon.bin b/assets/icon.bin
+index eaf36c1..75218e8 100644
+Binary files a/assets/icon.bin and b/assets/icon.bin differ
+"
+,
+    "hunks": [],
+    "image": false,
+    "newRev": "worktree",
+    "newSize": 4,
+    "oldRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "oldSize": 4,
+    "path": "assets/icon.bin",
+    "status": "modified",
+  },
+  {
+    "additions": 0,
+    "binary": true,
+    "contentHash": "7289e91bbe52b45e46d1195cd6ed30e6905be213",
+    "deletions": 0,
+    "diff": 
+"diff --git a/assets/logo.png b/assets/logo.png
+index 85025d9..7289e91 100644
+Binary files a/assets/logo.png and b/assets/logo.png differ
+"
+,
+    "hunks": [],
+    "image": true,
+    "newRev": "worktree",
+    "newSize": 5,
+    "oldRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "oldSize": 5,
+    "path": "assets/logo.png",
+    "status": "modified",
+  },
+  {
+    "additions": 2,
+    "binary": false,
+    "contentHash": "db2358a34ea99fa926360c447dcc8bdf3ef2fea5",
+    "deletions": 1,
+    "diff": 
+"diff --git a/src/rename-old.ts b/src/rename-new.ts
+similarity index 73%
+rename from src/rename-old.ts
+rename to src/rename-new.ts
+--- a/src/rename-old.ts
++++ b/src/rename-new.ts
+@@ -1,5 +1,6 @@
+ alpha
+-beta
++BETA
+ gamma
+ delta
+ epsilon
++zeta
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -1,5 +1,6 @@",
+        "lines": [
+          {
+            "content": "alpha",
+            "newLine": 1,
+            "oldLine": 1,
+            "type": "context",
+          },
+          {
+            "content": "beta",
+            "newLine": null,
+            "oldLine": 2,
+            "type": "delete",
+          },
+          {
+            "content": "BETA",
+            "newLine": 2,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "gamma",
+            "newLine": 3,
+            "oldLine": 3,
+            "type": "context",
+          },
+          {
+            "content": "delta",
+            "newLine": 4,
+            "oldLine": 4,
+            "type": "context",
+          },
+          {
+            "content": "epsilon",
+            "newLine": 5,
+            "oldLine": 5,
+            "type": "context",
+          },
+          {
+            "content": "zeta",
+            "newLine": 6,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 6,
+        "newStart": 1,
+        "oldLines": 5,
+        "oldStart": 1,
+      },
+    ],
+    "image": false,
+    "newRev": "worktree",
+    "oldPath": "src/rename-old.ts",
+    "oldRev": "index",
+    "path": "src/rename-new.ts",
+    "status": "renamed",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "374f01579081467778acf197ca18bfaa7e56478b",
+    "deletions": 1,
+    "diff": 
+"diff --git a/src/staged.ts b/src/staged.ts
+index 1cc3a38..374f015 100644
+--- a/src/staged.ts
++++ b/src/staged.ts
+@@ -1 +1 @@
+-staged two
++staged three
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -1 +1 @@",
+        "lines": [
+          {
+            "content": "staged two",
+            "newLine": null,
+            "oldLine": 1,
+            "type": "delete",
+          },
+          {
+            "content": "staged three",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 1,
+        "oldStart": 1,
+      },
+    ],
+    "image": false,
+    "newRev": "worktree",
+    "oldRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/staged.ts",
+    "status": "modified",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "07ecb37f6069f49496cfc2103d8f425edd1ae276",
+    "deletions": 1,
+    "diff": 
+"diff --git a/src/unstaged.ts b/src/unstaged.ts
+index 1ca7fe4..07ecb37 100644
+--- a/src/unstaged.ts
++++ b/src/unstaged.ts
+@@ -1 +1 @@
+-unstaged two
++unstaged three
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -1 +1 @@",
+        "lines": [
+          {
+            "content": "unstaged two",
+            "newLine": null,
+            "oldLine": 1,
+            "type": "delete",
+          },
+          {
+            "content": "unstaged three",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 1,
+        "oldStart": 1,
+      },
+    ],
+    "image": false,
+    "newRev": "worktree",
+    "oldRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/unstaged.ts",
+    "status": "modified",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "3f4c56d3d8d73bb43575b07d84c82e30210900d1",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/untracked.ts b/src/untracked.ts
+new file mode 100644
+index 0000000..3f4c56d
+--- /dev/null
++++ b/src/untracked.ts
+@@ -0,0 +1 @@
++untracked content
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1 @@",
+        "lines": [
+          {
+            "content": "untracked content",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "worktree",
+    "path": "src/untracked.ts",
+    "status": "untracked",
+  },
+]
+`;
+
+exports[`file-oriented Change Sets the full Change Set output matches the batching snapshot: commit files 1`] = `
+[
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "4aabae1d8e51b913d18fac18bf43a38206dddcc3",
+    "deletions": 1,
+    "diff": 
+"diff --git a/src/base.ts b/src/base.ts
+index dd19214..4aabae1 100644
+--- a/src/base.ts
++++ b/src/base.ts
+@@ -1,2 +1,2 @@
+ base one
+-base two
++base two changed
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -1,2 +1,2 @@",
+        "lines": [
+          {
+            "content": "base one",
+            "newLine": 1,
+            "oldLine": 1,
+            "type": "context",
+          },
+          {
+            "content": "base two",
+            "newLine": null,
+            "oldLine": 2,
+            "type": "delete",
+          },
+          {
+            "content": "base two changed",
+            "newLine": 2,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 2,
+        "newStart": 1,
+        "oldLines": 2,
+        "oldStart": 1,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "oldRev": "d146e28930e9c87d025885b82d0411abf610e987",
+    "path": "src/base.ts",
+    "status": "modified",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "c0f6222402c457ed0796942190aaf4a9ab35d560",
+    "deletions": 1,
+    "diff": 
+"diff --git a/src/colon:name.txt b/src/colon:name.txt
+index 0cbe447..c0f6222 100644
+--- a/src/colon:name.txt
++++ b/src/colon:name.txt
+@@ -1 +1 @@
+-colon one
++colon two
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -1 +1 @@",
+        "lines": [
+          {
+            "content": "colon one",
+            "newLine": null,
+            "oldLine": 1,
+            "type": "delete",
+          },
+          {
+            "content": "colon two",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 1,
+        "oldStart": 1,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "oldRev": "d146e28930e9c87d025885b82d0411abf610e987",
+    "path": "src/colon:name.txt",
+    "status": "modified",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "1cc3a38d9d4e43d17fc3595cbb736f29a1822e96",
+    "deletions": 1,
+    "diff": 
+"diff --git a/src/staged.ts b/src/staged.ts
+index 83846b2..1cc3a38 100644
+--- a/src/staged.ts
++++ b/src/staged.ts
+@@ -1 +1 @@
+-staged one
++staged two
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -1 +1 @@",
+        "lines": [
+          {
+            "content": "staged one",
+            "newLine": null,
+            "oldLine": 1,
+            "type": "delete",
+          },
+          {
+            "content": "staged two",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 1,
+        "oldStart": 1,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "oldRev": "d146e28930e9c87d025885b82d0411abf610e987",
+    "path": "src/staged.ts",
+    "status": "modified",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "1ca7fe40210433e675b021ac32277b498e9df285",
+    "deletions": 1,
+    "diff": 
+"diff --git a/src/unstaged.ts b/src/unstaged.ts
+index a7a98ab..1ca7fe4 100644
+--- a/src/unstaged.ts
++++ b/src/unstaged.ts
+@@ -1 +1 @@
+-unstaged one
++unstaged two
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -1 +1 @@",
+        "lines": [
+          {
+            "content": "unstaged one",
+            "newLine": null,
+            "oldLine": 1,
+            "type": "delete",
+          },
+          {
+            "content": "unstaged two",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 1,
+        "oldStart": 1,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "oldRev": "d146e28930e9c87d025885b82d0411abf610e987",
+    "path": "src/unstaged.ts",
+    "status": "modified",
+  },
+]
+`;
+
+exports[`file-oriented Change Sets the full Change Set output matches the batching snapshot: net files 1`] = `
+[
+  {
+    "additions": 0,
+    "binary": true,
+    "contentHash": "eaf36c1daccfdf325514461cd1a2ffbc139b5464",
+    "deletions": 0,
+    "diff": 
+"diff --git a/assets/icon.bin b/assets/icon.bin
+new file mode 100644
+index 0000000..eaf36c1
+Binary files /dev/null and b/assets/icon.bin differ
+"
+,
+    "hunks": [],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "newSize": 4,
+    "path": "assets/icon.bin",
+    "status": "added",
+  },
+  {
+    "additions": 0,
+    "binary": true,
+    "contentHash": "85025d98693fe77b700bcf818dfd8fcd13c4e961",
+    "deletions": 0,
+    "diff": 
+"diff --git a/assets/logo.png b/assets/logo.png
+new file mode 100644
+index 0000000..85025d9
+Binary files /dev/null and b/assets/logo.png differ
+"
+,
+    "hunks": [],
+    "image": true,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "newSize": 5,
+    "path": "assets/logo.png",
+    "status": "added",
+  },
+  {
+    "additions": 2,
+    "binary": false,
+    "contentHash": "4aabae1d8e51b913d18fac18bf43a38206dddcc3",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/base.ts b/src/base.ts
+new file mode 100644
+index 0000000..4aabae1
+--- /dev/null
++++ b/src/base.ts
+@@ -0,0 +1,2 @@
++base one
++base two changed
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1,2 @@",
+        "lines": [
+          {
+            "content": "base one",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "base two changed",
+            "newLine": 2,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 2,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/base.ts",
+    "status": "added",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "c0f6222402c457ed0796942190aaf4a9ab35d560",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/colon:name.txt b/src/colon:name.txt
+new file mode 100644
+index 0000000..c0f6222
+--- /dev/null
++++ b/src/colon:name.txt
+@@ -0,0 +1 @@
++colon two
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1 @@",
+        "lines": [
+          {
+            "content": "colon two",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/colon:name.txt",
+    "status": "added",
+  },
+  {
+    "additions": 5,
+    "binary": false,
+    "contentHash": "600d48ac740e0e5904838e02446d117c410ec089",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/rename-old.ts b/src/rename-old.ts
+new file mode 100644
+index 0000000..600d48a
+--- /dev/null
++++ b/src/rename-old.ts
+@@ -0,0 +1,5 @@
++alpha
++beta
++gamma
++delta
++epsilon
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1,5 @@",
+        "lines": [
+          {
+            "content": "alpha",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "beta",
+            "newLine": 2,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "gamma",
+            "newLine": 3,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "delta",
+            "newLine": 4,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "epsilon",
+            "newLine": 5,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 5,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/rename-old.ts",
+    "status": "added",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "1cc3a38d9d4e43d17fc3595cbb736f29a1822e96",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/staged.ts b/src/staged.ts
+new file mode 100644
+index 0000000..1cc3a38
+--- /dev/null
++++ b/src/staged.ts
+@@ -0,0 +1 @@
++staged two
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1 @@",
+        "lines": [
+          {
+            "content": "staged two",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/staged.ts",
+    "status": "added",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "1ca7fe40210433e675b021ac32277b498e9df285",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/unstaged.ts b/src/unstaged.ts
+new file mode 100644
+index 0000000..1ca7fe4
+--- /dev/null
++++ b/src/unstaged.ts
+@@ -0,0 +1 @@
++unstaged two
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1 @@",
+        "lines": [
+          {
+            "content": "unstaged two",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/unstaged.ts",
+    "status": "added",
+  },
+]
+`;
+
+exports[`file-oriented Change Sets the full Change Set output matches the batching snapshot: stack group files 1`] = `
+[
+  [
+    {
+      "additions": 0,
+      "binary": true,
+      "contentHash": "eaf36c1daccfdf325514461cd1a2ffbc139b5464",
+      "deletions": 0,
+      "diff": 
+"diff --git a/assets/icon.bin b/assets/icon.bin
+new file mode 100644
+index 0000000..eaf36c1
+Binary files /dev/null and b/assets/icon.bin differ
+"
+,
+      "hunks": [],
+      "image": false,
+      "newRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "newSize": 4,
+      "path": "assets/icon.bin",
+      "status": "added",
+    },
+    {
+      "additions": 0,
+      "binary": true,
+      "contentHash": "85025d98693fe77b700bcf818dfd8fcd13c4e961",
+      "deletions": 0,
+      "diff": 
+"diff --git a/assets/logo.png b/assets/logo.png
+new file mode 100644
+index 0000000..85025d9
+Binary files /dev/null and b/assets/logo.png differ
+"
+,
+      "hunks": [],
+      "image": true,
+      "newRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "newSize": 5,
+      "path": "assets/logo.png",
+      "status": "added",
+    },
+    {
+      "additions": 2,
+      "binary": false,
+      "contentHash": "dd19214ef8b711cc2b2988ddd68607f234fbb068",
+      "deletions": 0,
+      "diff": 
+"diff --git a/src/base.ts b/src/base.ts
+new file mode 100644
+index 0000000..dd19214
+--- /dev/null
++++ b/src/base.ts
+@@ -0,0 +1,2 @@
++base one
++base two
+"
+,
+      "hunks": [
+        {
+          "header": "@@ -0,0 +1,2 @@",
+          "lines": [
+            {
+              "content": "base one",
+              "newLine": 1,
+              "oldLine": null,
+              "type": "add",
+            },
+            {
+              "content": "base two",
+              "newLine": 2,
+              "oldLine": null,
+              "type": "add",
+            },
+          ],
+          "newLines": 2,
+          "newStart": 1,
+          "oldLines": 0,
+          "oldStart": 0,
+        },
+      ],
+      "image": false,
+      "newRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "path": "src/base.ts",
+      "status": "added",
+    },
+    {
+      "additions": 1,
+      "binary": false,
+      "contentHash": "0cbe44729285868ff3c670b667e3336d92c4acff",
+      "deletions": 0,
+      "diff": 
+"diff --git a/src/colon:name.txt b/src/colon:name.txt
+new file mode 100644
+index 0000000..0cbe447
+--- /dev/null
++++ b/src/colon:name.txt
+@@ -0,0 +1 @@
++colon one
+"
+,
+      "hunks": [
+        {
+          "header": "@@ -0,0 +1 @@",
+          "lines": [
+            {
+              "content": "colon one",
+              "newLine": 1,
+              "oldLine": null,
+              "type": "add",
+            },
+          ],
+          "newLines": 1,
+          "newStart": 1,
+          "oldLines": 0,
+          "oldStart": 0,
+        },
+      ],
+      "image": false,
+      "newRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "path": "src/colon:name.txt",
+      "status": "added",
+    },
+    {
+      "additions": 5,
+      "binary": false,
+      "contentHash": "600d48ac740e0e5904838e02446d117c410ec089",
+      "deletions": 0,
+      "diff": 
+"diff --git a/src/rename-old.ts b/src/rename-old.ts
+new file mode 100644
+index 0000000..600d48a
+--- /dev/null
++++ b/src/rename-old.ts
+@@ -0,0 +1,5 @@
++alpha
++beta
++gamma
++delta
++epsilon
+"
+,
+      "hunks": [
+        {
+          "header": "@@ -0,0 +1,5 @@",
+          "lines": [
+            {
+              "content": "alpha",
+              "newLine": 1,
+              "oldLine": null,
+              "type": "add",
+            },
+            {
+              "content": "beta",
+              "newLine": 2,
+              "oldLine": null,
+              "type": "add",
+            },
+            {
+              "content": "gamma",
+              "newLine": 3,
+              "oldLine": null,
+              "type": "add",
+            },
+            {
+              "content": "delta",
+              "newLine": 4,
+              "oldLine": null,
+              "type": "add",
+            },
+            {
+              "content": "epsilon",
+              "newLine": 5,
+              "oldLine": null,
+              "type": "add",
+            },
+          ],
+          "newLines": 5,
+          "newStart": 1,
+          "oldLines": 0,
+          "oldStart": 0,
+        },
+      ],
+      "image": false,
+      "newRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "path": "src/rename-old.ts",
+      "status": "added",
+    },
+    {
+      "additions": 1,
+      "binary": false,
+      "contentHash": "83846b292607658f182920aa30b41a8c14b44353",
+      "deletions": 0,
+      "diff": 
+"diff --git a/src/staged.ts b/src/staged.ts
+new file mode 100644
+index 0000000..83846b2
+--- /dev/null
++++ b/src/staged.ts
+@@ -0,0 +1 @@
++staged one
+"
+,
+      "hunks": [
+        {
+          "header": "@@ -0,0 +1 @@",
+          "lines": [
+            {
+              "content": "staged one",
+              "newLine": 1,
+              "oldLine": null,
+              "type": "add",
+            },
+          ],
+          "newLines": 1,
+          "newStart": 1,
+          "oldLines": 0,
+          "oldStart": 0,
+        },
+      ],
+      "image": false,
+      "newRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "path": "src/staged.ts",
+      "status": "added",
+    },
+    {
+      "additions": 1,
+      "binary": false,
+      "contentHash": "a7a98ab6d0405fa61582a951b89a4aef618d7b5c",
+      "deletions": 0,
+      "diff": 
+"diff --git a/src/unstaged.ts b/src/unstaged.ts
+new file mode 100644
+index 0000000..a7a98ab
+--- /dev/null
++++ b/src/unstaged.ts
+@@ -0,0 +1 @@
++unstaged one
+"
+,
+      "hunks": [
+        {
+          "header": "@@ -0,0 +1 @@",
+          "lines": [
+            {
+              "content": "unstaged one",
+              "newLine": 1,
+              "oldLine": null,
+              "type": "add",
+            },
+          ],
+          "newLines": 1,
+          "newStart": 1,
+          "oldLines": 0,
+          "oldStart": 0,
+        },
+      ],
+      "image": false,
+      "newRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "path": "src/unstaged.ts",
+      "status": "added",
+    },
+  ],
+  [
+    {
+      "additions": 1,
+      "binary": false,
+      "contentHash": "4aabae1d8e51b913d18fac18bf43a38206dddcc3",
+      "deletions": 1,
+      "diff": 
+"diff --git a/src/base.ts b/src/base.ts
+index dd19214..4aabae1 100644
+--- a/src/base.ts
++++ b/src/base.ts
+@@ -1,2 +1,2 @@
+ base one
+-base two
++base two changed
+"
+,
+      "hunks": [
+        {
+          "header": "@@ -1,2 +1,2 @@",
+          "lines": [
+            {
+              "content": "base one",
+              "newLine": 1,
+              "oldLine": 1,
+              "type": "context",
+            },
+            {
+              "content": "base two",
+              "newLine": null,
+              "oldLine": 2,
+              "type": "delete",
+            },
+            {
+              "content": "base two changed",
+              "newLine": 2,
+              "oldLine": null,
+              "type": "add",
+            },
+          ],
+          "newLines": 2,
+          "newStart": 1,
+          "oldLines": 2,
+          "oldStart": 1,
+        },
+      ],
+      "image": false,
+      "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+      "oldRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "path": "src/base.ts",
+      "status": "modified",
+    },
+    {
+      "additions": 1,
+      "binary": false,
+      "contentHash": "c0f6222402c457ed0796942190aaf4a9ab35d560",
+      "deletions": 1,
+      "diff": 
+"diff --git a/src/colon:name.txt b/src/colon:name.txt
+index 0cbe447..c0f6222 100644
+--- a/src/colon:name.txt
++++ b/src/colon:name.txt
+@@ -1 +1 @@
+-colon one
++colon two
+"
+,
+      "hunks": [
+        {
+          "header": "@@ -1 +1 @@",
+          "lines": [
+            {
+              "content": "colon one",
+              "newLine": null,
+              "oldLine": 1,
+              "type": "delete",
+            },
+            {
+              "content": "colon two",
+              "newLine": 1,
+              "oldLine": null,
+              "type": "add",
+            },
+          ],
+          "newLines": 1,
+          "newStart": 1,
+          "oldLines": 1,
+          "oldStart": 1,
+        },
+      ],
+      "image": false,
+      "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+      "oldRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "path": "src/colon:name.txt",
+      "status": "modified",
+    },
+    {
+      "additions": 1,
+      "binary": false,
+      "contentHash": "1cc3a38d9d4e43d17fc3595cbb736f29a1822e96",
+      "deletions": 1,
+      "diff": 
+"diff --git a/src/staged.ts b/src/staged.ts
+index 83846b2..1cc3a38 100644
+--- a/src/staged.ts
++++ b/src/staged.ts
+@@ -1 +1 @@
+-staged one
++staged two
+"
+,
+      "hunks": [
+        {
+          "header": "@@ -1 +1 @@",
+          "lines": [
+            {
+              "content": "staged one",
+              "newLine": null,
+              "oldLine": 1,
+              "type": "delete",
+            },
+            {
+              "content": "staged two",
+              "newLine": 1,
+              "oldLine": null,
+              "type": "add",
+            },
+          ],
+          "newLines": 1,
+          "newStart": 1,
+          "oldLines": 1,
+          "oldStart": 1,
+        },
+      ],
+      "image": false,
+      "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+      "oldRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "path": "src/staged.ts",
+      "status": "modified",
+    },
+    {
+      "additions": 1,
+      "binary": false,
+      "contentHash": "1ca7fe40210433e675b021ac32277b498e9df285",
+      "deletions": 1,
+      "diff": 
+"diff --git a/src/unstaged.ts b/src/unstaged.ts
+index a7a98ab..1ca7fe4 100644
+--- a/src/unstaged.ts
++++ b/src/unstaged.ts
+@@ -1 +1 @@
+-unstaged one
++unstaged two
+"
+,
+      "hunks": [
+        {
+          "header": "@@ -1 +1 @@",
+          "lines": [
+            {
+              "content": "unstaged one",
+              "newLine": null,
+              "oldLine": 1,
+              "type": "delete",
+            },
+            {
+              "content": "unstaged two",
+              "newLine": 1,
+              "oldLine": null,
+              "type": "add",
+            },
+          ],
+          "newLines": 1,
+          "newStart": 1,
+          "oldLines": 1,
+          "oldStart": 1,
+        },
+      ],
+      "image": false,
+      "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+      "oldRev": "d146e28930e9c87d025885b82d0411abf610e987",
+      "path": "src/unstaged.ts",
+      "status": "modified",
+    },
+  ],
+]
+`;
+
+exports[`file-oriented Change Sets the full Change Set output matches the batching snapshot: time-window files 1`] = `
+[
+  {
+    "additions": 0,
+    "binary": true,
+    "contentHash": "eaf36c1daccfdf325514461cd1a2ffbc139b5464",
+    "deletions": 0,
+    "diff": 
+"diff --git a/assets/icon.bin b/assets/icon.bin
+new file mode 100644
+index 0000000..eaf36c1
+Binary files /dev/null and b/assets/icon.bin differ
+"
+,
+    "hunks": [],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "newSize": 4,
+    "path": "assets/icon.bin",
+    "status": "added",
+  },
+  {
+    "additions": 0,
+    "binary": true,
+    "contentHash": "85025d98693fe77b700bcf818dfd8fcd13c4e961",
+    "deletions": 0,
+    "diff": 
+"diff --git a/assets/logo.png b/assets/logo.png
+new file mode 100644
+index 0000000..85025d9
+Binary files /dev/null and b/assets/logo.png differ
+"
+,
+    "hunks": [],
+    "image": true,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "newSize": 5,
+    "path": "assets/logo.png",
+    "status": "added",
+  },
+  {
+    "additions": 2,
+    "binary": false,
+    "contentHash": "4aabae1d8e51b913d18fac18bf43a38206dddcc3",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/base.ts b/src/base.ts
+new file mode 100644
+index 0000000..4aabae1
+--- /dev/null
++++ b/src/base.ts
+@@ -0,0 +1,2 @@
++base one
++base two changed
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1,2 @@",
+        "lines": [
+          {
+            "content": "base one",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "base two changed",
+            "newLine": 2,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 2,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/base.ts",
+    "status": "added",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "c0f6222402c457ed0796942190aaf4a9ab35d560",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/colon:name.txt b/src/colon:name.txt
+new file mode 100644
+index 0000000..c0f6222
+--- /dev/null
++++ b/src/colon:name.txt
+@@ -0,0 +1 @@
++colon two
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1 @@",
+        "lines": [
+          {
+            "content": "colon two",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/colon:name.txt",
+    "status": "added",
+  },
+  {
+    "additions": 5,
+    "binary": false,
+    "contentHash": "600d48ac740e0e5904838e02446d117c410ec089",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/rename-old.ts b/src/rename-old.ts
+new file mode 100644
+index 0000000..600d48a
+--- /dev/null
++++ b/src/rename-old.ts
+@@ -0,0 +1,5 @@
++alpha
++beta
++gamma
++delta
++epsilon
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1,5 @@",
+        "lines": [
+          {
+            "content": "alpha",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "beta",
+            "newLine": 2,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "gamma",
+            "newLine": 3,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "delta",
+            "newLine": 4,
+            "oldLine": null,
+            "type": "add",
+          },
+          {
+            "content": "epsilon",
+            "newLine": 5,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 5,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/rename-old.ts",
+    "status": "added",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "1cc3a38d9d4e43d17fc3595cbb736f29a1822e96",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/staged.ts b/src/staged.ts
+new file mode 100644
+index 0000000..1cc3a38
+--- /dev/null
++++ b/src/staged.ts
+@@ -0,0 +1 @@
++staged two
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1 @@",
+        "lines": [
+          {
+            "content": "staged two",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/staged.ts",
+    "status": "added",
+  },
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "1ca7fe40210433e675b021ac32277b498e9df285",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/unstaged.ts b/src/unstaged.ts
+new file mode 100644
+index 0000000..1ca7fe4
+--- /dev/null
++++ b/src/unstaged.ts
+@@ -0,0 +1 @@
++unstaged two
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1 @@",
+        "lines": [
+          {
+            "content": "unstaged two",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "58a110494030cf4b7c0235b145adc91280531720",
+    "path": "src/unstaged.ts",
+    "status": "added",
+  },
+]
+`;
+
+exports[`file-oriented Change Sets the full Change Set output matches the batching snapshot: branch files 1`] = `
+[
+  {
+    "additions": 1,
+    "binary": false,
+    "contentHash": "bac0ee79a7406f740faf7597ca3b863ff847490c",
+    "deletions": 0,
+    "diff": 
+"diff --git a/src/feature.ts b/src/feature.ts
+new file mode 100644
+index 0000000..bac0ee7
+--- /dev/null
++++ b/src/feature.ts
+@@ -0,0 +1 @@
++feature work
+"
+,
+    "hunks": [
+      {
+        "header": "@@ -0,0 +1 @@",
+        "lines": [
+          {
+            "content": "feature work",
+            "newLine": 1,
+            "oldLine": null,
+            "type": "add",
+          },
+        ],
+        "newLines": 1,
+        "newStart": 1,
+        "oldLines": 0,
+        "oldStart": 0,
+      },
+    ],
+    "image": false,
+    "newRev": "11ffed5f05b140e93b24db0d9d7a1dbea01f0d6c",
+    "path": "src/feature.ts",
+    "status": "added",
+  },
+]
+`;

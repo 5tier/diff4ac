@@ -14,12 +14,13 @@ import type {
   TimeWindow,
   WorktreeInfo,
 } from "../types";
-import { buildCommitFiles } from "./commit";
+import { resolveCommitRange } from "./commit";
 import {
   buildChangeFilesForRange,
   changeSetTotals,
   emptyTreeRef,
   type ChangeFileOptions,
+  type DiffRange,
 } from "./files";
 import { isContiguousCommitSelection } from "./selection";
 
@@ -30,14 +31,20 @@ export class NonContiguousNetDiffError extends Error {
   }
 }
 
-async function buildSelectedCommitsChangeSet(
+export interface CommitGroupRange {
+  readonly range: DiffRange;
+  readonly commit?: CommitSummary;
+}
+
+/**
+ * The ranges a commit Selection covers, in Change Set order: one net range, or
+ * one range per commit group (oldest first) in Commit Stack mode.
+ */
+export async function resolveCommitGroupRanges(
   git: GitGateway,
-  worktree: WorktreeInfo,
   selected: readonly CommitSummary[],
   mode: ChangeViewMode,
-  selection: Selection,
-  options: ChangeFileOptions = {},
-): Promise<ChangeSet> {
+): Promise<readonly CommitGroupRange[]> {
   if (mode === "net") {
     const newest = selected[0];
     const oldest = selected.at(-1);
@@ -46,17 +53,44 @@ async function buildSelectedCommitsChangeSet(
     }
 
     const parent = await firstParent(git, oldest.hash);
-    const baseRef = parent ?? (await emptyTreeRef(git));
-    const files = await buildChangeFilesForRange(
-      git,
+    return [
       {
-        baseRef,
-        targetRef: newest.hash,
-        oldRev: parent,
-        newRev: newest.hash,
+        range: {
+          baseRef: parent ?? (await emptyTreeRef(git)),
+          targetRef: newest.hash,
+          oldRev: parent,
+          newRev: newest.hash,
+        },
       },
-      options,
-    );
+    ];
+  }
+
+  const ranges: CommitGroupRange[] = [];
+  for (const commit of [...selected].reverse()) {
+    ranges.push({
+      range: await resolveCommitRange(git, commit.hash),
+      commit,
+    });
+  }
+  return ranges;
+}
+
+async function buildSelectedCommitsChangeSet(
+  git: GitGateway,
+  worktree: WorktreeInfo,
+  selected: readonly CommitSummary[],
+  mode: ChangeViewMode,
+  selection: Selection,
+  options: ChangeFileOptions = {},
+): Promise<ChangeSet> {
+  const ranges = await resolveCommitGroupRanges(git, selected, mode);
+
+  if (mode === "net") {
+    const range = ranges[0]?.range;
+    if (!range) {
+      throw new Error("commit Selection is empty");
+    }
+    const files = await buildChangeFilesForRange(git, range, options);
 
     return {
       selection,
@@ -67,9 +101,12 @@ async function buildSelectedCommitsChangeSet(
   }
 
   const commitGroups: CommitChangeGroup[] = [];
-  for (const commit of [...selected].reverse()) {
-    const { files, totals } = await buildCommitFiles(git, commit, options);
-    commitGroups.push({ commit, files, totals });
+  for (const { commit, range } of ranges) {
+    if (!commit) {
+      continue;
+    }
+    const files = await buildChangeFilesForRange(git, range, options);
+    commitGroups.push({ commit, files, totals: changeSetTotals(files) });
   }
 
   const files = commitGroups.flatMap((group) => group.files);
@@ -86,12 +123,18 @@ export interface CommitsChangeSetOptions extends ChangeFileOptions {
   readonly agentPatterns?: readonly CompiledAgentPattern[];
 }
 
-export async function buildCommitsChangeSet(
+export interface SelectedCommitsScope {
+  readonly selection: Selection;
+  readonly worktree: WorktreeInfo;
+  readonly selected: readonly CommitSummary[];
+}
+
+export async function resolveSelectedCommits(
   git: GitGateway,
   hashes: readonly string[],
   mode: ChangeViewMode,
   options: CommitsChangeSetOptions = {},
-): Promise<ChangeSet> {
+): Promise<SelectedCommitsScope> {
   if (hashes.length === 0) {
     throw new Error("commit Selection is empty");
   }
@@ -133,9 +176,25 @@ export async function buildCommitsChangeSet(
     contiguous,
   };
 
+  return { selection, worktree: list.worktree, selected };
+}
+
+export async function buildCommitsChangeSet(
+  git: GitGateway,
+  hashes: readonly string[],
+  mode: ChangeViewMode,
+  options: CommitsChangeSetOptions = {},
+): Promise<ChangeSet> {
+  const { selection, worktree, selected } = await resolveSelectedCommits(
+    git,
+    hashes,
+    mode,
+    options,
+  );
+
   return buildSelectedCommitsChangeSet(
     git,
-    list.worktree,
+    worktree,
     selected,
     mode,
     selection,
@@ -148,12 +207,19 @@ export interface TimeWindowChangeSetOptions extends ChangeFileOptions {
   readonly agent?: string;
 }
 
-export async function buildTimeWindowChangeSet(
+export interface TimeWindowScope {
+  readonly selection: Selection;
+  readonly worktree: WorktreeInfo;
+  readonly selected: readonly CommitSummary[];
+  readonly mode: ChangeViewMode;
+}
+
+export async function resolveTimeWindowScope(
   git: GitGateway,
   window: TimeWindow,
   requestedMode: ChangeViewMode | "auto" = "auto",
   options: TimeWindowChangeSetOptions = {},
-): Promise<ChangeSet> {
+): Promise<TimeWindowScope> {
   const list = await listCommitsInWindow(git, window, {
     agentPatterns: options.agentPatterns,
     agent: options.agent,
@@ -175,10 +241,26 @@ export async function buildTimeWindowChangeSet(
     contiguous,
   };
 
+  return { selection, worktree: list.worktree, selected, mode };
+}
+
+export async function buildTimeWindowChangeSet(
+  git: GitGateway,
+  window: TimeWindow,
+  requestedMode: ChangeViewMode | "auto" = "auto",
+  options: TimeWindowChangeSetOptions = {},
+): Promise<ChangeSet> {
+  const { selection, worktree, selected, mode } = await resolveTimeWindowScope(
+    git,
+    window,
+    requestedMode,
+    options,
+  );
+
   if (selected.length === 0) {
     return {
       selection,
-      worktree: list.worktree,
+      worktree,
       files: [],
       totals: changeSetTotals([]),
       ...(mode === "stack" ? { commitGroups: [] } : {}),
@@ -187,7 +269,7 @@ export async function buildTimeWindowChangeSet(
 
   return buildSelectedCommitsChangeSet(
     git,
-    list.worktree,
+    worktree,
     selected,
     mode,
     selection,
