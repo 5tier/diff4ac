@@ -4,6 +4,7 @@ import type {
   BranchSummary,
   ChangeFile,
   CommitSummary,
+  WatchStatus,
   WorktreeSummary,
 } from "../../shared/types";
 import { fetchConfig } from "../api";
@@ -26,6 +27,7 @@ export interface UseAppEffectsParams {
   readonly selectedWorktreePath: string | null;
   readonly setKeybindingOverrides: Dispatch<SetStateAction<KeybindingOverrides>>;
   readonly setNoisePatterns: Dispatch<SetStateAction<readonly string[]>>;
+  readonly setWatchStatuses: Dispatch<SetStateAction<readonly WatchStatus[]>>;
 }
 
 export function useAppEffects({
@@ -39,6 +41,7 @@ export function useAppEffects({
   selectedWorktreePath,
   setKeybindingOverrides,
   setNoisePatterns,
+  setWatchStatuses,
 }: UseAppEffectsParams): void {
   const { theme, diffView, fullFile, agentFilter } = state;
 
@@ -49,6 +52,7 @@ export function useAppEffects({
       .then((config) => {
         setKeybindingOverrides(config.keybindings);
         setNoisePatterns(config.noise);
+        setWatchStatuses(config.watch ?? []);
         if (readThemePreference() === null) {
           appDispatch({ type: "set-theme", theme: config.theme });
         }
@@ -58,7 +62,12 @@ export function useAppEffects({
       });
 
     return () => controller.abort();
-  }, [appDispatch, setKeybindingOverrides, setNoisePatterns]);
+  }, [
+    appDispatch,
+    setKeybindingOverrides,
+    setNoisePatterns,
+    setWatchStatuses,
+  ]);
 
   useEffect(() => {
     applyTheme(theme);

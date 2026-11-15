@@ -4,6 +4,7 @@ import type {
   ChangeSet,
   FilterRequest,
   Selection,
+  WatchStatus,
   WorktreeInfo,
 } from "../../shared/types";
 import type { DiffViewMode } from "../../shared/diff/rows";
@@ -32,6 +33,7 @@ export interface StatusBarProps {
   readonly agentFilter: string | null;
   readonly baseBranch: BaseBranch | null;
   readonly worktree: WorktreeInfo | null;
+  readonly watchStatuses: readonly WatchStatus[];
 }
 
 export function StatusBar({
@@ -51,7 +53,13 @@ export function StatusBar({
   agentFilter,
   baseBranch,
   worktree,
+  watchStatuses,
 }: StatusBarProps) {
+  const degradedWatch = watchStatuses.filter(
+    (status) => status.mode !== "native",
+  );
+  const watchHint = degradedWatch[0];
+
   return (
     <footer className="status-bar">
       <span className="status-badge" title={selectionLabel(selection)}>
@@ -118,6 +126,17 @@ export function StatusBar({
       {diffError ? (
         <span className="status-error" title={diffError}>
           Diff load failed
+        </span>
+      ) : null}
+      {watchHint ? (
+        <span
+          className="status-watch"
+          data-testid="watch-status"
+          title={degradedWatch
+            .map((status) => `${status.path}: ${status.reason ?? status.mode}`)
+            .join("\n")}
+        >
+          watching: {watchHint.mode}
         </span>
       ) : null}
       <span className="status-agent">agent: {agentFilter ?? "all"}</span>

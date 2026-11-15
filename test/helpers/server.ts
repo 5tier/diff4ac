@@ -6,6 +6,10 @@ import {
   startServer,
   type RunningServer,
 } from "../../src/server/server";
+import type {
+  WatchFunction,
+  WatchStrategy,
+} from "../../src/repository/watcher";
 import { createFixtureRepo, type FixtureRepo } from "./fixture";
 import { createTempHome, type TempHome } from "./home";
 
@@ -23,6 +27,9 @@ export interface StartFixtureServerOptions {
   readonly stateDir?: string;
   readonly watchDebounceMs?: number;
   readonly commitPageSize?: number;
+  readonly watchStrategy?: WatchStrategy;
+  readonly watchFn?: WatchFunction;
+  readonly watchPollIntervalMs?: number;
 }
 
 const active: FixtureServer[] = [];
@@ -56,6 +63,11 @@ export async function startFixtureServer(
       : {}),
     ...(options.commitPageSize !== undefined
       ? { commitPageSize: options.commitPageSize }
+      : {}),
+    ...(options.watchStrategy ? { watchStrategy: options.watchStrategy } : {}),
+    ...(options.watchFn ? { watchFn: options.watchFn } : {}),
+    ...(options.watchPollIntervalMs !== undefined
+      ? { watchPollIntervalMs: options.watchPollIntervalMs }
       : {}),
   });
 

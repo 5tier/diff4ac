@@ -1,7 +1,7 @@
 import type { CompiledAgentPattern } from "../agents";
 import type { GitGateway } from "../git/gateway";
 import type { ReviewMarkStore } from "../review/marks";
-import type { ConfigInfo } from "../../shared/types";
+import type { ConfigInfo, WatchStatus } from "../../shared/types";
 
 export interface EventHub {
   subscribe(listener: () => void): () => void;
@@ -19,4 +19,5 @@ export interface RequestContext {
   readonly agentPatterns: readonly CompiledAgentPattern[];
   readonly commitPageSize: number;
   readonly events: EventHub;
+  readonly watchStatus: () => readonly WatchStatus[];
 }

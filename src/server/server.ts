@@ -8,11 +8,15 @@ import { loadConfig } from "../config/loader";
 import { GitGateway } from "../git/gateway";
 import { localBranchExists } from "../repository/branches";
 import { repositoryIdentity } from "../repository/identity";
-import { RepositoryWatcher } from "../repository/watcher";
+import {
+  RepositoryWatcher,
+  type WatchFunction,
+  type WatchStrategy,
+} from "../repository/watcher";
 import { primaryWorktreeRoot } from "../repository/worktrees";
 import { COMMIT_PAGE_SIZE } from "../repository/commits";
 import { ReviewMarkStore } from "../review/marks";
-import type { ConfigInfo } from "../../shared/types";
+import type { ConfigInfo, WatchStatus } from "../../shared/types";
 import type { EventHub, RequestContext } from "./context";
 import { SECURITY_HEADERS, text } from "./http";
 import { routeFor } from "./routes";
@@ -37,6 +41,10 @@ export interface StartServerOptions {
   readonly homeDir?: string;
   /** Test seam; Commits paging defaults to COMMIT_PAGE_SIZE. */
   readonly commitPageSize?: number;
+  /** Test seam; not exposed as a CLI flag. */
+  readonly watchStrategy?: WatchStrategy;
+  readonly watchFn?: WatchFunction;
+  readonly watchPollIntervalMs?: number;
 }
 
 export interface RunningServer {
@@ -178,7 +186,14 @@ export async function startServer(
   const watcher = await RepositoryWatcher.start(git, {
     debounceMs: options.watchDebounceMs ?? 150,
     onChanged: () => events.emit(),
+    ...(options.watchStrategy ? { watchStrategy: options.watchStrategy } : {}),
+    ...(options.watchFn ? { watchFn: options.watchFn } : {}),
+    ...(options.watchPollIntervalMs !== undefined
+      ? { pollIntervalMs: options.watchPollIntervalMs }
+      : {}),
   });
+  const watchStatus: () => readonly WatchStatus[] = () => watcher.status();
+  config = { ...config, watch: watchStatus() };
 
   let server: Bun.Server<unknown>;
   server = Bun.serve({
@@ -197,6 +212,7 @@ export async function startServer(
         config,
         agentPatterns,
         commitPageSize,
+        watchStatus,
       }),
   });
 

@@ -177,9 +177,18 @@ export interface ChangeSet {
 export interface SessionInfo {
   readonly worktree: WorktreeInfo;
   readonly version: string;
+  readonly watch?: readonly WatchStatus[];
 }
 
 export type Theme = "system" | "light" | "dark";
+
+export type WatchMode = "native" | "per-directory" | "polling";
+
+export interface WatchStatus {
+  readonly path: string;
+  readonly mode: WatchMode;
+  readonly reason?: string;
+}
 
 export interface ConfigDiagnostic {
   readonly file: string;
@@ -201,4 +210,6 @@ export interface ConfigInfo {
   readonly noise: readonly string[];
   readonly theme: Theme;
   readonly diagnostics: readonly ConfigDiagnostic[];
+  /** Present on the server's live config; how each Worktree is watched. */
+  readonly watch?: readonly WatchStatus[];
 }

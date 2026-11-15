@@ -4,7 +4,7 @@ import { SECURITY_HEADERS, json } from "../http";
 import type { RouteRequest } from "./types";
 
 export function handleConfig({ context }: RouteRequest): Response {
-  return json(context.config);
+  return json({ ...context.config, watch: context.watchStatus() });
 }
 
 export async function handleSession({
@@ -16,6 +16,7 @@ export async function handleSession({
       branch: await context.git.currentBranch(),
     },
     version: VERSION,
+    watch: context.watchStatus(),
   };
   return json(session);
 }

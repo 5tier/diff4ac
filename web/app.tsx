@@ -1,5 +1,5 @@
 import { useMemo, useReducer, useState } from "react";
-import type { FilterRequest } from "../shared/types";
+import type { FilterRequest, WatchStatus } from "../shared/types";
 import {
   applyKeybindingOverrides,
   type KeybindingOverrides,
@@ -53,6 +53,7 @@ export function App() {
 
   const [keybindingOverrides, setKeybindingOverrides] =
     useState<KeybindingOverrides>({});
+  const [watchStatuses, setWatchStatuses] = useState<readonly WatchStatus[]>([]);
   const keymap = useMemo(
     () => applyKeybindingOverrides(keybindingOverrides),
     [keybindingOverrides],
@@ -151,6 +152,7 @@ export function App() {
     selectedWorktreePath,
     setKeybindingOverrides,
     setNoisePatterns,
+    setWatchStatuses,
   });
 
   const selectedWorktree =
@@ -380,6 +382,7 @@ export function App() {
         agentFilter={agentFilter}
         baseBranch={baseBranch}
         worktree={repository.worktree}
+        watchStatuses={watchStatuses}
       />
 
       <AppDialogs
