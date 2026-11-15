@@ -267,3 +267,14 @@ export async function highlightHunks(
 
   return Promise.all(hunks.map((hunk) => highlightHunk(hunk, language)));
 }
+
+/** Syntax-highlight a whole file as one token list per line. */
+export async function highlightLines(
+  text: string,
+  language: string | null,
+): Promise<readonly (readonly TokenSpan[])[] | null> {
+  if (!language || !(await ensureLanguage(language))) {
+    return null;
+  }
+  return tokenize(text, language);
+}

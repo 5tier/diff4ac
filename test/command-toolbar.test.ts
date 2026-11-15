@@ -78,6 +78,7 @@ describe("command toolbar model", () => {
         "global.noise",
         "global.filters",
         "files.toggleTree",
+        "global.toggleCodeView",
       ],
       [
         "global.search",

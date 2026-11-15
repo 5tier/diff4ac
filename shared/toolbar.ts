@@ -8,7 +8,7 @@ import {
   type PanelId,
   type ToolbarGroupId,
 } from "./keymap";
-import type { ChangeViewMode, FilesView, Theme } from "./types";
+import type { ChangeViewMode, FilesView, SnapshotSide, Theme } from "./types";
 import { modeLabel } from "./changeset/selection";
 
 export type { ToolbarGroupId } from "./keymap";
@@ -79,6 +79,8 @@ export interface ToolbarState {
   readonly filtersOpen: boolean;
   readonly repositoryChanged: boolean;
   readonly filesView: FilesView;
+  readonly codeView?: boolean;
+  readonly codeViewSide?: SnapshotSide;
 }
 
 export interface ToolbarItem {
@@ -147,6 +149,15 @@ function itemState(binding: KeyBinding, state: ToolbarState): ItemState {
       };
     case "global.toggleFullFile":
       return { enabled: true, toggle: true, pressed: state.fullFile };
+    case "global.toggleCodeView":
+      return {
+        enabled: true,
+        toggle: true,
+        pressed: state.codeView === true,
+        ...(state.codeView
+          ? { value: state.codeViewSide === "before" ? "Before" : "After" }
+          : {}),
+      };
     case "global.cycleTheme":
       return { enabled: true, value: themeLabel(state.theme) };
     case "global.noise":

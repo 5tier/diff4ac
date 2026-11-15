@@ -1,4 +1,9 @@
-import type { FilesView, Selection, Theme } from "../../shared/types";
+import type {
+  FilesView,
+  Selection,
+  SnapshotSide,
+  Theme,
+} from "../../shared/types";
 import type { DiffViewMode } from "../../shared/diff/rows";
 import { TIME_WINDOW_OPTIONS } from "../../shared/time-windows";
 import { nextPanel, type PanelId } from "../../shared/keymap";
@@ -9,6 +14,7 @@ import {
 } from "./selection";
 
 import type { AppAction, CursorPanel } from "./app-actions";
+import { reduceCodeView } from "./code-view-reducer";
 
 export type { AppAction, CursorPanel } from "./app-actions";
 
@@ -43,6 +49,19 @@ export interface AppState {
   readonly searchOpen: boolean;
   readonly matchIndex: number;
   readonly agentFilter: string | null;
+  readonly codeView: boolean;
+  readonly codeViewSide: SnapshotSide;
+  readonly codeViewFocus: "tree" | "code";
+  readonly codeViewCursor: number;
+  readonly codeViewExpanded: readonly string[];
+  readonly codeViewOpenPath: string | null;
+  readonly codeViewLine: number;
+  readonly codeViewFull: boolean;
+  readonly codeViewFinderOpen: boolean;
+  readonly codeViewFinderQuery: string;
+  readonly codeViewFinderIndex: number;
+  readonly codeViewNotice: string | null;
+  readonly codeViewHelpOpen: boolean;
 }
 
 
@@ -84,6 +103,10 @@ function withCursor(
 }
 
 export function appReducer(state: AppState, action: AppAction): AppState {
+  const codeView = reduceCodeView(state, action);
+  if (codeView) {
+    return codeView;
+  }
   switch (action.type) {
     case "focus":
       return { ...state, focusedPanel: action.panel, rangeAnchor: null };
@@ -421,6 +444,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       };
     case "set-selection":
       return { ...state, selection: action.selection, collapsedFolders: [] };
+    default:
+      return state;
   }
 }
 

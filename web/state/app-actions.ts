@@ -4,6 +4,7 @@ import type {
   ChangeViewMode,
   CommitSummary,
   Selection,
+  SnapshotSide,
   Theme,
   TimeWindow,
 } from "../../shared/types";
@@ -124,4 +125,40 @@ export type AppAction =
       readonly selection?: Selection;
     }
   | { readonly type: "selection-missing" }
-  | { readonly type: "set-selection"; readonly selection: Selection };
+  | { readonly type: "set-selection"; readonly selection: Selection }
+  | {
+      readonly type: "toggle-code-view";
+      readonly path?: string | null;
+      readonly line?: number | null;
+    }
+  | { readonly type: "code-view-side"; readonly side: SnapshotSide }
+  | { readonly type: "code-view-focus"; readonly focus: "tree" | "code" }
+  | { readonly type: "code-view-cursor"; readonly index: number }
+  | { readonly type: "code-view-expand"; readonly keys: readonly string[] }
+  | {
+      readonly type: "code-view-collapse";
+      readonly key: string;
+    }
+  | { readonly type: "code-view-toggle-folder"; readonly key: string }
+  | {
+      readonly type: "code-view-open";
+      readonly path: string | null;
+      readonly line?: number | null;
+    }
+  | { readonly type: "code-view-line"; readonly line: number }
+  | { readonly type: "code-view-full"; readonly full: boolean }
+  | { readonly type: "code-view-finder-open" }
+  | { readonly type: "code-view-finder-close" }
+  | { readonly type: "code-view-finder-query"; readonly value: string }
+  | { readonly type: "code-view-finder-index"; readonly index: number }
+  | { readonly type: "code-view-notice"; readonly message: string | null }
+  | { readonly type: "code-view-help-open" }
+  | { readonly type: "code-view-help-close" }
+  | { readonly type: "code-view-reset"; readonly keepOpen: boolean }
+  | {
+      readonly type: "code-view-restore";
+      readonly expanded: readonly string[];
+      readonly cursor: number;
+      readonly openPath: string | null;
+      readonly line: number;
+    };

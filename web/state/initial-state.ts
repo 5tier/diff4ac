@@ -47,5 +47,18 @@ export function createInitialAppState(): AppState {
     searchOpen: false,
     matchIndex: -1,
     agentFilter: null,
+    codeView: false,
+    codeViewSide: "after",
+    codeViewFocus: "tree",
+    codeViewCursor: 0,
+    codeViewExpanded: [],
+    codeViewOpenPath: null,
+    codeViewLine: 1,
+    codeViewFull: false,
+    codeViewFinderOpen: false,
+    codeViewFinderQuery: "",
+    codeViewFinderIndex: 0,
+    codeViewNotice: null,
+    codeViewHelpOpen: false,
   };
 }

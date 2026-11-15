@@ -25,6 +25,8 @@ import { Sidebar } from "./panels/Sidebar";
 import { DiffPane } from "./panels/DiffPane";
 import { StatusBar } from "./panels/StatusBar";
 import { AppDialogs } from "./panels/AppDialogs";
+import { CodeView } from "./panels/CodeView";
+import { selectionLabel } from "./state/selection";
 
 export function App() {
   const [state, appDispatch] = useReducer(
@@ -56,6 +58,8 @@ export function App() {
     searchOpen,
     matchIndex,
     agentFilter,
+    codeView,
+    codeViewSide,
   } = state;
 
   const [keybindingOverrides, setKeybindingOverrides] =
@@ -251,6 +255,7 @@ export function App() {
     filtersOpen,
     searchOpen,
     searchActive: search.searchActive,
+    enabled: !codeView,
   });
 
   const toolbarGroups = useMemo(() => {
@@ -284,6 +289,8 @@ export function App() {
       filtersOpen,
       repositoryChanged: repository.repositoryChanged,
       filesView,
+      codeView,
+      codeViewSide,
     });
   }, [
     agentFilter,
@@ -297,6 +304,8 @@ export function App() {
     filtersOpen,
     fullFile,
     hideNoise,
+    codeView,
+    codeViewSide,
     keymap,
     repository.repositoryChanged,
     search.searchActive,
@@ -341,73 +350,91 @@ export function App() {
         </div>
       ) : null}
 
-      <div className="workspace">
-        <Sidebar
-          selection={selection}
-          focusedPanel={focusedPanel}
-          worktrees={worktrees}
-          worktreesError={repository.worktreesError}
-          selectedWorktree={selectedWorktree}
-          worktreeCursor={worktreeCursor}
-          onSelectWorktree={(index, path) => {
-            repository.setSelectedWorktreePath(path);
-            appDispatch({ type: "select-worktree", index });
-          }}
-          branches={branches}
-          branchesError={repository.branchesError}
-          baseBranch={baseBranch}
-          branchCursor={branchCursor}
-          onSelectBranch={(index, branch) =>
-            appDispatch({ type: "select-branch", index, branch, baseBranch })
-          }
-          commits={commits}
-          commitsError={repository.commitsError}
-          hasMoreCommits={hasMoreCommits}
-          loadingMoreCommits={loadingMoreCommits}
-          agentFilter={agentFilter}
-          commitCursor={commitCursor}
-          onSelectCommit={(index, commit) =>
-            appDispatch({ type: "select-commit", index, commit })
-          }
+      {codeView ? (
+        <CodeView
+          state={state}
+          appDispatch={appDispatch}
+          keymap={keymap}
           files={files}
-          loading={loading}
-          error={error}
-          isStack={isStack}
-          commitGroups={commitGroups}
-          hiddenFiles={hiddenFiles}
-          fileCursor={fileCursor}
-          selectedPath={selectedPath}
-          filesView={filesView}
-          fileTree={fileTreeModel}
-          stackFileIndex={stackFileIndex}
-          onToggleFolder={(index, key) => {
-            appDispatch({ type: "toggle-folder", key });
-            appDispatch({ type: "set-cursor", panel: "files", index });
-          }}
-          onSelectFile={(index, path) =>
-            appDispatch({ type: "select-file", index, path })
-          }
+          changeSetSelection={changeSet?.selection}
+          worktreePath={selectedWorktreePath}
+          reviewPath={selectedPath}
+          agent={agentFilter}
+          refreshVersion={refreshVersion}
+          refreshRepository={repository.refreshRepository}
+          setChangeSet={setChangeSet}
+          setMarkError={setMarkError}
+          selectionLabel={selectionLabel(selection)}
         />
+      ) : (
+        <div className="workspace">
+          <Sidebar
+            selection={selection}
+            focusedPanel={focusedPanel}
+            worktrees={worktrees}
+            worktreesError={repository.worktreesError}
+            selectedWorktree={selectedWorktree}
+            worktreeCursor={worktreeCursor}
+            onSelectWorktree={(index, path) => {
+              repository.setSelectedWorktreePath(path);
+              appDispatch({ type: "select-worktree", index });
+            }}
+            branches={branches}
+            branchesError={repository.branchesError}
+            baseBranch={baseBranch}
+            branchCursor={branchCursor}
+            onSelectBranch={(index, branch) =>
+              appDispatch({ type: "select-branch", index, branch, baseBranch })
+            }
+            commits={commits}
+            commitsError={repository.commitsError}
+            hasMoreCommits={hasMoreCommits}
+            loadingMoreCommits={loadingMoreCommits}
+            agentFilter={agentFilter}
+            commitCursor={commitCursor}
+            onSelectCommit={(index, commit) =>
+              appDispatch({ type: "select-commit", index, commit })
+            }
+            files={files}
+            loading={loading}
+            error={error}
+            isStack={isStack}
+            commitGroups={commitGroups}
+            hiddenFiles={hiddenFiles}
+            fileCursor={fileCursor}
+            selectedPath={selectedPath}
+            filesView={filesView}
+            fileTree={fileTreeModel}
+            stackFileIndex={stackFileIndex}
+            onToggleFolder={(index, key) => {
+              appDispatch({ type: "toggle-folder", key });
+              appDispatch({ type: "set-cursor", panel: "files", index });
+            }}
+            onSelectFile={(index, path) =>
+              appDispatch({ type: "select-file", index, path })
+            }
+          />
 
-        <DiffPane
-          focusedPanel={focusedPanel}
-          diffRef={diffRef}
-          isStack={isStack}
-          commitGroups={commitGroups}
-          hiddenFiles={hiddenFiles}
-          selection={selection}
-          loading={loading}
-          error={error}
-          files={files}
-          selected={selected}
-          fileContext={fileContext}
-          diffView={diffView}
-          searchMatches={search.searchMatches}
-          currentMatch={search.currentMatch}
-          jump={search.jump}
-          changeOverview={search.changeOverview}
-        />
-      </div>
+          <DiffPane
+            focusedPanel={focusedPanel}
+            diffRef={diffRef}
+            isStack={isStack}
+            commitGroups={commitGroups}
+            hiddenFiles={hiddenFiles}
+            selection={selection}
+            loading={loading}
+            error={error}
+            files={files}
+            selected={selected}
+            fileContext={fileContext}
+            diffView={diffView}
+            searchMatches={search.searchMatches}
+            currentMatch={search.currentMatch}
+            jump={search.jump}
+            changeOverview={search.changeOverview}
+          />
+        </div>
+      )}
 
       <StatusBar
         selection={selection}
@@ -427,18 +454,25 @@ export function App() {
         baseBranch={baseBranch}
         worktree={repository.worktree}
         watchStatuses={watchStatuses}
+        codeView={
+          codeView
+            ? { side: codeViewSide, label: selectionLabel(selection) }
+            : null
+        }
       />
 
-      <AppDialogs
-        state={state}
-        appDispatch={appDispatch}
-        keymap={keymap}
-        noisePatterns={noisePatterns}
-        availableExtensions={filterInfo?.availableExtensions ?? []}
-        commits={commits}
-        hasMoreCommits={hasMoreCommits}
-        actions={actions}
-      />
+      {!codeView ? (
+        <AppDialogs
+          state={state}
+          appDispatch={appDispatch}
+          keymap={keymap}
+          noisePatterns={noisePatterns}
+          availableExtensions={filterInfo?.availableExtensions ?? []}
+          commits={commits}
+          hasMoreCommits={hasMoreCommits}
+          actions={actions}
+        />
+      ) : null}
     </div>
   );
 }

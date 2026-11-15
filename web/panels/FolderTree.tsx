@@ -20,6 +20,8 @@ export interface FolderTreeProps<T> {
     folder: FolderTreeFolder<T>,
     rowIndex: number,
   ) => void;
+  readonly folderClassName?: (folder: FolderTreeFolder<T>) => string;
+  readonly renderFolderExtra?: (folder: FolderTreeFolder<T>) => ReactNode;
   readonly renderFile: (
     file: FolderTreeFile<T>,
     state: FolderTreeFileRenderState,
@@ -35,6 +37,8 @@ export function FolderTree<T>({
   expanded,
   cursorIndex,
   onToggleFolder,
+  folderClassName,
+  renderFolderExtra,
   renderFile,
 }: FolderTreeProps<T>) {
   const rows = visibleFolderTreeRows(nodes, expanded);
@@ -62,6 +66,7 @@ export function FolderTree<T>({
               className={[
                 "folder-row",
                 rowIndex === cursorIndex ? "folder-row-cursor" : "",
+                folderClassName?.(row.node) ?? "",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -81,6 +86,7 @@ export function FolderTree<T>({
                 <span className="folder-review">
                   {row.node.reviewedCount} reviewed
                 </span>
+                {renderFolderExtra?.(row.node)}
               </span>
             </button>
           </li>

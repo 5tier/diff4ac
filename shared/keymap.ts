@@ -55,14 +55,29 @@ export type KeyAction =
   | { readonly type: "search-next"; readonly direction: 1 | -1 }
   | { readonly type: "search-clear" }
   | { readonly type: "help" }
-  | { readonly type: "close-help" };
+  | { readonly type: "close-help" }
+  | { readonly type: "toggle-code-view" }
+  | { readonly type: "code-view-side" }
+  | { readonly type: "code-view-move"; readonly direction: 1 | -1 }
+  | { readonly type: "code-view-expand" }
+  | { readonly type: "code-view-collapse" }
+  | { readonly type: "code-view-open" }
+  | { readonly type: "code-view-next-file"; readonly direction: 1 | -1 }
+  | { readonly type: "code-view-next-change"; readonly direction: 1 | -1 }
+  | { readonly type: "code-view-mark" }
+  | { readonly type: "code-view-finder" }
+  | { readonly type: "code-view-help" }
+  | { readonly type: "code-view-search-open" }
+  | { readonly type: "code-view-focus" }
+  | { readonly type: "code-view-focus-code" };
 
 export type KeyScope =
   | PanelId
   | "global"
   | "time-window"
   | "filters"
-  | "search";
+  | "search"
+  | "code-view";
 
 export interface KeyBinding {
   readonly id: string;
@@ -533,6 +548,142 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "Escape",
     label: "Close help",
     action: { type: "close-help" },
+  },
+  {
+    id: "global.toggleCodeView",
+    toolbarGroup: "view",
+    toolbarOrder: 5,
+    shortLabel: "Code",
+    panel: "global",
+    key: "o",
+    label: "Toggle Code View",
+    action: { type: "toggle-code-view" },
+  },
+  {
+    id: "codeView.side",
+    panel: "code-view",
+    key: "b",
+    label: "Toggle after / before Snapshot",
+    action: { type: "code-view-side" },
+  },
+  {
+    id: "codeView.moveDown",
+    panel: "code-view",
+    key: "j",
+    label: "Move down",
+    action: { type: "code-view-move", direction: 1 },
+  },
+  {
+    id: "codeView.moveUp",
+    panel: "code-view",
+    key: "k",
+    label: "Move up",
+    action: { type: "code-view-move", direction: -1 },
+  },
+  {
+    id: "codeView.expand",
+    panel: "code-view",
+    key: "l",
+    label: "Expand folder",
+    action: { type: "code-view-expand" },
+  },
+  {
+    id: "codeView.collapse",
+    panel: "code-view",
+    key: "h",
+    label: "Collapse folder or jump to parent",
+    action: { type: "code-view-collapse" },
+  },
+  {
+    id: "codeView.focus",
+    panel: "code-view",
+    key: "Tab",
+    label: "Switch tree / code focus",
+    action: { type: "code-view-focus" },
+  },
+  {
+    id: "codeView.focusCode",
+    panel: "code-view",
+    key: "0",
+    label: "Focus the code pane",
+    action: { type: "code-view-focus-code" },
+  },
+  {
+    id: "codeView.open",
+    panel: "code-view",
+    key: "Enter",
+    label: "Open file or toggle folder",
+    action: { type: "code-view-open" },
+  },
+  {
+    id: "codeView.nextFile",
+    panel: "code-view",
+    key: "}",
+    label: "Next changed file",
+    action: { type: "code-view-next-file", direction: 1 },
+  },
+  {
+    id: "codeView.previousFile",
+    panel: "code-view",
+    key: "{",
+    label: "Previous changed file",
+    action: { type: "code-view-next-file", direction: -1 },
+  },
+  {
+    id: "codeView.nextChange",
+    panel: "code-view",
+    key: "]",
+    label: "Next change block",
+    action: { type: "code-view-next-change", direction: 1 },
+  },
+  {
+    id: "codeView.previousChange",
+    panel: "code-view",
+    key: "[",
+    label: "Previous change block",
+    action: { type: "code-view-next-change", direction: -1 },
+  },
+  {
+    id: "codeView.mark",
+    panel: "code-view",
+    key: "m",
+    label: "Toggle Review Mark",
+    action: { type: "code-view-mark" },
+  },
+  {
+    id: "codeView.finder",
+    panel: "code-view",
+    key: "Ctrl+P",
+    label: "Find file",
+    action: { type: "code-view-finder" },
+  },
+  {
+    id: "codeView.search",
+    panel: "code-view",
+    key: "/",
+    label: "Search this file",
+    action: { type: "code-view-search-open" },
+  },
+  {
+    id: "codeView.searchNext",
+    panel: "code-view",
+    key: "n",
+    label: "Next search match",
+    action: { type: "search-next", direction: 1 },
+  },
+  {
+    id: "codeView.searchPrevious",
+    panel: "code-view",
+    key: "N",
+    label: "Previous search match",
+    action: { type: "search-next", direction: -1 },
+  },
+  {
+    id: "codeView.help",
+    panel: "code-view",
+    key: "?",
+    label: "Show Code View keybindings",
+    action: { type: "code-view-help" },
   },
 ];
 

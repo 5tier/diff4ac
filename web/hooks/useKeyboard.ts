@@ -22,6 +22,7 @@ export interface UseKeyboardParams {
   readonly filtersOpen: boolean;
   readonly searchOpen: boolean;
   readonly searchActive: boolean;
+  readonly enabled?: boolean;
 }
 
 export function useKeyboard(params: UseKeyboardParams): void {
@@ -43,7 +44,11 @@ export function useKeyboard(params: UseKeyboardParams): void {
         filtersOpen,
         searchOpen,
         searchActive,
+        enabled: isEnabled,
       } = latest.current;
+      if (!isEnabled) {
+        return;
+      }
 
       if (event.metaKey || event.ctrlKey || event.altKey) {
         return;

@@ -14,6 +14,7 @@ import {
   replaceChangeFile,
   setChangeFileReviewState,
 } from "../state/selection";
+import { topNewLineForDiff } from "../state/code-view";
 import {
   activeFileForAction,
   filesViewToggleActions,
@@ -340,6 +341,31 @@ export function useActions({
         case "toggle-diff-view":
           appDispatch({ type: "toggle-diff-view" });
           break;
+        case "code-view-side":
+          if (state.codeView) {
+            appDispatch({
+              type: "code-view-side",
+              side: state.codeViewSide === "after" ? "before" : "after",
+            });
+          }
+          break;
+        case "toggle-code-view": {
+          if (state.codeView) {
+            appDispatch({ type: "toggle-code-view" });
+            break;
+          }
+          const file = files.find(
+            (candidate) => candidate.path === state.selectedPath,
+          );
+          appDispatch({
+            type: "toggle-code-view",
+            path: file?.path ?? null,
+            line: file
+              ? topNewLineForDiff(diffRef.current, file, state.diffView)
+              : 1,
+          });
+          break;
+        }
         case "toggle-full-file":
           appDispatch({ type: "toggle-full-file" });
           break;

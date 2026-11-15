@@ -4,6 +4,7 @@ import type {
   ChangeSet,
   FilterRequest,
   Selection,
+  SnapshotSide,
   WatchStatus,
   WorktreeInfo,
 } from "../../shared/types";
@@ -34,6 +35,7 @@ export interface StatusBarProps {
   readonly baseBranch: BaseBranch | null;
   readonly worktree: WorktreeInfo | null;
   readonly watchStatuses: readonly WatchStatus[];
+  readonly codeView?: { readonly side: SnapshotSide; readonly label: string } | null;
 }
 
 export function StatusBar({
@@ -54,6 +56,7 @@ export function StatusBar({
   baseBranch,
   worktree,
   watchStatuses,
+  codeView,
 }: StatusBarProps) {
   const degradedWatch = watchStatuses.filter(
     (status) => status.mode !== "native",
@@ -62,6 +65,11 @@ export function StatusBar({
 
   return (
     <footer className="status-bar">
+      {codeView ? (
+        <span className="status-code-view" data-testid="code-view-status">
+          Code View · {codeView.side} · {codeView.label}
+        </span>
+      ) : null}
       <span className="status-badge" title={selectionLabel(selection)}>
         {selectionBadge(selection)}
       </span>
