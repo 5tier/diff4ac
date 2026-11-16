@@ -5,11 +5,8 @@ import {
   UnknownBranchError,
 } from "../repository/branches";
 import type { ChangeSet, Selection } from "../../shared/types";
-import {
-  buildChangeFilesForRange,
-  type ChangeFileOptions,
-  type DiffRange,
-} from "./files";
+import { buildChangeFilesForRange } from "./files";
+import type { ChangeFileOptions, DiffRange } from "./types";
 import { changeSetTotals } from "./totals";
 
 export class NoMergeBaseError extends Error {

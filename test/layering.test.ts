@@ -145,6 +145,52 @@ describe("layering", () => {
     expect(violations).toEqual([]);
   });
 
+  test("only the scope builders import changeset/files inside src/changeset", () => {
+    const allowed = new Set([
+      "src/changeset/scope.ts",
+      "src/changeset/branch.ts",
+      "src/changeset/commit.ts",
+      "src/changeset/commits.ts",
+      "src/changeset/pending.ts",
+    ]);
+    const violations: string[] = [];
+    for (const file of sourceFiles(join(ROOT, "src", "changeset"))) {
+      for (const { specifier } of importsIn(file)) {
+        if (!specifier.startsWith(".")) {
+          continue;
+        }
+        const target = resolve(dirname(file), specifier);
+        if (relative(ROOT, target) !== "src/changeset/files") {
+          continue;
+        }
+        const importer = relative(ROOT, file);
+        if (!allowed.has(importer)) {
+          violations.push(`${importer} imports changeset/files`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  test("changeset/parse.ts depends only on shared/", () => {
+    const file = join(ROOT, "src", "changeset", "parse.ts");
+    const violations: string[] = [];
+    for (const { specifier } of importsIn(file)) {
+      if (!specifier.startsWith(".")) {
+        violations.push(`parse.ts imports package "${specifier}"`);
+        continue;
+      }
+      const target = resolve(dirname(file), specifier);
+      const targetLayer = layerOf(target);
+      if (targetLayer !== "shared") {
+        violations.push(
+          `parse.ts imports ${targetLayer ?? "outside the repo"} "${specifier}"`,
+        );
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
   test("the removed shim and moved modules are gone", () => {
     expect(existsSync(join(ROOT, "web", "keymap.ts"))).toBe(false);
     expect(existsSync(join(ROOT, "src", "types.ts"))).toBe(false);

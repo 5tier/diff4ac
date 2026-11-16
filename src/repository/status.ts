@@ -1,10 +1,4 @@
-export function nulTokens(output: string): string[] {
-  const tokens = output.split("\0");
-  if (tokens.at(-1) === "") {
-    tokens.pop();
-  }
-  return tokens;
-}
+import { nulTokens } from "../../shared/nul-tokens";
 
 interface StatusEntry {
   readonly code: string;

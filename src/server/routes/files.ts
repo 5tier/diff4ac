@@ -1,4 +1,5 @@
-import { imageContentType, readContentAtRev } from "../../changeset/files";
+import { imageContentType } from "../../changeset/images";
+import { readContentAtRev } from "../../changeset/objects";
 import { buildScopedChangeFile } from "../../changeset/scope";
 import { isFileVisible } from "../../filters";
 import { annotateFile } from "../../review/marks";

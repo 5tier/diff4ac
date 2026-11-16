@@ -8,12 +8,10 @@ import {
   resolveSelectedCommits,
   resolveTimeWindowScope,
 } from "../changeset/commits";
-import {
-  emptyTreeRef,
-  listChangeRecords,
-  type DiffRange,
-  type FileStatusRecord,
-} from "../changeset/files";
+import { listChangeRecords } from "../changeset/files";
+import { emptyTreeRef } from "../changeset/objects";
+import type { FileStatusRecord } from "../changeset/parse";
+import type { DiffRange } from "../changeset/types";
 import {
   resolvePendingScope,
 } from "../changeset/pending";

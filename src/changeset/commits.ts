@@ -17,12 +17,9 @@ import type {
   WorktreeInfo,
 } from "../../shared/types";
 import { resolveCommitRange } from "./commit";
-import {
-  buildChangeFilesForRange,
-  emptyTreeRef,
-  type ChangeFileOptions,
-  type DiffRange,
-} from "./files";
+import { buildChangeFilesForRange } from "./files";
+import { emptyTreeRef } from "./objects";
+import type { ChangeFileOptions, DiffRange } from "./types";
 import { changeSetTotals } from "./totals";
 import { isContiguousCommitSelection } from "../../shared/changeset/selection";
 

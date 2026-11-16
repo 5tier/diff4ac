@@ -7,12 +7,9 @@ import type {
   ChangeTotals,
   CommitSummary,
 } from "../../shared/types";
-import {
-  buildChangeFilesForRange,
-  emptyTreeRef,
-  type ChangeFileOptions,
-  type DiffRange,
-} from "./files";
+import { buildChangeFilesForRange } from "./files";
+import { emptyTreeRef } from "./objects";
+import type { ChangeFileOptions, DiffRange } from "./types";
 import { changeSetTotals } from "./totals";
 
 export interface CommitFiles {

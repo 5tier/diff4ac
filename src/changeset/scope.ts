@@ -15,14 +15,10 @@ import {
   resolveSelectedCommits,
   resolveTimeWindowScope,
 } from "./commits";
-import {
-  buildChangeFiles,
-  listChangeRecords,
-  selectChangeRecord,
-  type ChangeFileOptions,
-  type DiffRange,
-  type FileStatusRecord,
-} from "./files";
+import { buildChangeFiles, listChangeRecords } from "./files";
+import { selectChangeRecord } from "./file-diff";
+import type { FileStatusRecord } from "./parse";
+import type { ChangeFileOptions, DiffRange } from "./types";
 import { buildPendingChangeSet, resolvePendingScope } from "./pending";
 
 export type ChangeSetScope =

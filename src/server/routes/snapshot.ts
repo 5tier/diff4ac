@@ -1,4 +1,4 @@
-import { imageContentType } from "../../changeset/files";
+import { imageContentType } from "../../changeset/images";
 import {
   parseSnapshotFileRequest,
   parseSnapshotPathsRequest,

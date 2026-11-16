@@ -3,8 +3,8 @@ import {
   gitBlobHash,
   objectFormat,
   readContentAtRev,
-  type FileStatusRecord,
-} from "./files";
+} from "./objects";
+import type { FileStatusRecord } from "./parse";
 import {
   pairRenames,
   type RenameCandidate,

@@ -3,14 +3,10 @@ import {
   type GitGateway,
 } from "../git/gateway";
 import type { ChangeSet } from "../../shared/types";
-import {
-  buildChangeFiles,
-  emptyTreeRef,
-  parseNameStatus,
-  type ChangeFileOptions,
-  type DiffRange,
-  type FileStatusRecord,
-} from "./files";
+import { buildChangeFiles } from "./files";
+import { emptyTreeRef } from "./objects";
+import { parseNameStatus, type FileStatusRecord } from "./parse";
+import type { ChangeFileOptions, DiffRange } from "./types";
 import { changeSetTotals } from "./totals";
 import {
   parseUnstagedDeletions,

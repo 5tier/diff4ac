@@ -5,7 +5,8 @@ import {
   realpathSync,
 } from "node:fs";
 import { resolve, sep } from "node:path";
-import { imageContentType, readContentAtRev } from "../changeset/files";
+import { imageContentType } from "../changeset/images";
+import { readContentAtRev } from "../changeset/objects";
 import { isBinaryContent } from "../changeset/rename-pairing";
 import type { GitGateway } from "../git/gateway";
 import type {
