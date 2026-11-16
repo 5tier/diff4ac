@@ -160,6 +160,9 @@ export function useChangeSet({
 
     request
       .then((loaded) => {
+        if (controller.signal.aborted) {
+          return;
+        }
         loadingRef.current = false;
         setChangeSet(loaded);
         setWorktree(loaded.worktree);
@@ -196,7 +199,10 @@ export function useChangeSet({
         setLoading(false);
       })
       .catch((reason: unknown) => {
-        if (reason instanceof DOMException && reason.name === "AbortError") {
+        if (
+          controller.signal.aborted ||
+          (reason instanceof DOMException && reason.name === "AbortError")
+        ) {
           return;
         }
 

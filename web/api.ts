@@ -62,6 +62,10 @@ function errorText(body: string): string {
   return body;
 }
 
+function aborted(): DOMException {
+  return new DOMException("The operation was aborted.", "AbortError");
+}
+
 async function getJson<T>(
   path: string,
   guard: Guard<T>,
@@ -74,13 +78,26 @@ async function getJson<T>(
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, errorText(await response.text()));
+    let failureBody: string;
+    try {
+      failureBody = await response.text();
+    } catch (error) {
+      if (signal?.aborted) {
+        throw aborted();
+      }
+      throw error;
+    }
+    throw new ApiError(response.status, errorText(failureBody));
   }
 
   let body: unknown;
   try {
     body = await response.json();
-  } catch {
+  } catch (error) {
+    // An abort during the body read is still an abort, not a contract failure.
+    if (signal?.aborted) {
+      throw aborted();
+    }
     throw new ApiError(0, `${path}: response is not valid JSON`, "contract");
   }
 

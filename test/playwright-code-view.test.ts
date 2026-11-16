@@ -430,6 +430,70 @@ describe("Code View", () => {
     expect(beforeRequests).toEqual([]);
   }, 60_000);
 
+  test("ignores a stale Pending failure after selecting a commit", async () => {
+    const session = await openPage();
+    await session.addInitScript(() => {
+      const original = globalThis.fetch.bind(globalThis);
+      globalThis.fetch = ((
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ): Promise<Response> => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : input.url;
+        if (!url.includes("/api/pending")) {
+          return original(input, init);
+        }
+        const encoder = new TextEncoder();
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode('{"selection":'));
+            init?.signal?.addEventListener(
+              "abort",
+              () => {
+                try {
+                  controller.error(new DOMException("Aborted", "AbortError"));
+                } catch {
+                  // The browser may already have cancelled the stream.
+                }
+              },
+              { once: true },
+            );
+          },
+        });
+        return Promise.resolve(
+          new Response(body, {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      }) as typeof fetch;
+    });
+    await session.reload();
+    await session.waitForSelector(".commit-row");
+
+    await session.keyboard.press("3");
+    await session.locator(".commit-row", { hasText: "second commit" }).click();
+    await session.waitForFunction(() =>
+      document.querySelector(".top-bar-mode")?.textContent?.startsWith("Commit"),
+    );
+    await session.waitForFunction(
+      () => document.querySelectorAll(".file-row").length > 0,
+      null,
+      { timeout: 10_000 },
+    );
+
+    expect(
+      await session.locator(".error").filter({ hasText: "not valid JSON" }).count(),
+    ).toBe(0);
+    expect(
+      await session.locator(".file-row", { hasText: "src/alpha.ts" }).count(),
+    ).toBeGreaterThan(0);
+  }, 60_000);
+
   test("returns to the review layout unchanged with o", async () => {
     const session = await openPage();
     await selectCommit(session, "second commit");
