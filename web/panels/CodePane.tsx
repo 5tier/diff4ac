@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, ReactNode, RefObject } from "react";
+import type { CSSProperties, RefObject } from "react";
 import type {
   ChangeFile,
   SnapshotFile,
@@ -7,8 +7,17 @@ import type {
 } from "../../shared/types";
 import type { ChangeOverview, OverviewMark } from "../../shared/diff/overview";
 import { ROW_HEIGHT } from "../DiffView";
+import {
+  highlightSegments,
+  type HighlightRange,
+} from "../../shared/diff/rows";
 import { OverviewRuler } from "../OverviewRuler";
-import { languageForPath, highlightLines } from "../highlight";
+import {
+  CODE_HIGHLIGHT_LINE_LIMIT,
+  codeLineCount,
+  languageForPath,
+  highlightLines,
+} from "../highlight";
 import {
   beforeChangeMarks,
   changeMarks,
@@ -69,34 +78,22 @@ function markOverview(
   };
 }
 
-function segmentsForLine(
-  line: string,
+function searchRangesForLine(
   matches: readonly CodeSearchMatch[],
   lineNumber: number,
-): ReactNode[] {
-  const ranges = matches
-    .filter((match) => match.line === lineNumber)
-    .sort((left, right) => left.start - right.start);
-  if (ranges.length === 0) {
-    return [line];
-  }
-  const nodes: ReactNode[] = [];
-  let cursor = 0;
-  ranges.forEach((range, index) => {
-    if (range.start > cursor) {
-      nodes.push(line.slice(cursor, range.start));
+  currentIndex: number,
+): HighlightRange[] {
+  const ranges: HighlightRange[] = [];
+  matches.forEach((match, index) => {
+    if (match.line === lineNumber) {
+      ranges.push({
+        start: match.start,
+        end: match.end,
+        current: index === currentIndex,
+      });
     }
-    nodes.push(
-      <mark className="code-search-match" key={index}>
-        {line.slice(range.start, range.end)}
-      </mark>,
-    );
-    cursor = range.end;
   });
-  if (cursor < line.length) {
-    nodes.push(line.slice(cursor));
-  }
-  return nodes;
+  return ranges;
 }
 
 interface CodeHighlightState {
@@ -121,7 +118,7 @@ function useCodeTokens(path: string, text: string | undefined): CodeHighlightSta
   const [state, setState] = useState<CodeHighlightState | null>(null);
 
   useEffect(() => {
-    if (!text) {
+    if (!text || codeLineCount(text) > CODE_HIGHLIGHT_LINE_LIMIT) {
       return;
     }
     let cancelled = false;
@@ -375,11 +372,7 @@ export function CodePane({
                       ]
                         .filter(Boolean)
                         .join(" ");
-                      const lineTokens =
-                        tokens?.lines?.[index]?.map((token) => ({
-                          text: token.content,
-                          style: token.style,
-                        })) ?? null;
+                      const lineTokens = tokens?.lines?.[index] ?? null;
                       return (
                         <div
                           key={index}
@@ -389,20 +382,32 @@ export function CodePane({
                         >
                           <span className="diff-line-number">{lineNumber}</span>
                           <span className="code-content">
-                            {lineTokens && searchMatches.length === 0
-                              ? lineTokens.map((token, tokenIndex) => (
-                                  <span
-                                    key={tokenIndex}
-                                    style={token.style as CSSProperties}
-                                  >
-                                    {token.text}
-                                  </span>
-                                ))
-                              : segmentsForLine(
-                                  line,
-                                  searchMatches,
-                                  lineNumber,
-                                )}
+                            {highlightSegments(
+                              line,
+                              lineTokens,
+                              null,
+                              searchRangesForLine(
+                                searchMatches,
+                                lineNumber,
+                                searchIndex,
+                              ),
+                            ).map((segment, segmentIndex) => (
+                              <span
+                                key={segmentIndex}
+                                className={[
+                                  "syntax-token",
+                                  segment.search ? "diff-search-match" : "",
+                                  segment.current
+                                    ? "diff-search-current"
+                                    : "",
+                                ]
+                                  .filter(Boolean)
+                                  .join(" ")}
+                                style={segment.style as CSSProperties}
+                              >
+                                {segment.text}
+                              </span>
+                            ))}
                           </span>
                         </div>
                       );

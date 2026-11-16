@@ -158,6 +158,8 @@ export function useSnapshot({
     }
 
     const controller = new AbortController();
+    // Do not show the previous file under the new path while this one loads.
+    setFile(null);
     setFileLoading(true);
     setFileError(null);
     setMissingPath(null);

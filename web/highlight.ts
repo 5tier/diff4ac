@@ -268,6 +268,19 @@ export async function highlightHunks(
   return Promise.all(hunks.map((hunk) => highlightHunk(hunk, language)));
 }
 
+/**
+ * Up to this many lines Code View highlights; above it the pane renders plain
+ * text. A 5,000-line TypeScript file takes about 170 ms to tokenize and about
+ * 740 ms from keypress to the first coloured frame in Chromium (roughly 70k
+ * token spans); that one-off cost on opening a large file is accepted.
+ */
+export const CODE_HIGHLIGHT_LINE_LIMIT = 5_000;
+
+export function codeLineCount(text: string): number {
+  const lines = text.split("\n");
+  return lines.at(-1) === "" ? lines.length - 1 : lines.length;
+}
+
 /** Syntax-highlight a whole file as one token list per line. */
 export async function highlightLines(
   text: string,

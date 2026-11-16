@@ -890,15 +890,18 @@ button {
   background: rgba(127, 135, 146, 0.06);
 }
 
+.syntax-token,
 .diff-token {
   color: var(--shiki-dark, inherit);
 }
 
+:root[data-theme="light"] .syntax-token,
 :root[data-theme="light"] .diff-token {
   color: var(--shiki-light, inherit);
 }
 
 @media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .syntax-token,
   :root:not([data-theme="dark"]) .diff-token {
     color: var(--shiki-light, inherit);
   }

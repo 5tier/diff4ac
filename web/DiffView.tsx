@@ -156,6 +156,7 @@ function HighlightedContent({
       {segments.map((segment, index) => {
         const classes = [
           "diff-token",
+          "syntax-token",
           segment.word ? wordClass : "",
           segment.search ? "diff-search-match" : "",
           segment.current ? "diff-search-current" : "",

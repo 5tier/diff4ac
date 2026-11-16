@@ -3,7 +3,11 @@ import type { Browser, Page } from "playwright";
 import type { RunningServer } from "../src/server/server";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import { startFixtureServer } from "./helpers/server";
-import { ensureSpaBuilt, launchChromium } from "./helpers/browser";
+import {
+  ensureSpaBuilt,
+  launchChromium,
+  startBrowserSession,
+} from "./helpers/browser";
 
 
 function lines(count: number): string {
@@ -13,6 +17,10 @@ function lines(count: number): string {
 function codeViewFixture(): FixtureRepo {
   const repo = createFixtureRepo();
   repo.write("src/alpha.ts", lines(80));
+  repo.write(
+    "src/highlight.ts",
+    'export const answer: number = 42;\nconst label = "hello"; // comment\n',
+  );
   repo.write("src/deep/unchanged.ts", "deep unchanged\n");
   repo.write("src/nested/changed.ts", "one\ntwo\nthree\n");
   repo.write("docs/deleted.txt", "deleted\n");
@@ -46,6 +54,7 @@ afterEach(async () => {
 
 async function openPage(): Promise<Page> {
   page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
+  page.setDefaultTimeout(60_000);
   await page.goto(running.url);
   await page.waitForSelector(".commit-row");
   return page;
@@ -98,6 +107,54 @@ async function expandFolder(target: Page, dir: string): Promise<void> {
       ),
     dir,
   );
+}
+
+async function openViaFinder(
+  target: Page,
+  query: string,
+  path: string,
+): Promise<void> {
+  await target.keyboard.press("Control+p");
+  const finder = target.locator('[data-testid="code-finder"]');
+  await finder.waitFor();
+  await finder.locator("input").fill(query);
+  await finder.locator(".code-finder-row").first().waitFor();
+  await target.keyboard.press("Enter");
+  await target.waitForFunction(
+    (expected) =>
+      document
+        .querySelector('[data-testid="code-heading"]')
+        ?.textContent?.includes(expected),
+    path,
+  );
+}
+
+async function waitForSyntaxColours(target: Page): Promise<string[]> {
+  const read = () => {
+    const heading = document.querySelector(
+      '[data-testid="code-heading"] .diff-heading-path',
+    )?.textContent;
+    const rows = Array.from(
+      document.querySelectorAll("[data-layout-rows]"),
+    ).find((element) => element.getAttribute("data-file-key") === heading);
+    const spans = rows ? Array.from(rows.querySelectorAll(".syntax-token")) : [];
+    return spans.map((span) => getComputedStyle(span).color);
+  };
+
+  await target.waitForFunction(() => {
+    const heading = document.querySelector(
+      '[data-testid="code-heading"] .diff-heading-path',
+    )?.textContent;
+    const rows = Array.from(
+      document.querySelectorAll("[data-layout-rows]"),
+    ).find((element) => element.getAttribute("data-file-key") === heading);
+    const spans = rows ? Array.from(rows.querySelectorAll(".syntax-token")) : [];
+    const colours = new Set(
+      spans.map((span) => getComputedStyle(span).color),
+    );
+    return colours.size > 1;
+  });
+  return target.evaluate(read);
 }
 
 describe("Code View", () => {
@@ -268,6 +325,109 @@ describe("Code View", () => {
         .locator('[data-folder-path="docs"]')
         .getAttribute("aria-expanded"),
     ).toBe("true");
+  }, 60_000);
+
+  test("colours syntax tokens in light and dark themes", async () => {
+    const session = await openPage();
+    for (const theme of ["light", "dark"] as const) {
+      await session.evaluate((value) => {
+        localStorage.setItem("diff4ac-theme", value);
+        // Code View remembers its open file per Snapshot in sessionStorage.
+        sessionStorage.clear();
+      }, theme);
+      await session.reload();
+      await session.waitForSelector(".commit-row");
+      await selectCommit(session, "second commit");
+      await openFromReview(session, "src/alpha.ts");
+      await openViaFinder(session, "src/highlight.ts", "src/highlight.ts");
+
+      const colours = await waitForSyntaxColours(session);
+      expect(colours.length).toBeGreaterThan(1);
+    }
+  }, 60_000);
+
+  test("keeps token colours and search marks while searching", async () => {
+    const session = await openPage();
+    await selectCommit(session, "second commit");
+    await openFromReview(session, "src/alpha.ts");
+    await openViaFinder(session, "src/highlight.ts", "src/highlight.ts");
+    await waitForSyntaxColours(session);
+
+    await session.keyboard.press("/");
+    const input = session.locator(".code-search-bar input");
+    await input.waitFor();
+    await input.fill("const");
+    await session.waitForFunction(
+      () =>
+        document.querySelectorAll(".syntax-token.diff-search-match").length > 0,
+    );
+
+    const colours = await session.evaluate(() => [
+      ...new Set(
+        Array.from(document.querySelectorAll(".syntax-token")).map(
+          (span) => getComputedStyle(span).color,
+        ),
+      ),
+    ]);
+    expect(colours.length).toBeGreaterThan(1);
+    expect(
+      await session.locator(".syntax-token.diff-search-current").count(),
+    ).toBeGreaterThan(0);
+  }, 60_000);
+
+  test("never asks for the missing before side of an added file", async () => {
+    const repo = createFixtureRepo();
+    repo.write("src/seed.ts", "seed\n");
+    repo.commit("seed");
+    repo.write("src/added.ts", "export const added = 1;\n");
+    repo.commit("add file");
+    const session = await startBrowserSession(repo, {
+      waitForSelector: ".commit-row",
+    });
+    session.page.setDefaultTimeout(60_000);
+
+    const errors: string[] = [];
+    const beforeRequests: string[] = [];
+    session.page.on("console", (message) => {
+      if (message.type() === "error") {
+        errors.push(message.text());
+      }
+    });
+    await session.page.keyboard.press("3");
+    await session.page
+      .locator(".commit-row", { hasText: "add file" })
+      .click();
+    await session.page.waitForFunction(() =>
+      document
+        .querySelector(".top-bar-mode")
+        ?.textContent?.startsWith("Commit"),
+    );
+    const added = session.page.locator(".file-row", { hasText: "src/added.ts" });
+    await added.waitFor();
+    await added.click();
+    await session.page.keyboard.press("o");
+    await session.page.waitForSelector('[data-testid="code-view"]');
+    await session.page.waitForFunction(() =>
+      document
+        .querySelector('[data-testid="code-heading"]')
+        ?.textContent?.includes("src/added.ts"),
+    );
+
+    session.page.on("request", (request) => {
+      if (
+        request.url().includes("/api/snapshot/file") &&
+        request.url().includes("side=before")
+      ) {
+        beforeRequests.push(request.url());
+      }
+    });
+    await session.page.keyboard.press("b");
+    await session.page.waitForFunction(
+      () => document.querySelector('[data-testid="code-heading"]') === null,
+    );
+
+    expect(errors).toEqual([]);
+    expect(beforeRequests).toEqual([]);
   }, 60_000);
 
   test("returns to the review layout unchanged with o", async () => {

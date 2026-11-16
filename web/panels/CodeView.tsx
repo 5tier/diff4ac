@@ -66,6 +66,19 @@ export function CodeView({
   const lineRef = useRef(state.codeViewLine);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const openFile = changeFileForPath(
+    files,
+    state.codeViewOpenPath ?? "",
+    state.codeViewSide,
+  );
+  // A file added in this Selection has no before-side object; requesting it
+  // only produces a 404. The Snapshot API represents after-side deletions in
+  // its response, so only the before side needs this guard.
+  const sideMissing =
+    state.codeViewSide === "before" &&
+    openFile !== null &&
+    (openFile.status === "added" || openFile.status === "untracked");
+
   const snapshot = useSnapshot({
     enabled: state.codeView,
     selection: changeSetSelection ?? state.selection,
@@ -74,7 +87,7 @@ export function CodeView({
     agent,
     side: state.codeViewSide,
     expanded: state.codeViewExpanded,
-    openPath: state.codeViewOpenPath,
+    openPath: sideMissing ? null : state.codeViewOpenPath,
     full: state.codeViewFull,
     refreshVersion,
     finderOpen: state.codeViewFinderOpen,
@@ -94,11 +107,6 @@ export function CodeView({
     [expanded, nodes],
   );
   const row = rows[state.codeViewCursor] ?? null;
-  const openFile = changeFileForPath(
-    files,
-    state.codeViewOpenPath ?? "",
-    state.codeViewSide,
-  );
   const changedPaths = useMemo(() => {
     const paths = files.map((file) =>
       state.codeViewSide === "before"
@@ -109,13 +117,12 @@ export function CodeView({
       left.localeCompare(right),
     );
   }, [files, state.codeViewSide]);
+  const currentFile =
+    snapshot.file?.path === state.codeViewOpenPath ? snapshot.file : null;
   const rawUrl = state.codeViewOpenPath
     ? snapshotRawUrl(snapshot.target, state.codeViewSide, state.codeViewOpenPath)
     : null;
-  const searchMatches = codeSearchMatches(
-    snapshot.file?.text,
-    searchQuery,
-  );
+  const searchMatches = codeSearchMatches(currentFile?.text, searchQuery);
 
   useCodeViewMemory({
     selection: changeSetSelection ?? state.selection,
@@ -143,6 +150,13 @@ export function CodeView({
       message: "That file is not in this Snapshot.",
     });
   }, [appDispatch, snapshot.missingPath, state.codeViewOpenPath]);
+
+  useEffect(() => {
+    if (!sideMissing || !state.codeViewOpenPath) {
+      return;
+    }
+    appDispatch({ type: "code-view-open", path: null });
+  }, [appDispatch, sideMissing, state.codeViewOpenPath]);
 
   useEffect(() => {
     if (state.codeViewCursor >= rows.length) {
@@ -366,7 +380,7 @@ export function CodeView({
       </aside>
 
       <CodePane
-        file={snapshot.file}
+        file={currentFile}
         changeFile={openFile}
         side={state.codeViewSide}
         path={state.codeViewOpenPath}
