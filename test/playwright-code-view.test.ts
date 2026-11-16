@@ -1,38 +1,10 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { chromium, type Browser, type Page } from "playwright";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
+import type { Browser, Page } from "playwright";
 import type { RunningServer } from "../src/server/server";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import { startFixtureServer } from "./helpers/server";
+import { ensureSpaBuilt, launchChromium } from "./helpers/browser";
 
-const PROJECT_ROOT = join(import.meta.dir, "..");
-
-async function launchChromium(): Promise<Browser> {
-  const attempts: Array<() => Promise<Browser>> = [
-    () => chromium.launch({ headless: true }),
-    () => chromium.launch({ headless: true, channel: "chrome" }),
-    () =>
-      chromium.launch({
-        headless: true,
-        executablePath:
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-      }),
-  ];
-  let lastError: unknown;
-  for (const attempt of attempts) {
-    try {
-      return await attempt();
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw new Error(
-    `could not launch a browser: ${
-      lastError instanceof Error ? lastError.message : String(lastError)
-    }`,
-  );
-}
 
 function lines(count: number): string {
   return `${Array.from({ length: count }, (_, index) => `line ${index + 1}`).join("\n")}\n`;
@@ -62,26 +34,11 @@ let browser: Browser;
 let page: Page;
 
 beforeAll(async () => {
-  if (!existsSync(join(PROJECT_ROOT, "dist", "web", "assets", "main.js"))) {
-    const build = Bun.spawnSync({
-      cmd: [process.execPath, join(PROJECT_ROOT, "scripts", "build-web.ts")],
-      cwd: PROJECT_ROOT,
-      stdin: "ignore",
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    if (build.exitCode !== 0) {
-      throw new Error(`building the SPA failed: ${build.stderr.toString()}`);
-    }
-  }
+  await ensureSpaBuilt();
   repo = codeViewFixture();
   running = (await startFixtureServer({ repo })).running;
   browser = await launchChromium();
 }, 120_000);
-
-afterAll(async () => {
-  await browser?.close().catch(() => {});
-});
 
 afterEach(async () => {
   await page?.close().catch(() => {});
@@ -100,7 +57,11 @@ async function selectCommit(target: Page, message: string): Promise<void> {
   await target.waitForFunction(() =>
     document.querySelector(".top-bar-mode")?.textContent?.startsWith("Commit"),
   );
-  await target.waitForSelector(".file-row");
+  // The previous selection's rows can still be in the list while the commit
+  // Change Set loads, so wait for a file this commit is known to contain.
+  await target
+    .locator(".file-row", { hasText: "src/alpha.ts" })
+    .waitFor();
 }
 
 async function openFromReview(target: Page, path: string): Promise<void> {

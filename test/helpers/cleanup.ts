@@ -12,6 +12,7 @@ export const TEMP_RUN_PREFIX = `diff4ac-${RUN_ID}-`;
 type Cleanup = () => void;
 
 const cleanups: Cleanup[] = [];
+const suiteCleanups: Cleanup[] = [];
 let testCleanupStart = 0;
 
 function taggedPrefix(prefix: string): string {
@@ -24,6 +25,10 @@ function taggedPrefix(prefix: string): string {
 /** Register work that must run before its temp directories are removed. */
 export function registerCleanup(cleanup: Cleanup): void {
   cleanups.push(cleanup);
+}
+
+export function registerSuiteCleanup(cleanup: Cleanup): void {
+  suiteCleanups.push(cleanup);
 }
 
 export function createTempDirectory(prefix: string): string {
@@ -67,6 +72,18 @@ export function cleanupTest(): void {
 /** Run every remaining cleanup, including suite-scoped fixtures. */
 export function cleanupAll(): void {
   runFrom(0);
+  for (let index = suiteCleanups.length - 1; index >= 0; index--) {
+    const cleanup = suiteCleanups[index];
+    if (!cleanup) {
+      continue;
+    }
+    try {
+      cleanup();
+    } catch {
+      // Best effort.
+    }
+  }
+  suiteCleanups.length = 0;
   testCleanupStart = 0;
 }
 

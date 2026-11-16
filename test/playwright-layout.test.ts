@@ -1,56 +1,17 @@
 import { beforeAll, expect, test } from "bun:test";
 import { createTempDirectory } from "./helpers/cleanup";
-import { existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { chromium, type Browser, type Page } from "playwright";
+import { rmSync } from "node:fs";
+import type { Browser, Page } from "playwright";
 import { startServer, type RunningServer } from "../src/server/server";
 import { createFixtureRepo, type FixtureRepo } from "./helpers/fixture";
 import { createTempHome, type TempHome } from "./helpers/home";
+import {
+  ensureSpaBuilt,
+  launchChromium,
+} from "./helpers/browser";
 
-const PROJECT_ROOT = join(import.meta.dir, "..");
-
-async function launchChromium(): Promise<Browser> {
-  const attempts: Array<() => Promise<Browser>> = [
-    () => chromium.launch({ headless: true }),
-    () => chromium.launch({ headless: true, channel: "chrome" }),
-    () =>
-      chromium.launch({
-        headless: true,
-        executablePath:
-          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-      }),
-  ];
-
-  let lastError: unknown;
-  for (const attempt of attempts) {
-    try {
-      return await attempt();
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw new Error(
-    `could not launch a Playwright browser; run \`bunx playwright install chromium\`: ${
-      lastError instanceof Error ? lastError.message : String(lastError)
-    }`,
-  );
-}
-
-beforeAll(() => {
-  if (existsSync(join(PROJECT_ROOT, "dist", "web", "assets", "main.js"))) {
-    return;
-  }
-  const build = Bun.spawnSync({
-    cmd: [process.execPath, join(PROJECT_ROOT, "scripts", "build-web.ts")],
-    cwd: PROJECT_ROOT,
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  if (build.exitCode !== 0) {
-    throw new Error(`building the SPA failed: ${build.stderr.toString()}`);
-  }
+beforeAll(async () => {
+  await ensureSpaBuilt();
 }, 30_000);
 
 async function waitForLayoutStable(page: Page): Promise<void> {
@@ -711,13 +672,6 @@ test(
       if (page) {
         try {
           await page.close();
-        } catch {
-          // Already closed.
-        }
-      }
-      if (browser) {
-        try {
-          await browser.close();
         } catch {
           // Already closed.
         }
