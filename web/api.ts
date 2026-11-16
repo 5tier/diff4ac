@@ -41,6 +41,27 @@ function contractFailure(
   );
 }
 
+/**
+ * JSON error endpoints answer with `{ error }`; show that sentence rather than
+ * the raw JSON. Plain-text errors pass through unchanged.
+ */
+function errorText(body: string): string {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (
+      parsed !== null &&
+      typeof parsed === "object" &&
+      "error" in parsed &&
+      typeof (parsed as { readonly error?: unknown }).error === "string"
+    ) {
+      return (parsed as { readonly error: string }).error;
+    }
+  } catch {
+    // Not JSON, so the body is already the message.
+  }
+  return body;
+}
+
 async function getJson<T>(
   path: string,
   guard: Guard<T>,
@@ -53,7 +74,7 @@ async function getJson<T>(
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, await response.text());
+    throw new ApiError(response.status, errorText(await response.text()));
   }
 
   let body: unknown;
@@ -418,7 +439,7 @@ export async function setReviewMark(
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, await response.text());
+    throw new ApiError(response.status, errorText(await response.text()));
   }
 
   let body: unknown;

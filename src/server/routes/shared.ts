@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NonContiguousNetDiffError } from "../../changeset/commits";
 import { NoMergeBaseError } from "../../changeset/branch";
 import { applyFilters } from "../../filters";
@@ -14,11 +15,21 @@ import type { RequestContext } from "../context";
 import { json, text } from "../http";
 import { parseFilterSettings } from "../query";
 
-function logGitFailure(error: unknown): void {
+function logGitFailure(id: string, error: unknown): void {
   console.error(
-    "diff4ac: request failed",
+    `diff4ac: request failed [${id}]`,
     error instanceof Error ? (error.stack ?? error.message) : String(error),
   );
+}
+
+/**
+ * Unexpected failures get a short id so the browser message can point at the
+ * detailed stderr log line without exposing git arguments, stderr or paths.
+ */
+function internalErrorMessage(error: unknown): string {
+  const id = randomUUID().slice(0, 8);
+  logGitFailure(id, error);
+  return `Internal error (id ${id}). See the diff4ac terminal for details.`;
 }
 
 export function gitApiFailure(error: unknown): Response {
@@ -40,13 +51,7 @@ export function gitApiFailure(error: unknown): Response {
   if (error instanceof NoMergeBaseError) {
     return text(error.message, 409);
   }
-  logGitFailure(error);
-  return json(
-    {
-      error: error instanceof Error ? error.message : String(error),
-    },
-    500,
-  );
+  return text(internalErrorMessage(error), 500);
 }
 
 /**
@@ -54,13 +59,7 @@ export function gitApiFailure(error: unknown): Response {
  * Only Worktrees uses this today.
  */
 export function jsonGitFailure(error: unknown): Response {
-  logGitFailure(error);
-  return json(
-    {
-      error: error instanceof Error ? error.message : String(error),
-    },
-    500,
-  );
+  return json({ error: internalErrorMessage(error) }, 500);
 }
 
 export function gitForRequest(
