@@ -39,17 +39,21 @@ export async function resolvePendingScope(
     : null;
 
   const [nameStatusOutput, statusOutput] = await Promise.all([
-    git.text([
-      "diff",
-      baseRef,
-      "--name-status",
-      "-z",
-      "--find-renames",
-      "--no-color",
-      "--no-ext-diff",
-    ]),
+    git.text(
+      [
+        "diff",
+        baseRef,
+        "--name-status",
+        "-z",
+        "--find-renames",
+        "--no-color",
+        "--no-ext-diff",
+      ],
+      { emptyOk: true },
+    ),
     git.text(["status", "--porcelain=v1", "-z", "--untracked-files=all"], {
       timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+      emptyOk: true,
     }),
   ]);
 

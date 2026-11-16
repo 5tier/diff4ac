@@ -39,7 +39,7 @@ async function blobHashAt(
 ): Promise<string | null> {
   const result = await git.run(
     ["rev-parse", "--verify", "--quiet", `${rev}:${path}`],
-    { allowExitCodes: [0, 1], retryOnEmpty: true },
+    { allowExitCodes: [0, 1] },
   );
   if (result.exitCode !== 0) {
     return null;
@@ -88,13 +88,16 @@ async function indexBlobHash(
     return null;
   }
 
-  const { stdout } = await git.run([
-    "ls-files",
-    "--stage",
-    "-z",
-    "--",
-    path,
-  ]);
+  const { stdout } = await git.run(
+    [
+      "ls-files",
+      "--stage",
+      "-z",
+      "--",
+      path,
+    ],
+    { emptyOk: true },
+  );
   for (const token of nulTokens(stdout.toString("utf8"))) {
     const tab = token.indexOf("\t");
     if (tab === -1 || token.slice(tab + 1) !== path) {
@@ -116,7 +119,10 @@ export async function indexEntryMode(
     return null;
   }
 
-  const { stdout } = await git.run(["ls-files", "--stage", "-z", "--", path]);
+  const { stdout } = await git.run(
+    ["ls-files", "--stage", "-z", "--", path],
+    { emptyOk: true },
+  );
   for (const token of nulTokens(stdout.toString("utf8"))) {
     const tab = token.indexOf("\t");
     if (tab === -1 || token.slice(tab + 1) !== path) {
@@ -162,6 +168,7 @@ async function gitBlobContent(
 ): Promise<Buffer | null> {
   const result = await git.run(["cat-file", "-p", hash], {
     allowExitCodes: [0, 128],
+    emptyOk: true,
   });
   return result.exitCode === 0 ? result.stdout : null;
 }
@@ -172,7 +179,6 @@ async function gitBlobSize(
 ): Promise<number | null> {
   const result = await git.run(["cat-file", "-s", hash], {
     allowExitCodes: [0, 128],
-    retryOnEmpty: true,
   });
   if (result.exitCode !== 0) {
     return null;
@@ -235,7 +241,6 @@ export async function resolveBlobInfo(
       .join("");
     const { stdout } = await git.run(["cat-file", "--batch-check"], {
       input,
-      retryOnEmpty: true,
       timeoutMs: GIT_HEAVY_TIMEOUT_MS,
     });
     const lines = stdout.toString("utf8").split("\n");

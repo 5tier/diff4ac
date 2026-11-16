@@ -19,13 +19,16 @@ async function commitPaths(
     return cached;
   }
 
-  const output = await git.text([
-    "ls-tree",
-    "-r",
-    "-z",
-    "--name-only",
-    rev,
-  ]);
+  const output = await git.text(
+    [
+      "ls-tree",
+      "-r",
+      "-z",
+      "--name-only",
+      rev,
+    ],
+    { emptyOk: true },
+  );
   const paths = output.split("\0").filter(Boolean);
   commitPathCache.set(key, paths);
   return paths;
@@ -33,8 +36,10 @@ async function commitPaths(
 
 async function worktreePaths(git: GitGateway): Promise<readonly string[]> {
   const [tracked, untracked] = await Promise.all([
-    git.text(["ls-files", "-z"]),
-    git.text(["ls-files", "--others", "--exclude-standard", "-z"]),
+    git.text(["ls-files", "-z"], { emptyOk: true }),
+    git.text(["ls-files", "--others", "--exclude-standard", "-z"], {
+      emptyOk: true,
+    }),
   ]);
   return [
     ...new Set(

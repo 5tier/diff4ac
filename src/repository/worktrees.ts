@@ -115,12 +115,15 @@ export async function primaryWorktreeRoot(git: GitGateway): Promise<string> {
 
 async function pendingCount(path: string): Promise<number> {
   const worktreeGit = await GitGateway.open(path);
-  const status = await worktreeGit.text([
-    "status",
-    "--porcelain=v1",
-    "-z",
-    "--untracked-files=all",
-  ]);
+  const status = await worktreeGit.text(
+    [
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+    ],
+    { emptyOk: true },
+  );
   return countPendingFiles(status);
 }
 

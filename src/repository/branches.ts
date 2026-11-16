@@ -126,11 +126,14 @@ export async function listBranches(
 
   const [baseBranch, output] = await Promise.all([
     detectBaseBranch(git, baseBranchOverride),
-    git.text([
-      "for-each-ref",
-      "--format=%(HEAD)%00%(refname:short)%00%(objectname)%00%(objectname:short)",
-      "refs/heads",
-    ]),
+    git.text(
+      [
+        "for-each-ref",
+        "--format=%(HEAD)%00%(refname:short)%00%(objectname)%00%(objectname:short)",
+        "refs/heads",
+      ],
+      { emptyOk: true },
+    ),
   ]);
 
   return {

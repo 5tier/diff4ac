@@ -40,7 +40,6 @@ export async function assertCommitsExist(
   const input = unique.map((rev) => `${rev}^{commit}\n`).join("");
   const { stdout } = await git.run(["cat-file", "--batch-check"], {
     input,
-    retryOnEmpty: true,
     timeoutMs: GIT_HEAVY_TIMEOUT_MS,
   });
   const lines = stdout.toString("utf8").split("\n");
@@ -234,6 +233,7 @@ export async function listCommits(
 
   const output = await git.text(args, {
     timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+    emptyOk: true,
   });
   const parsed = parseCommitLog(
     output,
@@ -278,6 +278,7 @@ export async function listCommitsInWindow(
 
   const output = await git.text(args, {
     timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+    emptyOk: true,
   });
   let commits = parseCommitLog(
     output,

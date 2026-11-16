@@ -13,12 +13,18 @@ export interface GitRunOptions {
   readonly input?: string | Uint8Array;
   /** Kill the subprocess after this long. Defaults to 30 s. */
   readonly timeoutMs?: number;
-  /** Treat empty stdout from a successful command as a failure worth retrying. */
-  readonly retryOnEmpty?: boolean;
+  /**
+   * Empty stdout from a successful command is legitimate. Without this, an
+   * exit-0 empty result is retried once and then fails with
+   * EmptyGitOutputError.
+   */
+  readonly emptyOk?: boolean;
 }
 
 export const GIT_TIMEOUT_MS = 8_000;
 export const GIT_HEAVY_TIMEOUT_MS = 30_000;
+/** After git exits, how long to wait for Bun to deliver the stream EOFs. */
+const GIT_EOF_GRACE_MS = 300;
 const DEFAULT_GIT_TIMEOUT_MS = GIT_TIMEOUT_MS;
 const MAX_CONCURRENT_GIT = 32;
 let activeGitProcesses = 0;
@@ -72,6 +78,18 @@ export class GitTimeoutError extends Error {
   ) {
     super(`git ${args.join(" ")} timed out after ${timeoutMs} ms`);
     this.name = "GitTimeoutError";
+  }
+}
+
+class GitLostOutputError extends Error {
+  constructor(
+    readonly args: readonly string[],
+    readonly diagnostics: GitTimeoutDiagnostics,
+  ) {
+    super(
+      `git ${args.join(" ")} exited but its output pipes never closed`,
+    );
+    this.name = "GitLostOutputError";
   }
 }
 
@@ -303,6 +321,36 @@ function assertInside(directory: string, relativePath: string): void {
   }
 }
 
+function diagnosticsFor(
+  proc: Bun.Subprocess<"pipe", "pipe", "pipe"> | null,
+  startedAt: number,
+  exitedResolved: boolean,
+  stdoutEof: boolean,
+  stderrEof: boolean,
+): GitTimeoutDiagnostics {
+  const pid = proc?.pid ?? null;
+  let processAlive = false;
+  if (pid !== null) {
+    try {
+      process.kill(pid, 0);
+      processAlive = true;
+    } catch {
+      processAlive = false;
+    }
+  }
+  return {
+    pid,
+    exitCode: proc?.exitCode ?? null,
+    signalCode: proc?.signalCode ?? null,
+    killed: proc?.killed ?? false,
+    exitedResolved,
+    stdoutEof,
+    stderrEof,
+    processAlive,
+    elapsedMs: Math.round(performance.now() - startedAt),
+  };
+}
+
 async function runGitOnce(
   args: readonly string[],
   options: GitRunOptions,
@@ -352,43 +400,128 @@ async function runGitOnce(
     let stdoutEof = false;
     let stderrEof = false;
     let exitedResolved = false;
-    const readers = Promise.all([
-      new Response(proc.stdout).arrayBuffer().then((buffer) => {
+    // Bun can lose the stream objects themselves under load; treat that like
+    // any other pipe loss so the call is retried instead of crashing.
+    if (!proc.stdout || !proc.stderr) {
+      throw new GitReadError(
+        safeArgs,
+        new Error("git subprocess is missing its output pipes"),
+      );
+    }
+
+    const stdoutPromise = new Response(proc.stdout)
+      .arrayBuffer()
+      .then((buffer) => {
         stdoutEof = true;
         return buffer;
-      }),
-      new Response(proc.stderr).text().then((text) => {
-        stderrEof = true;
-        return text;
-      }),
+      });
+
+    // Read stderr by hand so a pipe held open after git exits can still return
+    // the bytes git already wrote.
+    const stderrChunks: Uint8Array[] = [];
+    let stderrForced = false;
+    let resolveStderr!: () => void;
+    let rejectStderr!: (error: unknown) => void;
+    const stderrDone = new Promise<void>((resolve, reject) => {
+      resolveStderr = resolve;
+      rejectStderr = reject;
+    });
+    const stderrReader = proc.stderr.getReader();
+    void (async () => {
+      try {
+        for (;;) {
+          const { done, value } = await stderrReader.read();
+          if (done) {
+            break;
+          }
+          if (value) {
+            stderrChunks.push(value);
+          }
+        }
+        if (!stderrForced) {
+          stderrEof = true;
+        }
+        resolveStderr();
+      } catch (error) {
+        if (stderrForced) {
+          resolveStderr();
+          return;
+        }
+        rejectStderr(error);
+      }
+    })();
+    const stderrText = (): string =>
+      Buffer.concat(stderrChunks).toString("utf8");
+    const forceStderr = (): void => {
+      if (stderrForced) {
+        return;
+      }
+      stderrForced = true;
+      stderrEof = true;
+      resolveStderr();
+      void stderrReader.cancel().catch(() => {});
+    };
+
+    const readers = Promise.all([
+      stdoutPromise,
+      stderrDone,
       proc.exited.then((code) => {
         exitedResolved = true;
         return code;
       }),
     ]);
+    // If this promise loses the race after another one rejected, its later
+    // rejection must not surface as unhandled.
+    readers.catch(() => {});
+
+    let graceTimer: ReturnType<typeof setTimeout> | null = null;
+    let settled = false;
+    const lostOutput = new Promise<never>((_resolve, reject) => {
+      void proc?.exited.then(() => {
+        exitedResolved = true;
+        if (settled || (stdoutEof && stderrEof)) {
+          return;
+        }
+        graceTimer = setTimeout(() => {
+          if (settled) {
+            return;
+          }
+          if (!stdoutEof) {
+            const diagnostics = diagnosticsFor(
+              proc,
+              startedAt,
+              exitedResolved,
+              stdoutEof,
+              stderrEof,
+            );
+            console.error(
+              `diff4ac: git lost output ${safeArgs.join(" ")}`,
+              JSON.stringify(diagnostics),
+            );
+            reject(new GitLostOutputError(safeArgs, diagnostics));
+            return;
+          }
+          if (!stderrEof) {
+            console.error(`diff4ac: git lost stderr ${safeArgs.join(" ")}`);
+            forceStderr();
+          }
+        }, GIT_EOF_GRACE_MS);
+      });
+    });
+    // A lost pipe loses the race when the timeout or a reader fails first;
+    // its later rejection must not surface as unhandled.
+    lostOutput.catch(() => {});
+
     const timeout = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
         const pid = proc?.pid ?? null;
-        let processAlive = false;
-        if (pid !== null) {
-          try {
-            process.kill(pid, 0);
-            processAlive = true;
-          } catch {
-            processAlive = false;
-          }
-        }
-        const diagnostics: GitTimeoutDiagnostics = {
-          pid,
-          exitCode: proc?.exitCode ?? null,
-          signalCode: proc?.signalCode ?? null,
-          killed: proc?.killed ?? false,
+        const diagnostics = diagnosticsFor(
+          proc,
+          startedAt,
           exitedResolved,
           stdoutEof,
           stderrEof,
-          processAlive,
-          elapsedMs: Math.round(performance.now() - startedAt),
-        };
+        );
         let ps = "";
         if (pid !== null) {
           try {
@@ -420,15 +553,26 @@ async function runGitOnce(
     let stderr: string;
     let exitCode: number;
     try {
-      [stdoutBuffer, stderr, exitCode] = await Promise.race([
+      [stdoutBuffer, , exitCode] = await Promise.race([
         readers,
         timeout,
+        lostOutput,
       ]);
+      stderr = stderrText();
     } catch (error) {
       if (error instanceof GitTimeoutError) {
         throw error;
       }
+      if (error instanceof GitLostOutputError) {
+        throw error;
+      }
       throw new GitReadError(safeArgs, error);
+    } finally {
+      settled = true;
+      if (graceTimer !== null) {
+        clearTimeout(graceTimer);
+        graceTimer = null;
+      }
     }
 
     if (!allowExitCodes.includes(exitCode)) {
@@ -455,21 +599,24 @@ async function runGitOnce(
   }
 }
 
-function shouldRetryGit(error: unknown): boolean {
+/** Cheap Bun-pipe flukes get two retries; timeouts keep their tighter budget. */
+const TRANSIENT_RETRIES = 2;
+
+function shouldRetryGit(error: unknown, attempt: number): boolean {
   // Bun 1.4.0-canary.1 occasionally loses a subprocess pipe under load
   // (`EBADF: bad file descriptor, recv`) and git can exit 141 (SIGPIPE).
-  // Short read-only calls are also retried once if they time out: the
-  // diagnostics above show whether git had already exited and Bun lost the
-  // pipe event, in which case a fresh process succeeds. Heavy log/diff calls
-  // opt into the long timeout and are not retried, to bound request latency.
-  if (error instanceof GitReadError) {
-    return true;
-  }
-  if (error instanceof GitError && error.exitCode === 141) {
-    return true;
+  // These cheap failures get two retries because two lost pipes in a row
+  // have been observed. Short read-only calls time out once; heavy log/diff
+  // calls opt into the long timeout and are not retried.
+  if (
+    error instanceof GitReadError ||
+    error instanceof GitLostOutputError ||
+    (error instanceof GitError && error.exitCode === 141)
+  ) {
+    return attempt < TRANSIENT_RETRIES;
   }
   if (error instanceof GitTimeoutError) {
-    return error.timeoutMs <= GIT_TIMEOUT_MS;
+    return error.timeoutMs <= GIT_TIMEOUT_MS && attempt < 1;
   }
   return false;
 }
@@ -481,15 +628,15 @@ async function runGit(
 ): Promise<GitResult> {
   const safeArgs = withDiffSafetyFlags(args);
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; ; attempt++) {
     try {
       const result = await runGitOnce(args, options, readOnly);
       if (
-        options.retryOnEmpty &&
+        !options.emptyOk &&
         result.exitCode === 0 &&
         result.stdout.length === 0
       ) {
-        if (attempt === 0) {
+        if (attempt < TRANSIENT_RETRIES) {
           console.error(
             `diff4ac: retrying empty git output: git ${safeArgs.join(" ")}`,
           );
@@ -499,7 +646,7 @@ async function runGit(
       }
       return result;
     } catch (error) {
-      if (attempt === 0 && shouldRetryGit(error)) {
+      if (shouldRetryGit(error, attempt)) {
         console.error(
           `diff4ac: retrying git after ${
             error instanceof Error ? error.name : String(error)
@@ -510,8 +657,6 @@ async function runGit(
       throw error;
     }
   }
-
-  throw new Error("unreachable: git retry loop exited");
 }
 
 function directoryFor(path: string): string {
@@ -537,7 +682,6 @@ export class GitGateway {
     try {
       const { stdout } = await runGit(["rev-parse", "--show-toplevel"], {
         cwd,
-        retryOnEmpty: true,
       });
       const root = stdout.toString("utf8").trim();
       if (!root) {
@@ -604,6 +748,7 @@ export class GitGateway {
         cwd: directory,
         allowExitCodes: [0, 1],
         timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+        emptyOk: true,
       },
       { allowNoIndex: true },
     );
@@ -636,6 +781,7 @@ export class GitGateway {
         cwd: this.worktreeRoot,
         allowExitCodes: [0, 1],
         timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+        emptyOk: true,
       },
       { allowNoIndex: true },
     );
@@ -644,7 +790,6 @@ export class GitGateway {
   async hasHead(): Promise<boolean> {
     const result = await this.run(["rev-parse", "--verify", "--quiet", "HEAD"], {
       allowExitCodes: [0, 1],
-      retryOnEmpty: true,
     });
     return result.exitCode === 0;
   }
@@ -656,6 +801,6 @@ export class GitGateway {
     if (result.exitCode !== 0) {
       return "HEAD";
     }
-    return result.stdout.toString("utf8").trim() || "HEAD";
+    return result.stdout.toString("utf8").trim();
   }
 }

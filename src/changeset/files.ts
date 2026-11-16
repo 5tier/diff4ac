@@ -89,13 +89,16 @@ export async function buildChangeFiles(
   records: readonly FileStatusRecord[],
   options: ChangeFileOptions = {},
 ): Promise<ChangeFile[]> {
-  const { stdout } = await git.run([
-    "diff",
-    ...rangeArgs(range),
-    "--numstat",
-    "-z",
-    "--find-renames",
-  ]);
+  const { stdout } = await git.run(
+    [
+      "diff",
+      ...rangeArgs(range),
+      "--numstat",
+      "-z",
+      "--find-renames",
+    ],
+    { emptyOk: true },
+  );
   const numstat = parseNumstat(stdout.toString("utf8"));
   const format = await objectFormat(git);
   const threshold = options.largeDiffThreshold ?? LARGE_DIFF_LINE_LIMIT;
@@ -240,15 +243,18 @@ export async function listChangeRecords(
   git: GitGateway,
   range: DiffRange,
 ): Promise<FileStatusRecord[]> {
-  const nameStatusOutput = await git.text([
-    "diff",
-    ...rangeArgs(range),
-    "--name-status",
-    "-z",
-    "--find-renames",
-    "--no-color",
-    "--no-ext-diff",
-  ]);
+  const nameStatusOutput = await git.text(
+    [
+      "diff",
+      ...rangeArgs(range),
+      "--name-status",
+      "-z",
+      "--find-renames",
+      "--no-color",
+      "--no-ext-diff",
+    ],
+    { emptyOk: true },
+  );
 
   return parseNameStatus(nameStatusOutput);
 }

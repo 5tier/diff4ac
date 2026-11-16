@@ -41,16 +41,19 @@ export async function diffFor(
   }
 
   const paths = record.oldPath ? [record.oldPath, record.path] : [record.path];
-  return git.text([
-    "diff",
-    ...rangeArgs(range),
-    "--no-color",
-    "--no-ext-diff",
-    "--find-renames",
-    ...contextArgs(options),
-    "--",
-    ...paths,
-  ]);
+  return git.text(
+    [
+      "diff",
+      ...rangeArgs(range),
+      "--no-color",
+      "--no-ext-diff",
+      "--find-renames",
+      ...contextArgs(options),
+      "--",
+      ...paths,
+    ],
+    { emptyOk: true },
+  );
 }
 
 export interface PairedRenameDiff {

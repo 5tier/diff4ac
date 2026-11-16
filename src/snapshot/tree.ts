@@ -151,13 +151,16 @@ async function commitEntry(
   rev: string,
   path: string,
 ): Promise<TreeRecord | null> {
-  const { stdout } = await git.run([
-    "ls-tree",
-    "-z",
-    rev,
-    "--",
-    path,
-  ]);
+  const { stdout } = await git.run(
+    [
+      "ls-tree",
+      "-z",
+      rev,
+      "--",
+      path,
+    ],
+    { emptyOk: true },
+  );
   return parseLsTree(stdout.toString("utf8"))[0] ?? null;
 }
 
@@ -171,7 +174,7 @@ async function listCommitTree(
   const args = dir
     ? ["ls-tree", "-z", rev, "--", `${dir}/`]
     : ["ls-tree", "-z", rev];
-  const { stdout } = await git.run(args);
+  const { stdout } = await git.run(args, { emptyOk: true });
   const entries = new Map<string, SnapshotTreeEntry>();
 
   for (const record of parseLsTree(stdout.toString("utf8"))) {
@@ -235,14 +238,19 @@ async function listWorktreeTree(
 ): Promise<SnapshotTreeEntry[] | null> {
   const pathArgs = dir ? ["--", `${dir}/`] : [];
   const [tracked, untracked] = await Promise.all([
-    git.text(["ls-files", "--stage", "-z", ...pathArgs]),
-    git.text([
-      "ls-files",
-      "--others",
-      "--exclude-standard",
-      "-z",
-      ...pathArgs,
-    ]),
+    git.text(["ls-files", "--stage", "-z", ...pathArgs], {
+      emptyOk: true,
+    }),
+    git.text(
+      [
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        "-z",
+        ...pathArgs,
+      ],
+      { emptyOk: true },
+    ),
   ]);
 
   const entries = new Map<string, SnapshotTreeEntry>();

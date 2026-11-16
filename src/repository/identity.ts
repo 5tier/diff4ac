@@ -4,9 +4,7 @@ import type { GitGateway } from "../git/gateway";
 
 export async function repositoryIdentity(git: GitGateway): Promise<string> {
   const commonDir = (
-    await git.text(["rev-parse", "--git-common-dir"], {
-      retryOnEmpty: true,
-    })
+    await git.text(["rev-parse", "--git-common-dir"])
   ).trim();
   const absolute = resolve(git.worktreeRoot, commonDir);
 

@@ -499,14 +499,17 @@ export class RepositoryWatcher {
     git: GitGateway,
   ): Promise<string[]> {
     const [tracked, others] = await Promise.all([
-      git.text(["ls-files", "-z"]),
-      git.text([
-        "ls-files",
-        "--others",
-        "--exclude-standard",
-        "--directory",
-        "-z",
-      ]),
+      git.text(["ls-files", "-z"], { emptyOk: true }),
+      git.text(
+        [
+          "ls-files",
+          "--others",
+          "--exclude-standard",
+          "--directory",
+          "-z",
+        ],
+        { emptyOk: true },
+      ),
     ]);
 
     const directories = new Set<string>([""]);
@@ -610,6 +613,7 @@ export class RepositoryWatcher {
         input: `${[...paths, ...newDirectories].join("\0")}\0`,
         allowExitCodes: [0, 1],
         timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+        emptyOk: true,
       });
       if (result.exitCode !== 0) {
         return new Set();
@@ -736,8 +740,11 @@ export class RepositoryWatcher {
     const [status, refs, head] = await Promise.all([
       git.text(["status", "--porcelain=v2", "-z"], {
         timeoutMs: GIT_HEAVY_TIMEOUT_MS,
+        emptyOk: true,
       }),
-      git.text(["for-each-ref", "--format=%(refname) %(objectname)"]),
+      git.text(["for-each-ref", "--format=%(refname) %(objectname)"], {
+        emptyOk: true,
+      }),
       git.run(["rev-parse", "--verify", "HEAD"], {
         allowExitCodes: [0, 128],
       }),

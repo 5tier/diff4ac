@@ -60,7 +60,9 @@ async function commitEntry(
   rev: string,
   path: string,
 ): Promise<TreeRecord | null> {
-  const { stdout } = await git.run(["ls-tree", "-z", rev, "--", path]);
+  const { stdout } = await git.run(["ls-tree", "-z", rev, "--", path], {
+    emptyOk: true,
+  });
   return parseLsTreeExact(stdout.toString("utf8"));
 }
 
@@ -73,13 +75,16 @@ async function worktreeStage(
   git: GitGateway,
   path: string,
 ): Promise<WorktreeStage | null> {
-  const { stdout } = await git.run([
-    "ls-files",
-    "--stage",
-    "-z",
-    "--",
-    path,
-  ]);
+  const { stdout } = await git.run(
+    [
+      "ls-files",
+      "--stage",
+      "-z",
+      "--",
+      path,
+    ],
+    { emptyOk: true },
+  );
   const token = stdout.toString("utf8").split("\0")[0];
   if (!token) {
     return null;
@@ -276,14 +281,17 @@ async function worktreeMember(
   if (await worktreeStage(git, path)) {
     return true;
   }
-  const { stdout } = await git.run([
-    "ls-files",
-    "--others",
-    "--exclude-standard",
-    "-z",
-    "--",
-    path,
-  ]);
+  const { stdout } = await git.run(
+    [
+      "ls-files",
+      "--others",
+      "--exclude-standard",
+      "-z",
+      "--",
+      path,
+    ],
+    { emptyOk: true },
+  );
   return stdout
     .toString("utf8")
     .split("\0")
