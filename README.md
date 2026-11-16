@@ -2,6 +2,8 @@
 
 diff4ac is a keyboard-driven, read-only diff viewer for reviewing changes made by coding agents. It runs as a local CLI and serves a web UI on `127.0.0.1`. You pick a Selection (Pending, a commit, several commits, a branch or a Time Window); diff4ac builds the Change Set, and you read it as a diff or in Code View. It never writes to the Repository, and Review Marks are stored outside it.
 
+![diff4ac showing a branch with commits by Claude Code and a side-by-side diff of Pending changes](docs/screenshot.png)
+
 ## Requirements
 
 - [Bun](https://bun.sh) 1.4.4 or newer
