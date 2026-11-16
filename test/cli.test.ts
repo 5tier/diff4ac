@@ -1,12 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { createTempDirectory } from "./helpers/cleanup";
-import { existsSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { createFixtureRepo } from "./helpers/fixture";
 import { createTempHome } from "./helpers/home";
 
 const PROJECT_ROOT = join(import.meta.dir, "..");
 const CLI = join(PROJECT_ROOT, "src", "cli.ts");
+const PACKAGE_VERSION = (
+  JSON.parse(
+    readFileSync(join(PROJECT_ROOT, "package.json"), "utf8"),
+  ) as { version: string }
+).version;
 
 function waitForOutput(
   stream: ReadableStream<Uint8Array>,
@@ -234,6 +239,84 @@ describe("diff4ac CLI", () => {
         repo.git(["status", "--porcelain=v1", "-z", "--untracked-files=all"]),
       ).toBe(before);
     } finally {
+      repo.dispose();
+      home.dispose();
+    }
+  });
+
+  test("reports the package version in --version and the startup banner", async () => {
+    const home = createTempHome();
+    const versionProc = Bun.spawn({
+      cmd: [process.execPath, CLI, "--version"],
+      cwd: PROJECT_ROOT,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, HOME: home.path },
+    });
+    const versionOut = await new Response(versionProc.stdout).text();
+    expect(await versionProc.exited).toBe(0);
+    expect(versionOut.trim()).toBe(PACKAGE_VERSION);
+
+    const repo = createFixtureRepo();
+    repo.write("src/app.ts", "one\n");
+    repo.commit("initial");
+    const proc = Bun.spawn({
+      cmd: [process.execPath, CLI, repo.root, "--no-open", "--port", "0"],
+      cwd: PROJECT_ROOT,
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, HOME: home.path },
+    });
+    try {
+      const escaped = PACKAGE_VERSION.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const banner = await waitForOutput(
+        proc.stdout,
+        new RegExp(`diff4ac ${escaped}`),
+      );
+      expect(banner[0]).toBe(`diff4ac ${PACKAGE_VERSION}`);
+    } finally {
+      if (proc.exitCode === null) {
+        proc.kill("SIGTERM");
+      }
+      await proc.exited;
+      repo.dispose();
+      home.dispose();
+    }
+  });
+
+  test("names an unwritable install folder and how to fix it", async () => {
+    const repo = createFixtureRepo();
+    repo.write("src/app.ts", "one\n");
+    repo.commit("initial");
+    const home = createTempHome();
+    const install = createTempDirectory("diff4ac-readonly-install-");
+    chmodSync(install, 0o555);
+
+    try {
+      const proc = Bun.spawn({
+        cmd: [process.execPath, CLI, repo.root, "--no-open", "--port", "0"],
+        cwd: PROJECT_ROOT,
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+        env: {
+          ...process.env,
+          HOME: home.path,
+          DIFF4AC_PROJECT_ROOT: install,
+        },
+      });
+
+      const exitCode = await proc.exited;
+      const stderr = await new Response(proc.stderr).text();
+
+      expect(exitCode).toBe(1);
+      expect(stderr).toContain(`cannot build the web UI in ${install}`);
+      expect(stderr).toContain("not writable");
+      expect(stderr).toContain("writable folder");
+    } finally {
+      chmodSync(install, 0o755);
       repo.dispose();
       home.dispose();
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { existsSync, realpathSync } from "node:fs";
+import { accessSync, constants, existsSync, realpathSync } from "node:fs";
 import { join, sep } from "node:path";
 import { parseArgs, UsageError, USAGE } from "./args";
 import { GitGateway, NotAGitRepositoryError } from "./git/gateway";
@@ -20,6 +20,15 @@ function isInside(path: string, root: string): boolean {
   );
 }
 
+function installFolderWritable(path: string): boolean {
+  try {
+    accessSync(path, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function ensureWebBuilt(git: GitGateway): Promise<boolean> {
   if (existsSync(WEB_INDEX)) {
     return true;
@@ -30,6 +39,13 @@ async function ensureWebBuilt(git: GitGateway): Promise<boolean> {
   if (isInside(PROJECT_ROOT, git.worktreeRoot)) {
     console.error(
       `diff4ac: the SPA is not built; run "bun run build" in ${PROJECT_ROOT} first`,
+    );
+    return false;
+  }
+
+  if (!installFolderWritable(PROJECT_ROOT)) {
+    console.error(
+      `diff4ac: cannot build the web UI in ${PROJECT_ROOT}: the install folder is not writable. Reinstall diff4ac into a writable folder, or run the first build as the folder's owner, then try again.`,
     );
     return false;
   }
