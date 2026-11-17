@@ -58,6 +58,7 @@ export type KeyAction =
   | { readonly type: "close-help" }
   | { readonly type: "toggle-code-view" }
   | { readonly type: "code-view-side" }
+  | { readonly type: "code-view-preview" }
   | { readonly type: "code-view-move"; readonly direction: 1 | -1 }
   | { readonly type: "code-view-expand" }
   | { readonly type: "code-view-collapse" }
@@ -565,6 +566,13 @@ export const KEYMAP: readonly KeyBinding[] = [
     key: "b",
     label: "Toggle after / before Snapshot",
     action: { type: "code-view-side" },
+  },
+  {
+    id: "codeView.preview",
+    panel: "code-view",
+    key: "p",
+    label: "Toggle Markdown Code / Preview",
+    action: { type: "code-view-preview" },
   },
   {
     id: "codeView.moveDown",

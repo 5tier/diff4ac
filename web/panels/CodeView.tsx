@@ -8,6 +8,7 @@ import type {
 import { visibleFolderTreeRows } from "../../shared/folder-tree";
 import type { KeyBinding } from "../../shared/keymap";
 import { setReviewMark, snapshotRawUrl } from "../api";
+import { isMarkdownPath } from "../markdown-html";
 import type { AppAction, AppState } from "../state/app-state";
 import {
   changeFileForPath,
@@ -60,6 +61,7 @@ export function CodeView({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchIndex, setSearchIndex] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [markdownPreview, setMarkdownPreview] = useState(false);
   const [jump, setJump] = useState<{ line: number; nonce: number } | null>(
     null,
   );
@@ -123,6 +125,9 @@ export function CodeView({
     ? snapshotRawUrl(snapshot.target, state.codeViewSide, state.codeViewOpenPath)
     : null;
   const searchMatches = codeSearchMatches(currentFile?.text, searchQuery);
+  const markdownOpen =
+    state.codeViewOpenPath !== null &&
+    isMarkdownPath(state.codeViewOpenPath);
 
   useCodeViewMemory({
     selection: changeSetSelection ?? state.selection,
@@ -283,6 +288,10 @@ export function CodeView({
     searchMatchCount: searchMatches.length,
     searchOpen,
     helpOpen,
+    markdownOpen,
+    markdownPreview,
+    onShowCode: () => setMarkdownPreview(false),
+    onTogglePreview: () => setMarkdownPreview((current) => !current),
     paneRef,
     lineRef,
     changedPaths,
@@ -393,6 +402,13 @@ export function CodeView({
         initialLine={state.codeViewLine}
         jumpLine={jump}
         paneRef={paneRef}
+        preview={markdownOpen && markdownPreview}
+        snapshotTarget={snapshot.target}
+        onShowCode={() => setMarkdownPreview(false)}
+        onShowPreview={() => setMarkdownPreview(true)}
+        onOpenFile={(nextPath) => {
+          void reveal(nextPath);
+        }}
         onLoadFull={() => {
           appDispatch({ type: "code-view-full", full: true });
         }}

@@ -93,6 +93,7 @@ Press `?` in the app for the full, panel-specific list. These are the main keys:
 | `T` | Toggle the folder tree |
 | `o` | Toggle Code View |
 | `b` | Code View: switch after / before Snapshot |
+| `p` | Toggle Markdown Code / Preview (Code View) |
 | `Ctrl+P` | Find file (Code View) |
 | `D` | Cycle the theme |
 | `?` | Show keybindings |

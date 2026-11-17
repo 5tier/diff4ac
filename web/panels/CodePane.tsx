@@ -5,6 +5,9 @@ import type {
   SnapshotFile,
   SnapshotSide,
 } from "../../shared/types";
+import type { FileRequestContext } from "../api";
+import { isMarkdownPath } from "../markdown-html";
+import { MarkdownPreview } from "./MarkdownPreview";
 import type { ChangeOverview, OverviewMark } from "../../shared/diff/overview";
 import { ROW_HEIGHT } from "../DiffView";
 import {
@@ -155,6 +158,11 @@ export function CodePane({
   initialLine,
   jumpLine,
   paneRef,
+  preview,
+  snapshotTarget,
+  onShowCode,
+  onShowPreview,
+  onOpenFile,
   onLoadFull,
   onToggleMark,
   onLineChange,
@@ -172,6 +180,11 @@ export function CodePane({
   readonly initialLine: number;
   readonly jumpLine: { readonly line: number; readonly nonce: number } | null;
   readonly paneRef: RefObject<HTMLElement | null>;
+  readonly preview: boolean;
+  readonly snapshotTarget: FileRequestContext;
+  readonly onShowCode: () => void;
+  readonly onShowPreview: () => void;
+  readonly onOpenFile: (path: string) => void;
   readonly onLoadFull: () => void;
   readonly onToggleMark: () => void;
   readonly onLineChange: (line: number) => void;
@@ -294,6 +307,29 @@ export function CodePane({
             </span>
           </div>
 
+          {path && isMarkdownPath(path) ? (
+            <div className="code-tabs" data-testid="code-tabs">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!preview}
+                className={preview ? "code-tab" : "code-tab code-tab-active"}
+                onClick={onShowCode}
+              >
+                Code
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={preview}
+                className={preview ? "code-tab code-tab-active" : "code-tab"}
+                onClick={onShowPreview}
+              >
+                Preview
+              </button>
+            </div>
+          ) : null}
+
           {notice ? (
             <div className="code-notice" data-testid="code-notice">
               {notice}
@@ -313,7 +349,15 @@ export function CodePane({
                   deleted in this Selection — showing the before content
                 </div>
               ) : null}
-              {file.kind === "submodule" ? (
+              {preview ? (
+                <MarkdownPreview
+                  text={file.text ?? ""}
+                  path={path ?? file.path}
+                  target={snapshotTarget}
+                  side={side}
+                  onOpenFile={onOpenFile}
+                />
+              ) : file.kind === "submodule" ? (
                 <div className="diff-empty">
                   submodule {file.submoduleOid ?? ""}
                 </div>
@@ -424,7 +468,9 @@ export function CodePane({
         </div>
       )}
       </main>
-      {marks ? <OverviewRuler overview={marks.overview} pane={paneRef} /> : null}
+      {marks && !preview ? (
+        <OverviewRuler overview={marks.overview} pane={paneRef} />
+      ) : null}
     </div>
   );
 }

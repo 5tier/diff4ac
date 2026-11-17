@@ -25,6 +25,10 @@ interface Params {
   readonly searchMatchCount: number;
   readonly searchOpen: boolean;
   readonly helpOpen: boolean;
+  readonly markdownOpen: boolean;
+  readonly markdownPreview: boolean;
+  readonly onShowCode: () => void;
+  readonly onTogglePreview: () => void;
   readonly paneRef: RefObject<HTMLElement | null>;
   readonly lineRef: MutableRefObject<number>;
   readonly changedPaths: readonly string[];
@@ -52,6 +56,10 @@ export function useCodeViewKeyboard({
   searchMatchCount,
   searchOpen,
   helpOpen,
+  markdownOpen,
+  markdownPreview,
+  onShowCode,
+  onTogglePreview,
   paneRef,
   lineRef,
   changedPaths,
@@ -119,7 +127,18 @@ export function useCodeViewKeyboard({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey) {
-        if (event.key.toLowerCase() === "p") {
+        const key = event.key.toLowerCase();
+        if (key === "d" || key === "u") {
+          event.preventDefault();
+          const pane = paneRef.current;
+          pane?.scrollBy({
+            top:
+              (key === "d" ? 1 : -1) *
+              Math.max(120, (pane.clientHeight || 600) * 0.8),
+          });
+          return;
+        }
+        if (key === "p") {
           event.preventDefault();
           appDispatch({ type: "code-view-finder-open" });
         }
@@ -222,8 +241,17 @@ export function useCodeViewKeyboard({
           event.preventDefault();
           toggleMark();
           break;
+        case "p":
+          if (state.codeViewFocus === "code" && markdownOpen) {
+            event.preventDefault();
+            onTogglePreview();
+          }
+          break;
         case "/":
           event.preventDefault();
+          if (markdownOpen && markdownPreview) {
+            onShowCode();
+          }
           setSearchOpen(true);
           break;
         case "?":
@@ -255,8 +283,12 @@ export function useCodeViewKeyboard({
     appDispatch,
     expanded,
     helpOpen,
+    markdownOpen,
+    markdownPreview,
     moveChanged,
     moveChange,
+    onShowCode,
+    onTogglePreview,
     openRow,
     paneRef,
     refreshRepository,

@@ -385,6 +385,8 @@ describe("Code View", () => {
       waitForSelector: ".commit-row",
     });
     session.page.setDefaultTimeout(60_000);
+    const pageErrors: string[] = [];
+    session.page.on("pageerror", (error) => pageErrors.push(error.message));
 
     const errors: string[] = [];
     const beforeRequests: string[] = [];
@@ -492,6 +494,244 @@ describe("Code View", () => {
     expect(
       await session.locator(".file-row", { hasText: "src/alpha.ts" }).count(),
     ).toBeGreaterThan(0);
+  }, 60_000);
+
+  test("previews Markdown with GFM, highlighted code, images and links", async () => {
+    const repo = createFixtureRepo();
+    repo.write("docs/other.md", "# Other\n\nAnother file.\n");
+    repo.write(
+      "docs/pixel.png",
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl6AAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
+    repo.write("docs/guide.md", "# Guide\n\nold\n");
+    repo.commit("seed");
+    repo.write(
+      "docs/guide.md",
+      `# Guide
+
+| A | B |
+| - | - |
+| 1 | 2 |
+
+- [x] done
+
+\`\`\`ts
+export const answer: number = 42;
+\`\`\`
+
+![pixel](./pixel.png)
+
+[Other](other.md)
+
+<img src="pixel.png" alt="inline" onerror="window.__pwned = 2">
+<script>window.__pwned = 1</script>
+[bad](javascript:alert(1))
+<form action="/x"><input></form>
+<div style="color:red">styled</div>
+![remote](https://example.com/x.png)
+![escape](../../secret.png)
+
+${"filler\n\n".repeat(80)}
+<h2 id="50%-off">Percent</h2>
+<h2 id="back\\slash">Backslash</h2>
+<a id="percent-anchor" href="#50%-off">percent anchor</a>
+<a id="back-anchor" href="#back\\slash">backslash anchor</a>
+`,
+    );
+    repo.commit("markdown");
+
+    const session = await startBrowserSession(repo, {
+      waitForSelector: ".commit-row",
+    });
+    session.page.setDefaultTimeout(60_000);
+    const pageErrors: string[] = [];
+    session.page.on("pageerror", (error) => pageErrors.push(error.message));
+    await session.page.keyboard.press("3");
+    await session.page.locator(".commit-row", { hasText: "markdown" }).click();
+    await session.page.waitForFunction(() =>
+      document
+        .querySelector(".top-bar-mode")
+        ?.textContent?.startsWith("Commit"),
+    );
+    await session.page
+      .locator(".file-row", { hasText: "docs/guide.md" })
+      .waitFor();
+    await session.page
+      .locator(".file-row", { hasText: "docs/guide.md" })
+      .click();
+    await session.page.keyboard.press("o");
+    await session.page.waitForSelector('[data-testid="code-view"]');
+    await session.page.waitForFunction(() =>
+      document
+        .querySelector('[data-testid="code-heading"]')
+        ?.textContent?.includes("docs/guide.md"),
+    );
+
+    expect(
+      await session.page
+        .locator('[role="tab"]')
+        .filter({ hasText: "Code" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+
+    await session.page.keyboard.press("p");
+    await session.page.waitForSelector('[data-testid="markdown-preview"]');
+    expect(
+      await session.page
+        .locator('[role="tab"]')
+        .filter({ hasText: "Preview" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+
+    await session.page
+      .locator('[role="tab"]')
+      .filter({ hasText: "Code" })
+      .click();
+    await session.page.waitForSelector(".code-lines");
+    expect(
+      await session.page
+        .locator('[role="tab"]')
+        .filter({ hasText: "Code" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    await session.page
+      .locator('[role="tab"]')
+      .filter({ hasText: "Preview" })
+      .click();
+    await session.page.waitForSelector('[data-testid="markdown-preview"]');
+
+    await session.page.waitForFunction(() => {
+      const image = document.querySelector<HTMLImageElement>(
+        '.markdown-preview img[alt="pixel"]',
+      );
+      return image !== null && image.complete && image.naturalWidth > 0;
+    });
+    const imageSrc = await session.page
+      .locator('.markdown-preview img[alt="pixel"]')
+      .getAttribute("src");
+    expect(imageSrc).toContain("/api/snapshot/raw");
+    expect(imageSrc).toContain("path=docs%2Fpixel.png");
+    expect(
+      await session.page.locator(".markdown-preview table").textContent(),
+    ).toContain("1");
+    await session.page.waitForFunction(() => {
+      const colours = new Set(
+        Array.from(
+          document.querySelectorAll(
+            ".markdown-preview pre code .syntax-token",
+          ),
+        ).map((span) => getComputedStyle(span).color),
+      );
+      return colours.size > 1;
+    });
+
+    expect(
+      await session.page.evaluate(() => {
+        const preview = document.querySelector(".markdown-preview");
+        return {
+          pwned: (globalThis as { __pwned?: number }).__pwned ?? null,
+          scripts: preview?.querySelectorAll("script").length ?? 0,
+          forms: preview?.querySelectorAll("form").length ?? 0,
+          handlers: preview?.querySelectorAll("[onerror]").length ?? 0,
+          styles:
+            preview?.querySelectorAll(
+              '[style]:not(.syntax-token), style',
+            ).length ?? 0,
+          javascript: Array.from(preview?.querySelectorAll("a") ?? []).some(
+            (anchor) =>
+              (anchor.getAttribute("href") ?? "")
+                .toLowerCase()
+                .startsWith("javascript:"),
+          ),
+          remoteImages: Array.from(
+            preview?.querySelectorAll("img") ?? [],
+          ).some((image) =>
+            (image.getAttribute("src") ?? "").includes("example.com"),
+          ),
+          escapeText:
+            preview?.textContent?.includes("escape") ?? false,
+          remoteText:
+            preview?.textContent?.includes("remote") ?? false,
+        };
+      }),
+    ).toEqual({
+      pwned: null,
+      scripts: 0,
+      forms: 0,
+      handlers: 0,
+      styles: 0,
+      javascript: false,
+      remoteImages: false,
+      escapeText: true,
+      remoteText: true,
+    });
+
+    expect(
+      await session.page
+        .locator("#percent-anchor")
+        .getAttribute("data-anchor-id"),
+    ).toBe("50%-off");
+    expect(
+      await session.page
+        .locator("#back-anchor")
+        .getAttribute("data-anchor-id"),
+    ).toBe("back\\slash");
+    await session.page
+      .locator(".markdown-preview a", { hasText: "percent anchor" })
+      .click();
+    await session.page.waitForFunction(
+      () => (document.querySelector(".code-pane")?.scrollTop ?? 0) > 0,
+    );
+    await session.page
+      .locator(".markdown-preview a", { hasText: "backslash anchor" })
+      .click();
+    await session.page.waitForFunction(() =>
+      Array.from(document.querySelectorAll(".markdown-preview [id]")).some(
+        (element) => element.id === "back\\slash",
+      ),
+    );
+    expect(pageErrors).toEqual([]);
+
+    await session.page.locator(".markdown-preview a", { hasText: "Other" }).click();
+    await session.page.waitForFunction(() =>
+      document
+        .querySelector('[data-testid="code-heading"]')
+        ?.textContent?.includes("docs/other.md"),
+    );
+    await session.page.waitForSelector('[data-testid="markdown-preview"]');
+    expect(
+      await session.page
+        .locator('[role="tab"]')
+        .filter({ hasText: "Preview" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+
+    await session.page.keyboard.press("b");
+    await session.page.waitForFunction(() =>
+      document
+        .querySelector('[data-testid="code-view-status"]')
+        ?.textContent?.includes("before"),
+    );
+    expect(
+      await session.page
+        .locator('[role="tab"]')
+        .filter({ hasText: "Preview" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    await session.page.waitForSelector('[data-testid="markdown-preview"]');
+
+
+    await session.page.keyboard.press("/");
+    await session.page.waitForSelector(".code-search-bar");
+    expect(
+      await session.page
+        .locator('[role="tab"]')
+        .filter({ hasText: "Code" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
   }, 60_000);
 
   test("returns to the review layout unchanged with o", async () => {
