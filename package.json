@@ -1,6 +1,6 @@
 {
   "name": "diff4ac",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A read-only, keyboard-driven diff viewer for reviewing changes made by coding agents.",
   "private": true,
   "type": "module",
