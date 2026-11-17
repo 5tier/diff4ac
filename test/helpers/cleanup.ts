@@ -9,7 +9,7 @@ const RUN_ID = `${process.pid.toString(36)}-${Math.random()
 /** Every temp directory created by this test process carries this prefix. */
 export const TEMP_RUN_PREFIX = `diff4ac-${RUN_ID}-`;
 
-type Cleanup = () => void;
+type Cleanup = () => void | Promise<void>;
 
 const cleanups: Cleanup[] = [];
 const suiteCleanups: Cleanup[] = [];
@@ -48,39 +48,41 @@ export function beginTestCleanupScope(): void {
   testCleanupStart = cleanups.length;
 }
 
-function runFrom(start: number): void {
+async function runFrom(start: number): Promise<void> {
   for (let index = cleanups.length - 1; index >= start; index--) {
     const cleanup = cleanups[index];
     if (!cleanup) {
       continue;
     }
     try {
-      cleanup();
-    } catch {
-      // Best effort: one broken fixture must not hide the others.
+      await cleanup();
+    } catch (error) {
+      // One broken cleanup must not hide the others.
+      console.error("diff4ac: test cleanup failed", error);
     }
   }
   cleanups.splice(start);
 }
 
-/** Run only resources created by the just-finished test. */
-export function cleanupTest(): void {
-  runFrom(testCleanupStart);
+/** Run only resources created by the just-finished test, in reverse order. */
+export async function cleanupTest(): Promise<void> {
+  await runFrom(testCleanupStart);
   testCleanupStart = 0;
 }
 
-/** Run every remaining cleanup, including suite-scoped fixtures. */
-export function cleanupAll(): void {
-  runFrom(0);
+/** Run every remaining cleanup, including awaited suite-scoped work. */
+export async function cleanupAll(): Promise<void> {
+  await runFrom(0);
   for (let index = suiteCleanups.length - 1; index >= 0; index--) {
     const cleanup = suiteCleanups[index];
     if (!cleanup) {
       continue;
     }
     try {
-      cleanup();
-    } catch {
-      // Best effort.
+      await cleanup();
+    } catch (error) {
+      // A failing close must not hide the other cleanups.
+      console.error("diff4ac: suite cleanup failed", error);
     }
   }
   suiteCleanups.length = 0;

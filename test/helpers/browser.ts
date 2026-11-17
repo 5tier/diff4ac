@@ -72,8 +72,9 @@ export function launchChromium(): Promise<Browser> {
   if (!browserPromise) {
     browserPromise = createChromium();
     const promise = browserPromise;
-    registerSuiteCleanup(() => {
-      void promise.then((browser) => browser.close()).catch(() => {});
+    registerSuiteCleanup(async () => {
+      const browser = await promise;
+      await browser.close();
     });
   }
   return browserPromise;
@@ -165,9 +166,9 @@ export async function startBrowserSession(
   const page = await context.newPage();
   await page.goto(fixture.running.url);
   await page.waitForSelector(options.waitForSelector ?? ".file-row");
-  registerCleanup(() => {
-    void page.close().catch(() => {});
-    void context.close().catch(() => {});
+  registerCleanup(async () => {
+    await page.close().catch(() => {});
+    await context.close().catch(() => {});
   });
   return {
     fixture,

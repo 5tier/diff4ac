@@ -10,7 +10,7 @@ beforeEach(beginTestCleanupScope);
 
 afterEach(cleanupTest);
 
-afterAll(() => {
-  cleanupAll();
+afterAll(async () => {
+  await cleanupAll();
   assertNoTempDirectoryLeaks();
 });
