@@ -18,7 +18,7 @@ bun add -g github:5tier/diff4ac
 Pin a release:
 
 ```sh
-bun add -g github:5tier/diff4ac#v0.1.2
+bun add -g github:5tier/diff4ac#v0.1.3
 ```
 
 Private repository over SSH:
